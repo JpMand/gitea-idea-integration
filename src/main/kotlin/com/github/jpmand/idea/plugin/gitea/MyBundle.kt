@@ -1,4 +1,4 @@
-package com.github.jpmand.giteaideaintegration
+package com.github.jpmand.idea.plugin.gitea
 
 import com.intellij.DynamicBundle
 import org.jetbrains.annotations.NonNls

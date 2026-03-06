@@ -1,4 +1,4 @@
-package com.github.jpmand.giteaideaintegration.startup
+package com.github.jpmand.idea.plugin.gitea.startup
 
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project

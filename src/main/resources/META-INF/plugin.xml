@@ -1,15 +1,24 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
-    <id>com.github.jpmand.giteaideaintegration</id>
-    <name>gitea-idea-integration</name>
-    <vendor>jpmand</vendor>
+    <id>com.github.jpmand.idea.plugin.gitea</id>
+    <name>Gitea</name>
+    <vendor>JpMand</vendor>
+    <version>0.0.1</version>
+    <idea-version since-build="252"/>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends>Git4Idea</depends>
 
     <resource-bundle>messages.MyBundle</resource-bundle>
 
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow factoryClass="com.github.jpmand.giteaideaintegration.toolWindow.MyToolWindowFactory" id="MyToolWindow"/>
-        <postStartupActivity implementation="com.github.jpmand.giteaideaintegration.startup.MyProjectActivity" />
+        <toolWindow factoryClass="com.github.jpmand.idea.plugin.gitea.toolWindow.MyToolWindowFactory" id="MyToolWindow"/>
+        <postStartupActivity implementation="com.github.jpmand.idea.plugin.gitea.startup.MyProjectActivity" />
+        <applicationService serviceImplementation="com.github.jpmand.idea.plugin.gitea.authentication.account.GitePersistentAccounts"/>
+        <applicationService serviceImplementation="com.github.jpmand.idea.plugin.gitea.util.GiteaSettings"/>
+    </extensions>
+
+    <extensions defaultExtensionNs="Git4Idea">
+
     </extensions>
 </idea-plugin>

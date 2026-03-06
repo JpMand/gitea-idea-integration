@@ -1,4 +1,4 @@
-package com.github.jpmand.giteaideaintegration
+package com.github.jpmand.idea.plugin.gitea
 
 import com.intellij.ide.highlighter.XmlFileType
 import com.intellij.openapi.components.service
@@ -6,7 +6,7 @@ import com.intellij.psi.xml.XmlFile
 import com.intellij.testFramework.TestDataPath
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.util.PsiErrorElementUtil
-import com.github.jpmand.giteaideaintegration.services.MyProjectService
+import com.github.jpmand.idea.plugin.gitea.services.MyProjectService
 
 @TestDataPath("\$CONTENT_ROOT/src/test/testData")
 class MyPluginTest : BasePlatformTestCase() {

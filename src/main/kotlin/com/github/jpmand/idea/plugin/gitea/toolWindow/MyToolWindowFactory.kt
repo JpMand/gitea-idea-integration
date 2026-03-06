@@ -1,4 +1,4 @@
-package com.github.jpmand.giteaideaintegration.toolWindow
+package com.github.jpmand.idea.plugin.gitea.toolWindow
 
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.thisLogger
@@ -8,8 +8,8 @@ import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.content.ContentFactory
-import com.github.jpmand.giteaideaintegration.MyBundle
-import com.github.jpmand.giteaideaintegration.services.MyProjectService
+import com.github.jpmand.idea.plugin.gitea.MyBundle
+import com.github.jpmand.idea.plugin.gitea.services.MyProjectService
 import javax.swing.JButton
 
 

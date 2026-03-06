@@ -1,9 +1,9 @@
-package com.github.jpmand.giteaideaintegration.services
+package com.github.jpmand.idea.plugin.gitea.services
 
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
-import com.github.jpmand.giteaideaintegration.MyBundle
+import com.github.jpmand.idea.plugin.gitea.MyBundle
 
 @Service(Service.Level.PROJECT)
 class MyProjectService(project: Project) {
