@@ -1,32 +1,37 @@
 package com.github.jpmand.idea.plugin.gitea.authentication.account
 
 import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
+import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil.SERVICE_NAME
+import com.intellij.collaboration.auth.AccountManager
 import com.intellij.collaboration.auth.AccountManagerBase
 import com.intellij.collaboration.auth.AccountsRepository
 import com.intellij.collaboration.auth.CredentialsRepository
+import com.intellij.collaboration.auth.ObservableAccountsRepository
 import com.intellij.collaboration.auth.PasswordSafeCredentialsRepository
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
 
-@Service
-class GiteaAccountManager : AccountManagerBase<GiteaAccount, String>(logger<GiteaAccountManager>()), Disposable {
+interface GiteaAccountManager : AccountManager<GiteaAccount, String> {
+  fun isAccountUnique(server: GiteaServerPath, accountName: String): Boolean
+}
 
-  override fun accountsRepository(): AccountsRepository<GiteaAccount> = service<GitePersistentAccounts>()
+class PersistentGiteaAccountManager :
+  GiteaAccountManager,
+  AccountManagerBase<GiteaAccount, String>(logger<GiteaAccountManager>()) {
+
+  override fun accountsRepository(): ObservableAccountsRepository<GiteaAccount> = service<GitePersistentAccounts>()
 
   override fun credentialsRepository(): CredentialsRepository<GiteaAccount, String> =
-    PasswordSafeCredentialsRepository("Gitea", PasswordSafeCredentialsRepository.CredentialsMapper.Simple)
+    PasswordSafeCredentialsRepository(
+      SERVICE_NAME,
+      PasswordSafeCredentialsRepository.CredentialsMapper.Simple
+    )
 
-  companion object {
-    fun createAccount(name: String, server: GiteaServerPath) = GiteaAccount(name, server)
-  }
-
-  override fun dispose() = Unit
-
-  fun isAccountUnique(server: GiteaServerPath, accountName: String): Boolean {
+  override fun isAccountUnique(server: GiteaServerPath, accountName: String): Boolean {
     return accountsState.value.none { account: GiteaAccount ->
-        account.server.equals(server, false) && account.name == accountName
-      }
+      account.server.equals(server, false) && account.name == accountName
+    }
   }
 }

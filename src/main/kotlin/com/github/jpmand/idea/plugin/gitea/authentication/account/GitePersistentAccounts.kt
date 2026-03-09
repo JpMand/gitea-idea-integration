@@ -1,23 +1,37 @@
 package com.github.jpmand.idea.plugin.gitea.authentication.account
 
-import com.intellij.collaboration.auth.AccountsRepository
+import com.intellij.collaboration.auth.ObservableAccountsRepository
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.SettingsCategory
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
+import kotlinx.coroutines.flow.MutableStateFlow
 
-@State(name = "GiteaAccounts", storages = [Storage("gitea.xml")], reportStatistic = false, category = SettingsCategory.TOOLS)
-class GitePersistentAccounts : AccountsRepository<GiteaAccount>, PersistentStateComponent<GiteaAccount> {
+@State(
+    name = "GiteaAccounts",
+    storages = [Storage("gitea.xml")],
+    reportStatistic = false,
+    category = SettingsCategory.TOOLS
+)
+class GitePersistentAccounts : ObservableAccountsRepository<GiteaAccount>,
+    PersistentStateComponent<Array<GiteaAccount>> {
 
-  override var accounts: Set<GiteaAccount>
-    get() = TODO("Not yet implemented")
-    set(value) {}
+    override var accounts: Set<GiteaAccount>
+        get() = accountsFlow.value
+        set(value) {
+            accountsFlow.value = value
+        }
 
-  override fun getState(): GiteaAccount? {
-    TODO("Not yet implemented")
-  }
+    override val accountsFlow = MutableStateFlow(emptySet<GiteaAccount>())
 
-  override fun loadState(state: GiteaAccount) {
-    TODO("Not yet implemented")
-  }
+    override fun getState(): Array<GiteaAccount> = accountsFlow.value.toTypedArray()
+
+    override fun loadState(state: Array<GiteaAccount>) {
+        accountsFlow.value = state.toSet()
+    }
+
+    override fun noStateLoaded() {
+        loadState(emptyArray())
+    }
+
 }

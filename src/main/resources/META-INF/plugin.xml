@@ -4,21 +4,16 @@
     <name>Gitea</name>
     <vendor>JpMand</vendor>
     <version>0.0.1</version>
-    <idea-version since-build="252"/>
+    <idea-version since-build="253"/>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>Git4Idea</depends>
 
-    <resource-bundle>messages.MyBundle</resource-bundle>
+    <resource-bundle>messages.GiteaBundle</resource-bundle>
 
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow factoryClass="com.github.jpmand.idea.plugin.gitea.toolWindow.MyToolWindowFactory" id="MyToolWindow"/>
-        <postStartupActivity implementation="com.github.jpmand.idea.plugin.gitea.startup.MyProjectActivity" />
         <applicationService serviceImplementation="com.github.jpmand.idea.plugin.gitea.authentication.account.GitePersistentAccounts"/>
         <applicationService serviceImplementation="com.github.jpmand.idea.plugin.gitea.util.GiteaSettings"/>
     </extensions>
 
-    <extensions defaultExtensionNs="Git4Idea">
-
-    </extensions>
 </idea-plugin>

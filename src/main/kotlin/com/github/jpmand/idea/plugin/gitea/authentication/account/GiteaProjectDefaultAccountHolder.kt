@@ -1,9 +1,9 @@
 package com.github.jpmand.idea.plugin.gitea.authentication.account
 
+import com.intellij.collaboration.async.childScope
 import com.intellij.collaboration.auth.PersistentDefaultAccountHolder
 import com.intellij.openapi.components.*
 import com.intellij.openapi.project.Project
-import com.intellij.platform.util.coroutines.childScope
 import kotlinx.coroutines.CoroutineScope
 
 @Service(Service.Level.PROJECT)
@@ -11,7 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 class GiteaProjectDefaultAccountHolder(project: Project, parentCs: CoroutineScope) :
   PersistentDefaultAccountHolder<GiteaAccount>(
     project,
-    parentCs.childScope(GiteaProjectDefaultAccountHolder::javaClass.name)
+    parentCs.childScope(GiteaProjectDefaultAccountHolder::class)
   ) {
   override fun accountManager() = service<GiteaAccountManager>()
   override fun notifyDefaultAccountMissing() {

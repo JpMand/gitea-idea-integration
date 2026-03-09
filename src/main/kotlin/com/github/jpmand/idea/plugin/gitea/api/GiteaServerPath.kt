@@ -37,7 +37,30 @@ class GiteaServerPath(useHttp: Boolean?, host: String, port: Int?, path: String?
   @Nullable
   fun getPath(): String? = myPath
 
+
+  companion object{
+    val DEFAULT_SERVER = GiteaServerPath(false, "localhost", -1, null)
+    val DEFAULT_API_PREFIX = "/api/v1"
+
+
+    @JvmStatic
+    fun from(url: String): GiteaServerPath {
+      val uri = URI(url)
+      val useHttp = when (uri.scheme) {
+        URLUtil.HTTP_PROTOCOL -> true
+        URLUtil.HTTPS_PROTOCOL -> false
+        else -> throw IllegalArgumentException("Unsupported protocol: ${uri.scheme}")
+      }
+      return GiteaServerPath(useHttp, uri.host, uri.port, uri.path)
+    }
+  }
+
   override fun toString(): String = toURI().toString()
+
+  fun toAccessTokenUrl(): String {
+    val instanceUrl = toString().trim('/')
+    return "$instanceUrl/user/settings/applications"
+  }
 
   override fun equals(other: Any?): Boolean {
     if (this === other) return true
