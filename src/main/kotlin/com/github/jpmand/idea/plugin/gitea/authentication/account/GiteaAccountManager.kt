@@ -4,12 +4,9 @@ import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil.SERVICE_NAME
 import com.intellij.collaboration.auth.AccountManager
 import com.intellij.collaboration.auth.AccountManagerBase
-import com.intellij.collaboration.auth.AccountsRepository
 import com.intellij.collaboration.auth.CredentialsRepository
 import com.intellij.collaboration.auth.ObservableAccountsRepository
 import com.intellij.collaboration.auth.PasswordSafeCredentialsRepository
-import com.intellij.openapi.Disposable
-import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
 

@@ -1,20 +1,30 @@
 package com.github.jpmand.idea.plugin.gitea.util
 
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.components.PersistentStateComponent
+import com.intellij.openapi.components.*
+import kotlinx.serialization.Serializable
 
-class GiteaSettings : PersistentStateComponent<GiteaSettings.State> {
-  var myState = State()
+@Service(Service.Level.APP)
+@State(
+  name = "GiteaSettings",
+  storages = [Storage("gitea.xml")],
+  reportStatistic = false,
+  category = SettingsCategory.TOOLS
+)
+class GiteaSettings : SerializablePersistentStateComponent<GiteaSettings.State>(State()) {
+  @Serializable
+  data class State(
+    val isAutomaticallyMarkAsViewed: Boolean = false
+  )
 
-  override fun getState(): State? = myState
+  var isAutomaticallyMarkAsViewed: Boolean
+    get() = state.isAutomaticallyMarkAsViewed
+    set(value) {
+      updateState { it.copy(isAutomaticallyMarkAsViewed = value) }
+    }
 
-  override fun loadState(state: State) {
-    myState = state
-  }
-  companion object{
-    fun getInstance(): GiteaSettings = ApplicationManager.getApplication().getService<GiteaSettings>(GiteaSettings::class.java)
-  }
-  inner class State {
-
+  companion object {
+    fun getInstance(): GiteaSettings =
+      ApplicationManager.getApplication().service<GiteaSettings>()
   }
 }

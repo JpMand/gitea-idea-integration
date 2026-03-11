@@ -1,6 +1,5 @@
 package com.github.jpmand.idea.plugin.gitea.authentication.extensions
 
-import com.github.jpmand.idea.plugin.gitea.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil.LoginResult
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
@@ -91,7 +90,7 @@ class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
     login: String? = null
   ): LoginResult = withContext(Dispatchers.EDT + ModalityState.any().asContextElement()) {
     val description = "account.choose.git.description: ${url}"
-    val account = TODO("choose account : LoginResult")?: return@withContext LoginResult.Failure
+    val account = TODO("choose account : LoginResult") ?: return@withContext LoginResult.Failure
     val token = accountsWithToken[account]
     if (token == null) {
       TODO("update token")
