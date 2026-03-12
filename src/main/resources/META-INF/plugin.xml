@@ -18,6 +18,10 @@
                             serviceImplementation="com.github.jpmand.idea.plugin.gitea.authentication.account.PersistentGiteaAccountManager"/>
         <applicationService serviceInterface="com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager"
                             serviceImplementation="com.github.jpmand.idea.plugin.gitea.api.GiteaApiManagerImpl"/>
+        <projectService serviceImplementation="com.github.jpmand.idea.plugin.gitea.util.GiteaPluginProjectScopeProvider"/>
+        <projectService serviceImplementation="com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaProjectDefaultAccountHolder"/>
+        <projectService serviceImplementation="com.github.jpmand.idea.plugin.gitea.authentication.extensions.GiteaGitAuthenticationFailureManager"/>
+        <projectService serviceImplementation="com.github.jpmand.idea.plugin.gitea.services.GiteaService"/>
         <projectConfigurable parentId="project.propVCSSupport.Mappings" groupWeight="-600"
                              instance="com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable"
                              displayName="Gitea"/>
