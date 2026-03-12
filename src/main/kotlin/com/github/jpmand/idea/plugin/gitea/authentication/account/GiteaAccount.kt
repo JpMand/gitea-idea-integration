@@ -11,6 +11,8 @@ import org.jetbrains.annotations.VisibleForTesting
 
 @Tag("account")
 class GiteaAccount(
+  // @set:Transient prevents IntelliJ BeanBinding from using the inherited setter for XML binding;
+  // @Attribute("name") handles serialization of the backing field directly. Pattern from GithubAccount.
   @set:Transient
   @NlsSafe
   @Attribute("name")

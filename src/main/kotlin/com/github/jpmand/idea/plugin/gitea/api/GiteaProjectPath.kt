@@ -22,7 +22,7 @@ data class GiteaProjectPath(val owner: @NlsSafe String, val name: @NlsSafe Strin
       return extractProjectPath(repoPath)
     }
 
-    fun extractProjectPath(repoPath: String): GiteaProjectPath? {
+    private fun extractProjectPath(repoPath: String): GiteaProjectPath? {
       val lastSep = repoPath.lastIndexOf('/')
       if (lastSep < 0) return null
       val name = repoPath.substringAfterLast('/', "").nullize() ?: return null
