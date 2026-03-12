@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.ui
 
+import com.github.jpmand.idea.plugin.gitea.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaProjectDefaultAccountHolder
@@ -55,7 +56,7 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
       }.resizableRow()
 
       row {
-        checkBox("settings.automatically.mark.as.viewed")
+        checkBox(GiteaBundle.message("settings.automatically.mark.as.viewed"))
           .bindSelected(
             { giteaSettings.isAutomaticallyMarkAsViewed },
             { giteaSettings.isAutomaticallyMarkAsViewed = it })

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import com.intellij.collaboration.auth.AccountDetails
 import com.intellij.collaboration.ui.codereview.user.CodeReviewUser
 import com.intellij.openapi.util.NlsSafe
+import java.util.Date
 
 open class GiteaUser(
   val id: Int,
@@ -12,7 +13,7 @@ open class GiteaUser(
   val email: @NlsSafe String?,
   @JsonProperty("full_name") val fullName: @NlsSafe String?,
   @JsonProperty("html_url") val htmlUrl: String?,
-  @JsonProperty("last_login") val lastLogin: String?
+  @JsonProperty("last_login") val lastLogin: Date?
 ) : AccountDetails, CodeReviewUser {
 
   override val name: String

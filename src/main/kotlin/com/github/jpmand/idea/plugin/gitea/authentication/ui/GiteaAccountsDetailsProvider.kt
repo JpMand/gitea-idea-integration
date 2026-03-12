@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.authentication.ui
 
+import com.github.jpmand.idea.plugin.gitea.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApi
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.api.rest.currentUser
@@ -40,7 +41,7 @@ class GiteaAccountsDetailsProvider(
 
   override suspend fun loadDetails(account: GiteaAccount): Result<GiteaUser> {
     try {
-      val api = apiSupplier(account) ?: return Result.Error("account.token.missing", true)
+      val api = apiSupplier(account) ?: return Result.Error(GiteaBundle.message("account.token.missing"), true)
       val details = runCatchingUser {
         api.currentUser().body()
       }.getOrElse {
