@@ -81,18 +81,39 @@ class GiteaJsonDeSerializerTest {
   }
 
   @Test
-  fun `deserializes last_login date field`() {
+  fun `deserializes last_login date field in utc`() {
     val json = """
       {
         "id": 1,
         "login": "user",
-        "last_login": "2024-01-15T10:30:00.000+00:00"
+        "last_login": "2026-03-12T21:52:10Z"
       }
     """.trimIndent()
 
     val user = deserialize(json, GiteaUserDTO::class.java)
     assertNotNull(user)
     assertNotNull(user!!.lastLogin)
+    println("Deserialized lastLogin: ${user.lastLogin}")
+    assertEquals(user.lastLogin?.date,12)
+    assertEquals(user.lastLogin?.minutes,52)
+  }
+
+  @Test
+  fun `deserializes last_login date field with offset`() {
+    val json = """
+      {
+        "id": 1,
+        "login": "user",
+        "last_login": "2026-03-12T21:52:10+01:00"
+      }
+    """.trimIndent()
+
+    val user = deserialize(json, GiteaUserDTO::class.java)
+    assertNotNull(user)
+    assertNotNull(user!!.lastLogin)
+    println("Deserialized lastLogin: ${user.lastLogin}")
+    assertEquals(user.lastLogin?.date,12)
+    assertEquals(user.lastLogin?.minutes,52)
   }
 
   @Test
@@ -106,7 +127,7 @@ class GiteaJsonDeSerializerTest {
         "full_name": "Test User",
         "avatar_url": "https://gitea.example.com/user/avatar/testuser/-1",
         "html_url": "https://gitea.example.com/testuser",
-        "last_login": "2024-06-01T12:00:00.000+00:00",
+        "last_login": "2026-03-12T21:52:10Z",
         "is_admin": false,
         "restricted": false,
         "active": true
