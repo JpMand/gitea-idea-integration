@@ -1,6 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.api
 
 import com.intellij.collaboration.api.ServerPath
+import com.intellij.collaboration.util.resolveRelative
 import com.intellij.util.io.URLUtil
 import com.intellij.util.xmlb.annotations.Tag
 import org.apache.http.client.utils.URIBuilder
@@ -37,11 +38,11 @@ class GiteaServerPath(useHttp: Boolean?, host: String, port: Int?, path: String?
   @Nullable
   fun getPath(): String? = myPath
 
+  fun restApiUri() : URI = toURI().resolveRelative(DEFAULT_API_PREFIX)
 
   companion object{
     val DEFAULT_SERVER = GiteaServerPath(false, "localhost", -1, null)
-    val DEFAULT_API_PREFIX = "/api/v1"
-
+    val DEFAULT_API_PREFIX = "/api/v1/"
 
     @JvmStatic
     fun from(url: String): GiteaServerPath {

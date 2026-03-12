@@ -1,0 +1,44 @@
+package com.github.jpmand.idea.plugin.gitea.authentication.ui
+
+import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
+import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil
+import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil.LoginResult
+import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
+import com.intellij.collaboration.auth.ui.AccountsPanelActionsController
+import com.intellij.openapi.project.Project
+import com.intellij.ui.awt.RelativePoint
+import com.intellij.util.asSafely
+import javax.swing.JComponent
+
+class GiteaAccountsPanelActionsController(
+  private val project: Project,
+  private val model: GiteaAccountsListModel
+) : AccountsPanelActionsController<GiteaAccount> {
+  override val isAddActionWithPopup: Boolean = false
+
+  override fun addAccount(parentComponent: JComponent, point: RelativePoint?) {
+    val loginResult = GiteLoginUtil.logInViaToken(
+      project,
+      parentComponent,
+      loginSource = "gitea.login.source.settings",
+      uniqueAccountPredicate = ::isAccountUnique
+    )
+      .asSafely<LoginResult.Success>() ?: return
+    model.add(loginResult.account, loginResult.token)
+  }
+
+  override fun editAccount(parentComponent: JComponent, account: GiteaAccount) {
+    val loginResult = GiteLoginUtil.updateToken(
+      project,
+      parentComponent,
+      account,
+      loginSource = "gitea.login.source.settings",
+      uniqueAccountPredicate = ::isAccountUnique
+    )
+      .asSafely<LoginResult.Success>() ?: return
+    model.update(account, loginResult.token)
+  }
+
+  private fun isAccountUnique(server: GiteaServerPath, username: String): Boolean =
+    GiteLoginUtil.isAccountUnique(model.accounts, server, username)
+}

@@ -1,6 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.authentication.extensions
 
 import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
+import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil
 import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil.LoginResult
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager
@@ -71,7 +72,9 @@ class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
     } ?: return LoginResult.OtherMethod
 
     return withContext(Dispatchers.EDT + ModalityState.any().asContextElement()) {
-      TODO("Login via token : LoginResult")
+      GiteLoginUtil.logInViaToken(
+        project, null, server, login, "git", ::isAccountUnique
+      )
     }
   }
 
@@ -80,7 +83,9 @@ class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
     account: GiteaAccount,
     login: String? = null
   ): LoginResult = withContext(Dispatchers.EDT + ModalityState.any().asContextElement()) {
-    TODO("update token : LoginResult")
+    GiteLoginUtil.updateToken(
+      project, null, account, login, "git", ::isAccountUnique
+    )
   }
 
   private suspend fun GiteaAccountManager.selectAccountAndLogin(
@@ -89,11 +94,12 @@ class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
     url: String,
     login: String? = null
   ): LoginResult = withContext(Dispatchers.EDT + ModalityState.any().asContextElement()) {
-    val description = "account.choose.git.description: ${url}"
-    val account = TODO("choose account : LoginResult") ?: return@withContext LoginResult.Failure
+    val description = "account.choose.git.description"
+    val account = GiteLoginUtil.chooseAccount(project, null, description, accountsWithToken.keys)
+      ?: return@withContext LoginResult.Failure
     val token = accountsWithToken[account]
     if (token == null) {
-      TODO("update token")
+      GiteLoginUtil.updateToken(project, null, account, login, "git", ::isAccountUnique)
     } else {
       LoginResult.Success(account, token)
     }

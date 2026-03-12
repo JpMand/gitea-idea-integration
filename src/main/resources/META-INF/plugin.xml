@@ -16,6 +16,15 @@
         <applicationService serviceImplementation="com.github.jpmand.idea.plugin.gitea.util.GiteaSettings"/>
         <applicationService serviceInterface="com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager"
                             serviceImplementation="com.github.jpmand.idea.plugin.gitea.authentication.account.PersistentGiteaAccountManager"/>
+        <applicationService serviceInterface="com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager"
+                            serviceImplementation="com.github.jpmand.idea.plugin.gitea.api.GiteaApiManagerImpl"/>
+        <projectConfigurable parentId="project.propVCSSupport.Mappings" groupWeight="-600"
+                             instance="com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable"
+                             displayName="Gitea"/>
+    </extensions>
+    <extensions defaultExtensionNs="Git4Idea">
+        <GitHttpAuthDataProvider id="Gitea"
+                                 implementation="com.github.jpmand.idea.plugin.gitea.authentication.extensions.GiteaHttpAuthDataProvider"/>
     </extensions>
 
 </idea-plugin>
