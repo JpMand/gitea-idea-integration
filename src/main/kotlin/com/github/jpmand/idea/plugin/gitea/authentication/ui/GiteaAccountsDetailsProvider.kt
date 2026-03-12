@@ -43,7 +43,7 @@ class GiteaAccountsDetailsProvider(
     try {
       val api = apiSupplier(account) ?: return Result.Error(GiteaBundle.message("account.token.missing"), true)
       val details = runCatchingUser {
-        api.currentUser().body()
+        api.currentUser()
       }.getOrElse {
         return Result.Error(it.localizedMessage, false)
       }
