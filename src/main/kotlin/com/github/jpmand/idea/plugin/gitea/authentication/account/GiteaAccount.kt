@@ -6,12 +6,13 @@ import com.intellij.openapi.util.NlsSafe
 import com.intellij.util.xmlb.annotations.Attribute
 import com.intellij.util.xmlb.annotations.Property
 import com.intellij.util.xmlb.annotations.Tag
+import com.intellij.util.xmlb.annotations.Transient
 import org.jetbrains.annotations.VisibleForTesting
 
 @Tag("account")
 class GiteaAccount(
-  @Transient
-  @param:NlsSafe
+  @set:Transient
+  @NlsSafe
   @Attribute("name")
   override var name: String = "",
   @Property(style = Property.Style.ATTRIBUTE, surroundWithTag = false)

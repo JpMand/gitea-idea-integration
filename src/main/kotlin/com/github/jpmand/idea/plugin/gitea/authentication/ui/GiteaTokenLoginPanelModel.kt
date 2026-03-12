@@ -28,7 +28,7 @@ class GiteaTokenLoginPanelModel(
     val server = createServerPath(serverUri)
     val api = service<GiteaApiManager>().getClient(server, token)
     val user = withContext(Dispatchers.IO) {
-      api.currentUser().body()
+      api.currentUser()
     }
     val username = user.name
     val _requiredUsername = requiredUsername

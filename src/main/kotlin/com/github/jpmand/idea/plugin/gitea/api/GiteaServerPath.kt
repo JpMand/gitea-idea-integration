@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.api
 import com.intellij.collaboration.api.ServerPath
 import com.intellij.collaboration.util.resolveRelative
 import com.intellij.util.io.URLUtil
+import com.intellij.util.xmlb.annotations.Attribute
 import com.intellij.util.xmlb.annotations.Tag
 import org.apache.http.client.utils.URIBuilder
 import org.jetbrains.annotations.NotNull
@@ -12,11 +13,19 @@ import java.net.URI
 @Tag("Server")
 class GiteaServerPath(useHttp: Boolean?, host: String, port: Int?, path: String?) : ServerPath {
 
-  constructor() : this(false, "localhost", -1, null)
+  /** No-arg constructor required by IntelliJ's XML deserializer. Fields are populated via reflection. */
+  constructor() : this(null, "", null, null)
 
+  @field:Attribute("useHttp")
   private val myUseHttp: Boolean = useHttp ?: false
+
+  @field:Attribute("host")
   private val myHost: String = host
+
+  @field:Attribute("port")
   private val myPort: Int = port ?: -1
+
+  @field:Attribute("path")
   private val myPath: String? = path
 
   override fun toURI(): URI = URIBuilder().apply {
@@ -52,7 +61,8 @@ class GiteaServerPath(useHttp: Boolean?, host: String, port: Int?, path: String?
         URLUtil.HTTPS_PROTOCOL -> false
         else -> throw IllegalArgumentException("Unsupported protocol: ${uri.scheme}")
       }
-      return GiteaServerPath(useHttp, uri.host, uri.port, uri.path)
+      val path = uri.path.takeIf { it.isNotEmpty() }
+      return GiteaServerPath(useHttp, uri.host, uri.port, path)
     }
   }
 
