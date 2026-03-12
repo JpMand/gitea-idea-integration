@@ -57,10 +57,10 @@ class GitePersistentAccountsTest {
     val element = JDOMUtil.load("""
       <component name="GiteaAccounts">
         <account name="alice" id="$id1">
-          <server useHttp="false" host="gitea.example.com" port="-1" />
+          <Server useHttp="false" host="gitea.example.com" port="-1" />
         </account>
         <account name="bob" id="$id2">
-          <server useHttp="false" host="gitea.example.com" port="3000" />
+          <Server useHttp="false" host="gitea.example.com" port="3000" />
         </account>
       </component>
     """.trimIndent())
