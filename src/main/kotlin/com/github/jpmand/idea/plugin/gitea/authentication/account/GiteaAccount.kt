@@ -14,7 +14,7 @@ class GiteaAccount(
   // @set:Transient prevents IntelliJ BeanBinding from using the inherited setter for XML binding;
   // @Attribute("name") handles serialization of the backing field directly. Pattern from GithubAccount.
   @set:Transient
-  @NlsSafe
+  @param:NlsSafe
   @Attribute("name")
   override var name: String = "",
   @Property(style = Property.Style.ATTRIBUTE, surroundWithTag = false)

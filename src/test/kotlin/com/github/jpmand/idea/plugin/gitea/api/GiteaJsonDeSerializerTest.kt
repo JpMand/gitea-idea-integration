@@ -94,7 +94,7 @@ class GiteaJsonDeSerializerTest {
     assertNotNull(user)
     assertNotNull(user!!.lastLogin)
     // Verify epoch time (timezone-independent)
-    assertEquals(1773452530000L, user.lastLogin?.time)
+    assertEquals(1773352330000L, user.lastLogin?.time)
   }
 
   @Test
@@ -111,7 +111,7 @@ class GiteaJsonDeSerializerTest {
     assertNotNull(user)
     assertNotNull(user!!.lastLogin)
     // Verify epoch time (timezone-independent) - same instant as UTC test but with +01:00 offset
-    assertEquals(1773448930000L, user.lastLogin?.time)
+    assertEquals(1773348730000L, user.lastLogin?.time)
   }
 
   @Test

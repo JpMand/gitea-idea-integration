@@ -12,8 +12,7 @@ import java.net.URI
 @Tag("Server")
 class GiteaServerPath(useHttp: Boolean?, host: String, port: Int?, path: String?) : ServerPath {
 
-  /** No-arg constructor required by IntelliJ's XML deserializer. Fields are populated via reflection. */
-  constructor() : this(null, "", null, null)
+  constructor() : this(false, "localhost", -1, null)
 
   @field:Attribute("useHttp")
   private val myUseHttp: Boolean = useHttp ?: false
