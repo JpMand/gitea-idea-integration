@@ -93,9 +93,8 @@ class GiteaJsonDeSerializerTest {
     val user = deserialize(json, GiteaUserDTO::class.java)
     assertNotNull(user)
     assertNotNull(user!!.lastLogin)
-    println("Deserialized lastLogin: ${user.lastLogin}")
-    assertEquals(user.lastLogin?.date,12)
-    assertEquals(user.lastLogin?.minutes,52)
+    // Verify epoch time (timezone-independent)
+    assertEquals(1773452530000L, user.lastLogin?.time)
   }
 
   @Test
@@ -111,9 +110,8 @@ class GiteaJsonDeSerializerTest {
     val user = deserialize(json, GiteaUserDTO::class.java)
     assertNotNull(user)
     assertNotNull(user!!.lastLogin)
-    println("Deserialized lastLogin: ${user.lastLogin}")
-    assertEquals(user.lastLogin?.date,12)
-    assertEquals(user.lastLogin?.minutes,52)
+    // Verify epoch time (timezone-independent) - same instant as UTC test but with +01:00 offset
+    assertEquals(1773448930000L, user.lastLogin?.time)
   }
 
   @Test
