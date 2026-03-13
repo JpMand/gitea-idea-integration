@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.authentication
 
+import com.github.jpmand.idea.plugin.gitea.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaProjectDefaultAccountHolder
@@ -40,10 +41,12 @@ object GiteLoginUtil {
 
   @RequiresEdt
   fun logInViaToken(
-    project: Project, parentComponent: JComponent?,
+    project: Project,
+    parentComponent: JComponent?,
+    loginSource: String? = null,
     uniqueAccountPredicate: (GiteaServerPath, String) -> Boolean
   ): LoginResult =
-    logInViaToken(project, parentComponent, GiteaServerPath.DEFAULT_SERVER, null, null, uniqueAccountPredicate)
+    logInViaToken(project, parentComponent, GiteaServerPath.DEFAULT_SERVER, null, loginSource, uniqueAccountPredicate)
 
   @RequiresEdt
   fun updateToken(
@@ -66,15 +69,13 @@ object GiteLoginUtil {
     val model = GiteaTokenLoginPanelModel(requiredUsername, uniqueAccountPredicate).apply {
       serverUri = serverPath.toURI().toString()
     }
-    val dialogTitle = "account.add.dialog.title"
+    val dialogTitle = GiteaBundle.message("account.add.dialog.title")
     val exitCode = showLoginDialog(project, parentComponent, model, dialogTitle, false)
     return when (exitCode) {
       DialogWrapper.OK_EXIT_CODE -> {
         val loginResult =
           model.loginState.value.asSafely<LoginModel.LoginState.Connected>() ?: return LoginResult.Failure
-        //val loginData = TODO("gitea login data")
-        //TODO("login collector -> login")
-        return LoginResult.Success(
+        LoginResult.Success(
           GiteaAccount(name = loginResult.username, server = model.getServerPath()),
           model.token
         )
@@ -102,12 +103,10 @@ object GiteLoginUtil {
     val model = GiteaTokenLoginPanelModel(requiredUsername, predicateWithoutCurrent).apply {
       serverUri = account.server.toURI().toString()
     }
-    val title = "account.update.dialog.title"
+    val title = GiteaBundle.message("account.update.dialog.title")
     val exitState = showLoginDialog(project, parentComponent, model, title, true)
     val loginState = model.loginState.value
     if (exitState == DialogWrapper.OK_EXIT_CODE && loginState is LoginModel.LoginState.Connected) {
-      //val loginData = TODO(gitea login data)
-      //TODO(Gitealogindata collector -> login)
       return LoginResult.Success(
         GiteaAccount(id = account.id, name = loginState.username, server = model.getServerPath()),
         model.token
@@ -132,7 +131,7 @@ object GiteLoginUtil {
         TokenLoginInputPanelFactory(model).createIn(
           cs,
           serverFieldDisabled,
-          tokenNote = "clone.dialog.insufficient.scopes",
+          tokenNote = GiteaBundle.message("clone.dialog.insufficient.scopes"),
           errorPresenter = GiteaLoginErrorStatusPresenter(cs, model)
         )
       }
@@ -167,7 +166,4 @@ object GiteLoginUtil {
     data object Failure : LoginResult
     data object OtherMethod : LoginResult
   }
-
-
-
 }

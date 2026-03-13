@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.ui
 
+import com.github.jpmand.idea.plugin.gitea.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaProjectDefaultAccountHolder
@@ -7,13 +8,18 @@ import com.github.jpmand.idea.plugin.gitea.authentication.ui.GiteaAccountsDetail
 import com.github.jpmand.idea.plugin.gitea.authentication.ui.GiteaAccountsListModel
 import com.github.jpmand.idea.plugin.gitea.authentication.ui.GiteaAccountsPanelActionsController
 import com.github.jpmand.idea.plugin.gitea.util.GiteaPluginProjectScopeProvider
-import com.github.jpmand.idea.plugin.gitea.util.GiteaSettings
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil.SERVICE_DISPLAY_NAME
 import com.intellij.collaboration.auth.ui.AccountsPanelFactory
 import com.intellij.collaboration.auth.ui.AccountsPanelFactory.Companion.addWarningForMemoryOnlyPasswordSafeAndGet
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.asContextElement
+import com.intellij.openapi.components.SerializablePersistentStateComponent
+import com.intellij.openapi.components.Service
+import com.intellij.openapi.components.SettingsCategory
+import com.intellij.openapi.components.State
+import com.intellij.openapi.components.Storage
 import com.intellij.openapi.components.service
 import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.project.Project
@@ -23,6 +29,8 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.panel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.serialization.Serializable
+import org.jetbrains.annotations.ApiStatus
 
 internal class GiteaSettingsConfigurable internal constructor(private val project: Project) :
   BoundConfigurable(SERVICE_DISPLAY_NAME, "settings.gitea") {
@@ -55,7 +63,7 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
       }.resizableRow()
 
       row {
-        checkBox("settings.automatically.mark.as.viewed")
+        checkBox(GiteaBundle.message("settings.automatically.mark.as.viewed"))
           .bindSelected(
             { giteaSettings.isAutomaticallyMarkAsViewed },
             { giteaSettings.isAutomaticallyMarkAsViewed = it })
@@ -67,5 +75,30 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
         ::panel
       ).align(AlignX.RIGHT)
     }
+  }
+}
+
+@ApiStatus.Internal
+@Service(Service.Level.APP)
+@State(
+  name = "GiteaSettings",
+  storages = [Storage("gitea.xml")],
+  category = SettingsCategory.TOOLS
+)
+class GiteaSettings : SerializablePersistentStateComponent<GiteaSettings.State>(State()) {
+  @Serializable
+  data class State(
+    val isAutomaticallyMarkAsViewed: Boolean = false
+  )
+
+  var isAutomaticallyMarkAsViewed: Boolean
+    get() = state.isAutomaticallyMarkAsViewed
+    set(value) {
+      updateState { it.copy(isAutomaticallyMarkAsViewed = value) }
+    }
+
+  companion object {
+    fun getInstance(): GiteaSettings =
+      ApplicationManager.getApplication().service<GiteaSettings>()
   }
 }

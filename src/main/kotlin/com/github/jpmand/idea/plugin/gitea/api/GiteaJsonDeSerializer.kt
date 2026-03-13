@@ -9,16 +9,16 @@ import com.fasterxml.jackson.databind.MapperFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.databind.introspect.VisibilityChecker
+import com.fasterxml.jackson.databind.util.StdDateFormat
 import com.fasterxml.jackson.module.kotlin.jacksonMapperBuilder
 import com.intellij.collaboration.api.json.JsonDataDeserializer
 import com.intellij.collaboration.api.json.JsonDataSerializer
 import java.io.Reader
-import java.text.SimpleDateFormat
 import java.util.TimeZone
 
 object GiteaJsonDeSerializer : JsonDataSerializer, JsonDataDeserializer {
   private val mapper: ObjectMapper = giteaJacksonMapper()
-    .setDateFormat(SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX"))
+    .setDateFormat(StdDateFormat.instance)
     .setTimeZone(TimeZone.getDefault())
 
   internal fun giteaJacksonMapper(): ObjectMapper =

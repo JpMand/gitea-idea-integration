@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.authentication
 
+import com.github.jpmand.idea.plugin.gitea.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.authentication.ui.GiteaTokenLoginPanelModel
 import com.intellij.collaboration.auth.ui.login.LoginException
 import com.intellij.collaboration.messages.CollaborationToolsBundle
@@ -49,29 +50,26 @@ internal class GiteaLoginErrorStatusPresenter(
   private fun HtmlBuilder.customizeUnsupportedVersionError(
     error: LoginException.UnsupportedServerVersion
   ): HtmlBuilder {
-    val builder = this
-    val text = "server.version.unsupported"
+    val text = GiteaBundle.message("server.version.unsupported")
     val link = HtmlChunk.link(ErrorStatusPresenter.ERROR_ACTION_HREF, CollaborationToolsBundle.message("login.via.git"))
 
-    return builder
+    return this
       .append(text).nbsp()
       .append(link)
   }
 
-
   private fun HtmlBuilder.customizeInvalidTokenOrUnsupportedServerVersionError(
     error: LoginException.InvalidTokenOrUnsupportedServerVersion
   ): HtmlBuilder {
-    val builder = this
-    val text = "invalid.token.or.server.version.unsupported"
+    val text = GiteaBundle.message("invalid.token.or.server.version.unsupported")
     val linkAction = HtmlChunk.link(ErrorStatusPresenter.ERROR_ACTION_HREF, CollaborationToolsBundle.message("login.via.git"))
-    val linkAdditionalText = "invalid.token.or.server.version.unsupported.additional.text"
+    val linkAdditionalText = GiteaBundle.message("invalid.token.or.server.version.unsupported.additional.text")
 
     val linkBuilder = HtmlBuilder()
       .append(linkAction).nbsp()
       .append(linkAdditionalText)
 
-    return builder
+    return this
       .append(text)
       .append(HtmlChunk.p().attr("align", "left").child(linkBuilder.toFragment()))
   }

@@ -15,6 +15,6 @@ class GiteaProjectDefaultAccountHolder(project: Project, parentCs: CoroutineScop
   ) {
   override fun accountManager() = service<GiteaAccountManager>()
   override fun notifyDefaultAccountMissing() {
-    TODO("Not yet implemented")
+
   }
 }

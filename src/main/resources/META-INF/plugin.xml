@@ -13,7 +13,6 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <applicationService serviceImplementation="com.github.jpmand.idea.plugin.gitea.authentication.account.GitePersistentAccounts"/>
-        <applicationService serviceImplementation="com.github.jpmand.idea.plugin.gitea.util.GiteaSettings"/>
         <applicationService serviceInterface="com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager"
                             serviceImplementation="com.github.jpmand.idea.plugin.gitea.authentication.account.PersistentGiteaAccountManager"/>
         <applicationService serviceInterface="com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager"
