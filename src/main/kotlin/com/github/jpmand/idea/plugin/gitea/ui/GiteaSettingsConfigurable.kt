@@ -1,6 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.ui
 
-import com.github.jpmand.idea.plugin.gitea.GiteaBundle
+import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle.message
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaProjectDefaultAccountHolder
@@ -26,12 +26,16 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.RightGap
+import com.intellij.ui.dsl.builder.bindIntText
 import com.intellij.ui.dsl.builder.bindSelected
+import com.intellij.ui.dsl.builder.columns
 import com.intellij.ui.dsl.builder.panel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.serialization.Serializable
 import org.jetbrains.annotations.ApiStatus
 
+@Suppress("UnstableApiUsage")
 internal class GiteaSettingsConfigurable internal constructor(private val project: Project) :
   BoundConfigurable(SERVICE_DISPLAY_NAME, "settings.gitea") {
   override fun createPanel(): DialogPanel {
@@ -63,11 +67,23 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
       }.resizableRow()
 
       row {
-        checkBox(GiteaBundle.message("settings.automatically.mark.as.viewed"))
+        checkBox(message("settings.automatically.mark.as.viewed"))
           .bindSelected(
             { giteaSettings.isAutomaticallyMarkAsViewed },
             { giteaSettings.isAutomaticallyMarkAsViewed = it })
       }
+
+      row {
+        message("settings.connection.timeout")
+        intTextField(range = 0..60)
+          .columns(2)
+          .bindIntText({ giteaSettings.connectionTimeout / 1000 }, { giteaSettings.connectionTimeout = it * 1000 })
+          .gap(RightGap.SMALL)
+        @Suppress("DialogTitleCapitalization")
+        label(message("settings.connection.timeout.seconds"))
+          .gap(RightGap.COLUMNS)
+      }
+
 
       addWarningForMemoryOnlyPasswordSafeAndGet(
         scope,
@@ -88,13 +104,20 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
 class GiteaSettings : SerializablePersistentStateComponent<GiteaSettings.State>(State()) {
   @Serializable
   data class State(
-    val isAutomaticallyMarkAsViewed: Boolean = false
+    val automaticallyMarkAsViewed: Boolean = false,
+    val connectionTimeout: Int = 5_000
   )
 
   var isAutomaticallyMarkAsViewed: Boolean
-    get() = state.isAutomaticallyMarkAsViewed
+    get() = state.automaticallyMarkAsViewed
     set(value) {
-      updateState { it.copy(isAutomaticallyMarkAsViewed = value) }
+      updateState { it.copy(automaticallyMarkAsViewed = value) }
+    }
+
+  var connectionTimeout: Int
+    get() = state.connectionTimeout
+    set(value) {
+      updateState { it.copy(connectionTimeout = value) }
     }
 
   companion object {

@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.withContext
 
+@Suppress("UnstableApiUsage")
 class GiteaTokenLoginPanelModel(
   var requiredUsername: String? = null,
   var uniqueAccountPredicate: (GiteaServerPath, String) -> Boolean
@@ -42,14 +43,9 @@ class GiteaTokenLoginPanelModel(
     return username;
   }
 
-  override fun canGenerateToken(serverUri: String): Boolean {
-    return URIUtil.isValidHttpUri(serverUri)
-  }
+  override fun canGenerateToken(serverUri: String): Boolean = false
 
-  override fun generateToken(serverUri: String) {
-    val newTokenUrl = GiteLoginUtil.buildNewTokenUrl(serverUri)?: return
-    BrowserUtil.browse(newTokenUrl)
-  }
+  override fun generateToken(serverUri: String) = Unit
 
   suspend fun tryGitAuthorization() {
     _tryGitAuthorizationSignal.emit(Unit)

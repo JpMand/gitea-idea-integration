@@ -4,7 +4,10 @@
 
 ## [Unreleased]
 
+## [0.0.1] - 2026-03-13
+
 ### Added
+
 - Initial Gitea integration plugin implementation
 - Token-based authentication for Gitea servers
 - Multiple account support
@@ -29,6 +32,7 @@
 - CI/CD pipeline with automated builds and tests
 
 ### Technical Implementation
+
 - Clean separation between DTO (Data Transfer Objects) and domain models
 - `GiteaUserDTO` for JSON deserialization with Jackson
 - `GiteaUser` as clean domain model implementing `AccountDetails` and `CodeReviewUser`
@@ -45,9 +49,12 @@
   - Git4Idea extension: HTTP auth data provider
 
 ### Fixed
+
 - Sub-path URI construction for Gitea servers on custom paths
 - XML serialization tag case sensitivity (`<Server>` vs `<server>`)
 - Date/time parsing using StdDateFormat for flexible format support
 - Removed unused code symbols for cleaner codebase
 - Made internal methods private for better encapsulation
 
+[Unreleased]: https://github.com/JpMand/gitea-idea-integration/compare/0.0.1...HEAD
+[0.0.1]: https://github.com/JpMand/gitea-idea-integration/commits/0.0.1

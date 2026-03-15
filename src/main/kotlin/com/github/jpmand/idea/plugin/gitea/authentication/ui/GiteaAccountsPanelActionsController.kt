@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.authentication.ui
 
+import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil
 import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil.LoginResult
@@ -10,6 +11,11 @@ import com.intellij.ui.awt.RelativePoint
 import com.intellij.util.asSafely
 import javax.swing.JComponent
 
+/**
+ * Actions controller for accounts panel in `Version Control -> Gitea` settings. Handles add and edit of accounts.
+ */
+
+@Suppress("UnstableApiUsage")
 class GiteaAccountsPanelActionsController(
   private val project: Project,
   private val model: GiteaAccountsListModel
@@ -20,7 +26,7 @@ class GiteaAccountsPanelActionsController(
     val loginResult = GiteLoginUtil.logInViaToken(
       project,
       parentComponent,
-      loginSource = "gitea.login.source.settings",
+      loginSource = GiteaBundle.getMessage( "gitea.login.source.settings"),
       uniqueAccountPredicate = ::isAccountUnique
     )
       .asSafely<LoginResult.Success>() ?: return
@@ -32,7 +38,7 @@ class GiteaAccountsPanelActionsController(
       project,
       parentComponent,
       account,
-      loginSource = "gitea.login.source.settings",
+      loginSource = GiteaBundle.getMessage( "gitea.login.source.settings"),
       uniqueAccountPredicate = ::isAccountUnique
     )
       .asSafely<LoginResult.Success>() ?: return

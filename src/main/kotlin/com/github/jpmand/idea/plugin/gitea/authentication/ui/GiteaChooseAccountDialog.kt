@@ -1,6 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.authentication.ui
 
-import com.github.jpmand.idea.plugin.gitea.GiteaBundle
+import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper

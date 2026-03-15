@@ -13,14 +13,14 @@ import java.net.URI
 import java.net.http.HttpRequest
 
 private val LOG: Logger = logger<GiteaApi>()
-
+@Suppress("UnstableApiUsage")
 interface GiteaApi : HttpApiHelper {
   val server: GiteaServerPath
   val rest: Rest
 
   interface Rest : JsonHttpApiHelper, GiteaApi
 }
-
+@Suppress("UnstableApiUsage")
 internal class GiteaApiImpl(
   override val server: GiteaServerPath,
   httpHelper: HttpApiHelper
@@ -40,7 +40,7 @@ internal class GiteaApiImpl(
 
   private inner class RestImpl(helper: JsonHttpApiHelper) : GiteaApi by this, GiteaApi.Rest, JsonHttpApiHelper by helper
 }
-
+@Suppress("UnstableApiUsage")
 private fun httpHelper(server: GiteaServerPath, tokenSupplier: () -> String): HttpApiHelper {
   val authConfigurer = object : HttpRequestConfigurer {
 
@@ -83,7 +83,7 @@ private fun GiteaServerPath.isAuthorizedUrl(targetUri: URI): Boolean {
   return true
 }
 
-
+@Suppress("UnstableApiUsage")
 private fun httpHelper(): HttpApiHelper {
   val requestConfigurer = CompoundRequestConfigurer(RequestTimeoutConfigurer(), GiteaHeaderConfigurer())
   return HttpApiHelper(logger = logger<GiteaApi>(), requestConfigurer = requestConfigurer)
