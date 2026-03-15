@@ -3,7 +3,6 @@ package com.github.jpmand.idea.plugin.gitea.api.models
 import com.intellij.collaboration.auth.AccountDetails
 import com.intellij.collaboration.ui.codereview.user.CodeReviewUser
 import com.intellij.openapi.util.NlsSafe
-import java.util.Date
 
 open class GiteaUser(
   val id: Int,
@@ -11,8 +10,7 @@ open class GiteaUser(
   override val avatarUrl: String?,
   val email: @NlsSafe String?,
   val fullName: @NlsSafe String?,
-  val htmlUrl: String?,
-  val lastLogin: Date?
+  val htmlUrl: String?
 ) : AccountDetails, CodeReviewUser {
 
   override val name: String

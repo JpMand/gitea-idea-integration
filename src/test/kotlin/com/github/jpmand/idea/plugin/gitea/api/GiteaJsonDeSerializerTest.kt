@@ -33,6 +33,7 @@ class GiteaJsonDeSerializerTest {
     assertEquals(42, user!!.id)
     assertEquals("jdoe", user.login)
     assertEquals("jdoe@example.com", user.email)
+    print(user)
   }
 
   @Test
@@ -48,6 +49,7 @@ class GiteaJsonDeSerializerTest {
     val user = deserialize(json, GiteaUserDTO::class.java)
     assertNotNull(user)
     assertEquals("https://gitea.example.com/user/avatar/user/-1", user!!.avatarUrl)
+    print(user)
   }
 
   @Test
@@ -63,6 +65,7 @@ class GiteaJsonDeSerializerTest {
     val user = deserialize(json, GiteaUserDTO::class.java)
     assertNotNull(user)
     assertEquals("John Doe", user!!.fullName)
+    print(user)
   }
 
   @Test
@@ -78,6 +81,7 @@ class GiteaJsonDeSerializerTest {
     val user = deserialize(json, GiteaUserDTO::class.java)
     assertNotNull(user)
     assertEquals("https://gitea.example.com/user", user!!.htmlUrl)
+    print(user)
   }
 
   @Test
@@ -95,6 +99,7 @@ class GiteaJsonDeSerializerTest {
     assertNotNull(user!!.lastLogin)
     // Verify epoch time (timezone-independent)
     assertEquals(1773352330000L, user.lastLogin?.time)
+    print(user.lastLogin)
   }
 
   @Test
@@ -112,6 +117,7 @@ class GiteaJsonDeSerializerTest {
     assertNotNull(user!!.lastLogin)
     // Verify epoch time (timezone-independent) - same instant as UTC test but with +01:00 offset
     assertEquals(1773348730000L, user.lastLogin?.time)
+    print(user.lastLogin)
   }
 
   @Test
@@ -141,6 +147,7 @@ class GiteaJsonDeSerializerTest {
     assertEquals("https://gitea.example.com/user/avatar/testuser/-1", dto.avatarUrl)
     assertEquals("https://gitea.example.com/testuser", dto.htmlUrl)
     assertNotNull(dto.lastLogin)
+    print(dto)
   }
 
   @Test
@@ -161,6 +168,7 @@ class GiteaJsonDeSerializerTest {
     assertNull(user.avatarUrl)
     assertNull(user.htmlUrl)
     assertNull(user.lastLogin)
+    print(user)
   }
 
   @Test
@@ -186,6 +194,7 @@ class GiteaJsonDeSerializerTest {
     assertEquals("https://gitea.example.com/avatar", user.avatarUrl)
     assertEquals("https://gitea.example.com/converter", user.htmlUrl)
     assertEquals("converter", user.name) // name property delegates to login
+    print(dto)
   }
 
   @Test
@@ -204,5 +213,6 @@ class GiteaJsonDeSerializerTest {
     assertNotNull(user)
     assertEquals(1, user!!.id)
     assertEquals("user", user.login)
+    print(user)
   }
 }
