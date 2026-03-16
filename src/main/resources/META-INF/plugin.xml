@@ -1,15 +1,29 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
-    <id>com.github.jpmand.giteaideaintegration</id>
-    <name>gitea-idea-integration</name>
-    <vendor>jpmand</vendor>
+    <id>com.github.jpmand.idea.plugin.gitea</id>
+    <name>Gitea</name>
+    <vendor>JpMand</vendor>
+    <version>0.0.1</version>
+    <idea-version since-build="253"/>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends>Git4Idea</depends>
 
-    <resource-bundle>messages.MyBundle</resource-bundle>
+    <resource-bundle>messages.GiteaBundle</resource-bundle>
 
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow factoryClass="com.github.jpmand.giteaideaintegration.toolWindow.MyToolWindowFactory" id="MyToolWindow"/>
-        <postStartupActivity implementation="com.github.jpmand.giteaideaintegration.startup.MyProjectActivity" />
+        <applicationService serviceImplementation="com.github.jpmand.idea.plugin.gitea.authentication.account.GitePersistentAccounts"/>
+        <applicationService serviceInterface="com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager"
+                            serviceImplementation="com.github.jpmand.idea.plugin.gitea.authentication.account.PersistentGiteaAccountManager"/>
+        <applicationService serviceInterface="com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager"
+                            serviceImplementation="com.github.jpmand.idea.plugin.gitea.api.GiteaApiManagerImpl"/>
+        <projectConfigurable parentId="project.propVCSSupport.Mappings" groupWeight="-600"
+                             instance="com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable"
+                             displayName="Gitea"/>
     </extensions>
+    <extensions defaultExtensionNs="Git4Idea">
+        <GitHttpAuthDataProvider id="Gitea"
+                                 implementation="com.github.jpmand.idea.plugin.gitea.authentication.extensions.GiteaHttpAuthDataProvider"/>
+    </extensions>
+
 </idea-plugin>
