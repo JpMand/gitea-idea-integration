@@ -1,27 +1,33 @@
 package com.github.jpmand.idea.plugin.gitea.api
 
 import com.intellij.openapi.util.NlsSafe
+import com.intellij.util.text.nullize
 
-class GiteaRepositoryPath(val owner: String, val repository: String) {
-
-  fun toString(showOwner: Boolean) = if (showOwner) "$owner/$repository" else repository
-
+data class GiteaRepositoryPath(val owner: @NlsSafe String, val repository: @NlsSafe String) {
   @NlsSafe
   override fun toString(): String = "$owner/$repository"
 
-  override fun equals(other: Any?): Boolean {
-    if (this === other) return true
-    if (other !is GiteaRepositoryPath) return false
+  @NlsSafe
+  fun fullPath(withOwner: Boolean = true): String = if (withOwner) "$owner/$repository" else repository
 
-    if (owner != other.owner) return false
-    if (repository != other.repository) return false
+  companion object {
+    fun create(server: GiteaServerPath, remoteUrl: String): GiteaRepositoryPath? {
+      val serverPath = server.toURI().path
+      val remotePath = ""
 
-    return true
-  }
+      if (!remotePath.startsWith(serverPath)) {
+        return null
+      }
+      val repoPath = remotePath.removePrefix(serverPath).removePrefix("/")
+      return extractProjectPath(repoPath)
+    }
 
-  override fun hashCode(): Int {
-    var result = owner.hashCode()
-    result = 31 * result + repository.hashCode()
-    return result
+    private fun extractProjectPath(repoPath: String): GiteaRepositoryPath? {
+      val lastSep = repoPath.lastIndexOf('/')
+      if (lastSep < 0) return null
+      val repository = repoPath.substringAfterLast('/', "").nullize() ?: return null
+      val owner = repoPath.substringBeforeLast('/', "").nullize() ?: return null
+      return GiteaRepositoryPath(owner, repository)
+    }
   }
 }

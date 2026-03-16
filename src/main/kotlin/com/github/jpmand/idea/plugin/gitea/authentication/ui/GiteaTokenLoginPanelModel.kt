@@ -3,12 +3,10 @@ package com.github.jpmand.idea.plugin.gitea.authentication.ui
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager
 import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.api.rest.currentUser
-import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil
 import com.intellij.collaboration.auth.ui.login.LoginException
 import com.intellij.collaboration.auth.ui.login.LoginPanelModelBase
 import com.intellij.collaboration.auth.ui.login.LoginTokenGenerator
 import com.intellij.collaboration.util.URIUtil
-import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.components.service
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -32,15 +30,15 @@ class GiteaTokenLoginPanelModel(
       api.currentUser()
     }
     val username = user.name
-    val _requiredUsername = requiredUsername
-    if (_requiredUsername != null && _requiredUsername != username) {
-      throw LoginException.AccountUsernameMismatch(_requiredUsername, username)
+    val internalRequiredUsername = requiredUsername
+    if (internalRequiredUsername != null && internalRequiredUsername != username) {
+      throw LoginException.AccountUsernameMismatch(internalRequiredUsername, username)
     }
     if (!uniqueAccountPredicate(server, username)) {
       throw LoginException.AccountAlreadyExists(username)
     }
 
-    return username;
+    return username
   }
 
   override fun canGenerateToken(serverUri: String): Boolean = false

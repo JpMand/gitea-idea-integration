@@ -1,5 +1,6 @@
-package com.github.jpmand.idea.plugin.gitea.api
+package com.github.jpmand.idea.plugin.gitea.api.json
 
+import com.github.jpmand.idea.plugin.gitea.api.GiteaJsonDeSerializer
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaUserDTO
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -13,7 +14,7 @@ import java.io.StringReader
  * via @JsonProperty annotations, consistent with the Gitea REST API format documented at
  * https://gitea.com/api/swagger (GET /user endpoint).
  */
-class GiteaJsonDeSerializerTest {
+class GiteaJsonGiteaUserTest {
 
   private fun <T> deserialize(json: String, clazz: Class<T>): T? =
     GiteaJsonDeSerializer.fromJson(StringReader(json), clazz)
