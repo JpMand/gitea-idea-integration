@@ -4,6 +4,13 @@
 [![Version](https://img.shields.io/jetbrains/plugin/v/MARKETPLACE_ID.svg)](https://plugins.jetbrains.com/plugin/MARKETPLACE_ID)
 [![Downloads](https://img.shields.io/jetbrains/plugin/d/MARKETPLACE_ID.svg)](https://plugins.jetbrains.com/plugin/MARKETPLACE_ID)
 
+> [!NOTE]  
+> This is a project that makes use of AI during development and probabily not as efficiently or as adequately as it should (mostly because I barely know kotlin and know almost nothing about the IntelliJ Platform libraries).
+> 
+> This means that this is not good quality code, most of the code is done by copying (or attempting to do so) the structure and flow of [Github](https://github.com/JetBrains/intellij-community/tree/master/plugins/github) and [Gitlab](https://github.com/JetBrains/intellij-community/tree/master/plugins/gitlab) plugins.
+>
+> Any help is greately appreciated
+
 <!-- Plugin description -->
 Gitea integration plugin for IntelliJ Platform IDEs. This plugin provides seamless integration with Gitea, allowing you to authenticate, manage your Gitea accounts, and work with Git repositories hosted on Gitea instances directly from your IDE.
 
