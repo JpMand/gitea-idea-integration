@@ -18,6 +18,8 @@
                             serviceImplementation="com.github.jpmand.idea.plugin.gitea.authentication.account.PersistentGiteaAccountManager"/>
         <applicationService serviceInterface="com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager"
                             serviceImplementation="com.github.jpmand.idea.plugin.gitea.api.GiteaApiManagerImpl"/>
+        <projectService serviceInterface="com.github.jpmand.idea.plugin.gitea.GiteaRepositoriesManager"
+                        serviceImplementation="com.github.jpmand.idea.plugin.gitea.GiteaRepositoriesManagerImpl"/>
         <!--suppress PluginXmlI18n Name Gitea should not be translated-->
         <projectConfigurable parentId="project.propVCSSupport.Mappings" groupWeight="-600"
                              instance="com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable"
