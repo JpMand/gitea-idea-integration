@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.authentication.ui
 
+import com.github.jpmand.idea.plugin.gitea.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
@@ -32,9 +33,9 @@ constructor(
   showHosts: Boolean,
   allowDefault: Boolean,
   @Nls(capitalization = Nls.Capitalization.Title)
-  title: String = "account.choose.title",
+  title: String = GiteaBundle.message("account.choose.title"),
   @Nls(capitalization = Nls.Capitalization.Title)
-  okText: String = "account.choose.button"
+  okText: String = GiteaBundle.message("account.choose.button")
 ) : DialogWrapper(project, parentComponent, false, IdeModalityType.IDE) {
 
   private val myDescription: JTextArea? = descriptionText?.let {
@@ -70,7 +71,7 @@ constructor(
     }
   }
 
-  private val mySetDefaultCheckBox: JBCheckBox? = if (allowDefault) JBCheckBox("account.choose.as.default") else null
+  private val mySetDefaultCheckBox: JBCheckBox? = if (allowDefault) JBCheckBox(GiteaBundle.message("account.choose.as.default")) else null
 
   val myAccount: GiteaAccount get() = myAccountsList.selectedValue
 
@@ -86,7 +87,7 @@ constructor(
   override fun getDimensionServiceKey(): @NonNls String? = "Gitea.Dialog.Accounts.Choose"
 
   override fun doValidate(): ValidationInfo? {
-    return if (myAccountsList.selectedValue == null) ValidationInfo("account.choose.not.selected") else null
+    return if (myAccountsList.selectedValue == null) ValidationInfo(GiteaBundle.message("account.choose.not.selected")) else null
   }
 
   override fun createCenterPanel(): JComponent {

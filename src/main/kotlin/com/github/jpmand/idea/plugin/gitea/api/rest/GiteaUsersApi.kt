@@ -2,16 +2,16 @@ package com.github.jpmand.idea.plugin.gitea.api.rest
 
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApi
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
+import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaUserDTO
 import com.intellij.collaboration.api.json.loadJsonValue
 import com.intellij.collaboration.util.resolveRelative
 import java.awt.Image
 import java.net.URI
-import java.net.http.HttpResponse
 
-suspend fun GiteaApi.currentUser(): HttpResponse<out GiteaUser> {
+suspend fun GiteaApi.currentUser(): GiteaUser {
   val uri = server.restApiUri().resolveRelative("user")
   val request = request(uri).GET().build()
-  return rest.loadJsonValue(request)
+  return rest.loadJsonValue<GiteaUserDTO>(request).body().toUser()
 }
 
 suspend fun GiteaApi.loadImage(uri : String) : Image {
