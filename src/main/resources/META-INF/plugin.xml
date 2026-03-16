@@ -30,4 +30,13 @@
                                  implementation="com.github.jpmand.idea.plugin.gitea.authentication.extensions.GiteaHttpAuthDataProvider"/>
     </extensions>
 
+    <actions>
+        <action id="Gitea.Open.Settings"
+                class="com.github.jpmand.idea.plugin.gitea.GiteaOpenSettingsAction"
+                icon="/images/giteaLogo.svg">
+            <override-text place="MainMenu"/>
+            <override-text place="popup@GoToAction"/>
+            <synonym key="action.Gitea.Add.Account.synomym"/>
+        </action>
+    </actions>
 </idea-plugin>
