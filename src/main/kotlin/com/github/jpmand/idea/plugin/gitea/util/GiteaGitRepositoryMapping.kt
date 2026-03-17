@@ -34,7 +34,7 @@ data class GiteaGitRepositoryMapping(
   }
 
   override fun toString(): String {
-    return "(repository=$repository, remote=$repository)"
+    return "(repository=$repository, remote=$remote)"
   }
 
   companion object {
