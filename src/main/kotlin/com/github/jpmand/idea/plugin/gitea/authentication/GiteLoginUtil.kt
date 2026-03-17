@@ -1,11 +1,11 @@
 package com.github.jpmand.idea.plugin.gitea.authentication
 
-import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaProjectDefaultAccountHolder
 import com.github.jpmand.idea.plugin.gitea.authentication.ui.GiteaChooseAccountDialog
 import com.github.jpmand.idea.plugin.gitea.authentication.ui.GiteaTokenLoginPanelModel
+import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.util.GiteaPluginProjectScopeProvider
 import com.intellij.collaboration.auth.ui.login.LoginModel
 import com.intellij.collaboration.auth.ui.login.TokenLoginDialog
@@ -22,13 +22,10 @@ import java.awt.Component
 import javax.swing.JComponent
 
 object GiteLoginUtil {
-  private const val READ_USER_SCOPE = "read:user"
-  private const val DEFAULT_CLIENT_NAME = "Gitea Integration Plugin"
 
   internal fun buildNewTokenUrl(serverUri: String): String? {
-    //val productName = ApplicationNamesInfo.getInstance().fullProductName
-    return parseEncoded("${serverUri}/settings/applications")
-      ?.toExternalForm()
+    //Pre-filled grained token generation is not supported. So only redirect to token page
+    return parseEncoded("${serverUri}/settings/applications")?.toExternalForm()
   }
 
   @RequiresEdt
@@ -50,6 +47,7 @@ object GiteLoginUtil {
   ): LoginResult = updateToken(project, parentComponent, account, null, loginSource, uniqueAccountPredicate)
 
   @RequiresEdt
+  @Suppress("UnstableApiUsage")
   internal fun logInViaToken(
     project: Project,
     parentComponent: JComponent?,
@@ -79,6 +77,7 @@ object GiteLoginUtil {
   }
 
   @RequiresEdt
+  @Suppress("UnstableApiUsage")
   internal fun updateToken(
     project: Project,
     parentComponent: JComponent?,
@@ -109,6 +108,7 @@ object GiteLoginUtil {
   }
 
   @RequiresEdt
+  @Suppress("UnstableApiUsage")
   private fun showLoginDialog(
     project: Project,
     parentComponent: JComponent?,
@@ -140,7 +140,8 @@ object GiteLoginUtil {
     description: @Nls String?,
     accounts: Collection<GiteaAccount>
   ): GiteaAccount? {
-    val dialog = GiteaChooseAccountDialog(project, parentComponent, accounts, description, false, true)
+    val dialog =
+      GiteaChooseAccountDialog(project, parentComponent, accounts, description, showHosts = false, allowDefault = true)
     return if (dialog.showAndGet()) {
       val account = dialog.myAccount
       if (dialog.mySetDefault) {

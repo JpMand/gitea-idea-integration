@@ -9,6 +9,7 @@ import git4idea.remote.hosting.http.HostedGitAuthenticationFailureManager
 import kotlinx.coroutines.CoroutineScope
 
 @Service(Service.Level.PROJECT)
+@Suppress("UnstableApiUsage")
 class GiteaGitAuthenticationFailureManager(parentCs: CoroutineScope) : HostedGitAuthenticationFailureManager<GiteaAccount>(
   serviceGet<GiteaAccountManager>(),
   parentCs.childScope(GiteaGitAuthenticationFailureManager::class)

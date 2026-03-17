@@ -3,10 +3,12 @@ package com.github.jpmand.idea.plugin.gitea.authentication.ui
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager
 import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.api.rest.currentUser
+import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil
 import com.intellij.collaboration.auth.ui.login.LoginException
 import com.intellij.collaboration.auth.ui.login.LoginPanelModelBase
 import com.intellij.collaboration.auth.ui.login.LoginTokenGenerator
 import com.intellij.collaboration.util.URIUtil
+import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.components.service
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -41,9 +43,14 @@ class GiteaTokenLoginPanelModel(
     return username
   }
 
-  override fun canGenerateToken(serverUri: String): Boolean = false
+  override fun canGenerateToken(serverUri: String): Boolean {
+    return URIUtil.isValidHttpUri(serverUri)
+  }
 
-  override fun generateToken(serverUri: String) = Unit
+  override fun generateToken(serverUri: String) {
+    val newTokenUrl = GiteLoginUtil.buildNewTokenUrl(serverUri)?: return
+    BrowserUtil.browse(newTokenUrl)
+  }
 
   suspend fun tryGitAuthorization() {
     _tryGitAuthorizationSignal.emit(Unit)

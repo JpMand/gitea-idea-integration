@@ -4,7 +4,7 @@ import com.github.jpmand.idea.plugin.gitea.api.GiteaApi
 import com.github.jpmand.idea.plugin.gitea.api.GiteaUriUtil
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaPullRequestDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaPullRequestSortEnum
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaPullRequestStateEnum
+import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaStateEnum
 import com.intellij.collaboration.api.json.loadJsonValue
 import com.intellij.collaboration.util.resolveRelative
 
@@ -27,7 +27,7 @@ suspend fun GiteaApi.repoListPullRequests(
   owner: String,
   repo: String,
   baseBranch: String?,
-  state: GiteaPullRequestStateEnum?,
+  state: GiteaStateEnum?,
   sort: GiteaPullRequestSortEnum?,
   milestone: Int?,
   labels: List<String>?,

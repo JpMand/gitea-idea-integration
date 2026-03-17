@@ -1,6 +1,5 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.models
 
-import com.fasterxml.jackson.annotation.JsonProperty
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import java.util.Date
 

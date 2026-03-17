@@ -16,6 +16,7 @@ suspend fun GiteaApi.currentUser(): GiteaUser {
   return rest.loadJsonValue<GiteaUserDTO>(request).body().toUser()
 }
 
+@Suppress("UnstableApiUsage")
 suspend fun GiteaApi.userCurrentListRepos(page: Int, limit: Int): Collection<GiteaRepositoryDTO> {
   val uri = GiteaUriUtil.QueryBuilder()
     .addParam("page", page)

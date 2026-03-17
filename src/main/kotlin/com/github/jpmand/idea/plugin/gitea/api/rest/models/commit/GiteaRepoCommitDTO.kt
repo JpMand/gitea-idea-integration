@@ -1,7 +1,5 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.models.commit
 
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.commit.GiteaPayloadCommitVerificationDTO
-
 /**
  * RepoCommit contains information of a commit in the context of a repository.
  */
