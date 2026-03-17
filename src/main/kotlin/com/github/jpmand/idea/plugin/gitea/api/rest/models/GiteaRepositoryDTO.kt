@@ -37,6 +37,6 @@ open class GiteaRepositoryDTO(
   ) {
 
   override fun toString(): String {
-    return "GiteaRepositoryDTO(id=$id, owner=${owner.login}, name='$name', fullName='$fullName', description='$description', empty=$empty, htmlUrl='$htmlUrl', url='$url', sshUrl='$sshUrl', cloneUrl='$cloneUrl', originalUrl='$originalUrl', defaultBranch='$defaultBranch', defaultTargetBranch='$defaultTargetBranch' createdAt=$createdAt, updatedAt=$updatedAt, hasCode=$hasCode, hasIssues=$hasIssues, hasPullRequests=$hasPullRequests, openIssuesCount=$openIssuesCount, openPrCounter=$openPrCounter, allowMergeCommits=$allowMergeCommits, allowRebase=$allowRebase, allowRebaseExplicit=$allowRebaseExplicit, allowSquashMerge=$allowSquashMerge, allowFastForwardOnlyMerge=$allowFastForwardOnlyMerge, allowRebaseUpdate=$allowRebaseUpdate, allowManualMerge=$allowManualMerge, autodetectManualMerge=$autodetectManualMerge, defaultDeleteBranchAfterMerge=$defaultDeleteBranchAfterMerge, defaultMergeStyle='$defaultMergeStyle', defaultAllowMaintainerEdit=$defaultAllowMaintainerEdit)"
+    return "GiteaRepositoryDTO(id=$id, owner=${owner.login}, name='$name', htmlUrl='$htmlUrl', url='$url', cloneUrl='$cloneUrl', originalUrl='$originalUrl'"
   }
 }

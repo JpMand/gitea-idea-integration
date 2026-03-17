@@ -5,17 +5,17 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaUserDTO
 import java.util.Date
 
 open class GiteaPullRequestDTO(
-  val additions: Int,
+  val additions: Int?,
   val allowMaintainerEdit: Boolean,
-  val assignee: GiteaUserDTO,
-  val assignees: List<GiteaUserDTO>,
+  val assignee: GiteaUserDTO?,
+  val assignees: List<GiteaUserDTO>?,
   val base: GiteaPRBranchInfoDTO,
   val body: String,
-  val changedFiles: Int,
+  val changedFiles: Int?,
   val closedAt: Date?,
   val comments: Int,
   val createdAt: Date,
-  val deletions: Int,
+  val deletions: Int?,
   val diffUrl: String,
   val draft: Boolean,
   val dueDate: Date?,

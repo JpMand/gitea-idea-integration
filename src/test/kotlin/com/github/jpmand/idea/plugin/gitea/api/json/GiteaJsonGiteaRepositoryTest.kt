@@ -2,6 +2,7 @@ package com.github.jpmand.idea.plugin.gitea.api.json
 
 import com.github.jpmand.idea.plugin.gitea.api.GiteaJsonDeSerializer
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaRepositoryDTO
+import com.intellij.util.containers.forEachGuaranteed
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -981,7 +982,7 @@ class GiteaJsonGiteaRepositoryTest {
     val repos = deserialize(data, Array<GiteaRepositoryDTO>::class.java)
     assertNotNull(repos)
     assertEquals(10, repos!!.size)
-    print(repos.joinToString("\n"))
+    repos.forEachGuaranteed { assertNotNull(it) }
   }
 
   @Test

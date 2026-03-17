@@ -33,12 +33,15 @@
     </extensions>
 
     <actions>
+        <!--suppress PluginXmlCapitalization -->
         <action id="Gitea.Open.Settings"
                 class="com.github.jpmand.idea.plugin.gitea.GiteaOpenSettingsAction"
                 icon="/images/giteaLogo.svg">
+            <!--suppress PluginXmlCapitalization -->
             <override-text place="MainMenu"/>
+            <!--suppress PluginXmlCapitalization -->
             <override-text place="popup@GoToAction"/>
-            <synonym key="action.Gitea.Add.Account.synomym"/>
+            <synonym key="action.Gitea.Add.Account.synonym"/>
         </action>
     </actions>
 </idea-plugin>

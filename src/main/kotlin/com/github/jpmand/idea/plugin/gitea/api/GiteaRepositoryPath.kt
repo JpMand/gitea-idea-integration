@@ -2,6 +2,7 @@ package com.github.jpmand.idea.plugin.gitea.api
 
 import com.intellij.openapi.util.NlsSafe
 import com.intellij.util.text.nullize
+import git4idea.remote.hosting.GitHostingUrlUtil
 
 data class GiteaRepositoryPath(val owner: @NlsSafe String, val repository: @NlsSafe String) {
   @NlsSafe
@@ -13,7 +14,7 @@ data class GiteaRepositoryPath(val owner: @NlsSafe String, val repository: @NlsS
   companion object {
     fun create(server: GiteaServerPath, remoteUrl: String): GiteaRepositoryPath? {
       val serverPath = server.toURI().path
-      val remotePath = ""
+      val remotePath = GitHostingUrlUtil.getUriFromRemoteUrl(remoteUrl)?.path?: return null
 
       if (!remotePath.startsWith(serverPath)) {
         return null
