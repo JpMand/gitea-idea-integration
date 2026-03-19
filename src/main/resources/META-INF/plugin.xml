@@ -24,6 +24,11 @@
         <projectConfigurable parentId="project.propVCSSupport.Mappings" groupWeight="-600"
                              instance="com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable"
                              displayName="Gitea"/>
+        <!--suppress PluginXmlI18n Name Gitea should not be translated-->
+        <toolWindow id="Gitea"
+                    anchor="bottom"
+                    icon="/images/giteaLogo.svg"
+                    factoryClass="com.github.jpmand.idea.plugin.gitea.ui.toolwindow.GiteaPullRequestsToolWindowFactory"/>
     </extensions>
     <extensions defaultExtensionNs="Git4Idea">
         <GitHttpAuthDataProvider id="Gitea.Silent"

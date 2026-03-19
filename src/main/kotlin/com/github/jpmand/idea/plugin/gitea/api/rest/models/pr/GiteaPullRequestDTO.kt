@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.models.pr
 
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaLabelDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaTeamDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaUserDTO
@@ -43,4 +44,14 @@ open class GiteaPullRequestDTO(
   val updatedAt: Date,
   val url: String,
   val user: GiteaUserDTO
-)
+) {
+  fun toPullRequest(): GiteaPullRequest {
+    return GiteaPullRequest(
+      id = id,
+      number = number,
+      title = title,
+      state = state,
+      htmlUrl = htmlUrl
+    )
+  }
+}
