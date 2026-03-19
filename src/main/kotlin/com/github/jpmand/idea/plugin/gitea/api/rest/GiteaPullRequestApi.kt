@@ -5,7 +5,7 @@ import com.github.jpmand.idea.plugin.gitea.api.GiteaUriUtil
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaPullRequestDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaPullRequestSortEnum
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaStateEnum
-import com.intellij.collaboration.api.json.loadJsonValue
+import com.intellij.collaboration.api.json.loadJsonList
 import com.intellij.collaboration.util.resolveRelative
 
 /***
@@ -46,12 +46,12 @@ suspend fun GiteaApi.repoListPullRequests(
     .addParam("limit", limit)
     .build(server.restApiUri().resolveRelative("repos/$owner/$repo/pulls"))
   val request = request(uri).GET().build()
-  return rest.loadJsonValue<List<GiteaPullRequestDTO>>(request).body()
+  return rest.loadJsonList<GiteaPullRequestDTO>(request).body()
 }
 
 @Suppress("UnstableApiUsage")
 suspend fun GiteaApi.repoListPinnedPullRequests(owner: String, repo: String): List<GiteaPullRequestDTO> {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/pinned")
   val request = request(uri).GET().build()
-  return rest.loadJsonValue<List<GiteaPullRequestDTO>>(request).body()
+  return rest.loadJsonList<GiteaPullRequestDTO>(request).body()
 }

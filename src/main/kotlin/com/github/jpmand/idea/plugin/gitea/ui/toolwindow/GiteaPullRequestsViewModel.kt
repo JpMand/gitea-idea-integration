@@ -58,8 +58,15 @@ class GiteaPullRequestsViewModel(
           return@launch
         }
 
+        // Get the token for the account
+        val token = accountManager.getCredentialsFlow(account).value
+        if (token == null) {
+          _state.value = PRState.Error("No access token found for account. Please re-authenticate.")
+          return@launch
+        }
+
         // Get API client
-        val api = apiManager.getClient(account.server, account)
+        val api = apiManager.getClient(account.server, token)
 
         // Fetch pull requests
         val prDTOs = api.repoListPullRequests(
