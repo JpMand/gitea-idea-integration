@@ -8,6 +8,7 @@ import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountMa
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
+import com.intellij.util.asSafely
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -59,7 +60,7 @@ class GiteaPullRequestsViewModel(
         }
 
         // Get the token for the account
-        val token = accountManager.getCredentialsFlow(account).value
+        val token = accountManager.getCredentialsFlow(account).asSafely<String>()
         if (token == null) {
           _state.value = PRState.Error("No access token found for account. Please re-authenticate.")
           return@launch
