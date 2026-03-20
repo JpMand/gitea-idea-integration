@@ -17,13 +17,15 @@ Always open the spec before adding a new REST call or a new DTO field.
 
 ## Key Commands
 ```bash
-./gradlew build          # Compile + package plugin jar
-./gradlew test           # Run all tests
-./gradlew runIde         # Launch IDE sandbox with plugin loaded
-./gradlew runIdeForUiTests  # Sandbox wired for robot-server UI tests (port 8082)
-./gradlew publishPlugin  # Requires PUBLISH_TOKEN env var
+./gradlew clean              # delete build artifacts
+./gradlew buildPlugin        # Builds the plugin and prepares ZIP archive for testing and deployment
+./gradlew check              # Runs all checks and tests (used by 'Run Tests' run configuration)
+./gradlew runIde             # IDE sandbox (used by 'Run Plugin' run configuration)
+./gradlew runIdeForUiTests   # sandbox with robot-server on port 8082
 ```
 All version/platform coordinates live in `gradle.properties` (not `build.gradle.kts`).
+
+Gradle libs versions are managed by the Gradle Version Catalog (`gradle/libs.versions.toml`).
 
 ---
 

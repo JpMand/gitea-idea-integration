@@ -151,13 +151,15 @@ Docs: [Plugin Services](https://plugins.jetbrains.com/docs/intellij/plugin-servi
 ## Build & Run
 
 ```bash
-./gradlew build              # compile + jar
-./gradlew test               # unit tests
-./gradlew runIde             # IDE sandbox
+./gradlew clean              # delete build artifacts
+./gradlew buildPlugin        # Builds the plugin and prepares ZIP archive for testing and deployment
+./gradlew check              # Runs all checks and tests (used by 'Run Tests' run configuration)
+./gradlew runIde             # IDE sandbox (used by 'Run Plugin' run configuration)
 ./gradlew runIdeForUiTests   # sandbox with robot-server on port 8082
 ```
 Version coordinates (`platformVersion`, `pluginVersion`, `sinceBuild`) are in **`gradle.properties`**, not `build.gradle.kts`.
 
+Gradle libs versions are managed by the Gradle Version Catalog (`gradle/libs.versions.toml`).
 ---
 
 ## Official Reference Documentation
