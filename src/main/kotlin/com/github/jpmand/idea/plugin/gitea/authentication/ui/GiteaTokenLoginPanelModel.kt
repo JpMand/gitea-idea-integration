@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.withContext
 
+@Suppress("UnstableApiUsage")
 class GiteaTokenLoginPanelModel(
   var requiredUsername: String? = null,
   var uniqueAccountPredicate: (GiteaServerPath, String) -> Boolean
@@ -31,15 +32,15 @@ class GiteaTokenLoginPanelModel(
       api.currentUser()
     }
     val username = user.name
-    val _requiredUsername = requiredUsername
-    if (_requiredUsername != null && _requiredUsername != username) {
-      throw LoginException.AccountUsernameMismatch(_requiredUsername, username)
+    val internalRequiredUsername = requiredUsername
+    if (internalRequiredUsername != null && internalRequiredUsername != username) {
+      throw LoginException.AccountUsernameMismatch(internalRequiredUsername, username)
     }
     if (!uniqueAccountPredicate(server, username)) {
       throw LoginException.AccountAlreadyExists(username)
     }
 
-    return username;
+    return username
   }
 
   override fun canGenerateToken(serverUri: String): Boolean {

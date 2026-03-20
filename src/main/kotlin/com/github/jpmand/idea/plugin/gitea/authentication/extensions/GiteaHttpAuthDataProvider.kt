@@ -1,6 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.authentication.extensions
 
-import com.github.jpmand.idea.plugin.gitea.GiteaBundle
+import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil
 import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil.LoginResult
@@ -22,6 +22,7 @@ import kotlinx.coroutines.withContext
 
 class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
 
+  @Suppress("UnstableApiUsage")
   @RequiresBackgroundThread
   override fun getAuthData(project: Project, url: String, login: String): AuthData? =
     runBlockingMaybeCancellable {
@@ -32,6 +33,7 @@ class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
       }
     }
 
+  @Suppress("UnstableApiUsage")
   @RequiresBackgroundThread
   override fun getAuthData(project: Project, url: String): AuthData? =
     runBlockingMaybeCancellable {

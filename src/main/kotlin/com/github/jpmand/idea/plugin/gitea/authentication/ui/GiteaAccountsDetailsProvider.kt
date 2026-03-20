@@ -1,6 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.authentication.ui
 
-import com.github.jpmand.idea.plugin.gitea.GiteaBundle
+import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApi
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.api.rest.currentUser
@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import java.awt.Image
 import kotlin.coroutines.cancellation.CancellationException
 
+@Suppress("UnstableApiUsage")
 class GiteaAccountsDetailsProvider(
   scope: CoroutineScope,
   private val apiSupplier: suspend (GiteaAccount) -> GiteaApi?

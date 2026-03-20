@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 
 @Service(Service.Level.PROJECT)
 @State(name = "GiteaDefaultAccount", storages = [Storage(StoragePathMacros.WORKSPACE_FILE)], reportStatistic = false)
+@Suppress("UnstableApiUsage")
 class GiteaProjectDefaultAccountHolder(project: Project, parentCs: CoroutineScope) :
   PersistentDefaultAccountHolder<GiteaAccount>(
     project,

@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.MapperFeature
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.PropertyNamingStrategies
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.databind.introspect.VisibilityChecker
 import com.fasterxml.jackson.databind.util.StdDateFormat
@@ -15,9 +16,10 @@ import com.intellij.collaboration.api.json.JsonDataDeserializer
 import com.intellij.collaboration.api.json.JsonDataSerializer
 import java.io.Reader
 import java.util.TimeZone
-
+@Suppress("UnstableApiUsage")
 object GiteaJsonDeSerializer : JsonDataSerializer, JsonDataDeserializer {
   private val mapper: ObjectMapper = giteaJacksonMapper()
+    .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
     .setDateFormat(StdDateFormat.instance)
     .setTimeZone(TimeZone.getDefault())
 

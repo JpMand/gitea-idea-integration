@@ -49,11 +49,12 @@ class GiteaServerPath(useHttp: Boolean?, host: String, port: Int?, path: String?
     scheme = if (myUseHttp) URLUtil.HTTP_PROTOCOL else URLUtil.HTTPS_PROTOCOL
     host = myHost
     port = myPort
-    path = (myPath?.trimEnd('/') ?: "") + "/api/v1/"
+    path = (myPath?.trimEnd('/') ?: "") + API_PREFIX
   }.build()
 
   companion object{
     val DEFAULT_SERVER = GiteaServerPath(false, "localhost", -1, null)
+    const val API_PREFIX = "/api/v1/"
 
     @JvmStatic
     fun from(url: String): GiteaServerPath {

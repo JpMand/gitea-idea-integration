@@ -1,6 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.authentication
 
-import com.github.jpmand.idea.plugin.gitea.GiteaBundle
+import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.authentication.ui.GiteaTokenLoginPanelModel
 import com.intellij.collaboration.auth.ui.login.LoginException
 import com.intellij.collaboration.messages.CollaborationToolsBundle
@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.annotations.Nls
 import java.net.ConnectException
 import javax.swing.Action
-
+@Suppress("UnstableApiUsage")
 internal class GiteaLoginErrorStatusPresenter(
   private val cs: CoroutineScope,
   private val model: GiteaTokenLoginPanelModel
