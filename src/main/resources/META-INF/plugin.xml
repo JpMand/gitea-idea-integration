@@ -24,6 +24,13 @@
         <projectConfigurable parentId="project.propVCSSupport.Mappings" groupWeight="-600"
                              instance="com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable"
                              displayName="Gitea"/>
+        <projectService
+            serviceImplementation="com.github.jpmand.idea.plugin.gitea.pullrequest.service.GiteaPullRequestsProjectService"/>
+        <toolWindow id="Gitea Pull Requests"
+                    anchor="right"
+                    doNotActivateOnStart="true"
+                    icon="/images/giteaLogo.svg"
+                    factoryClass="com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow.GiteaPRToolWindowFactory"/>
     </extensions>
     <extensions defaultExtensionNs="Git4Idea">
         <GitHttpAuthDataProvider id="Gitea.Silent"
@@ -43,5 +50,13 @@
             <override-text place="popup@GoToAction"/>
             <synonym key="action.Gitea.Add.Account.synonym"/>
         </action>
+
+        <group id="Gitea.PullRequest.ToolWindow"
+               class="com.intellij.openapi.actionSystem.DefaultActionGroup">
+            <action id="Gitea.PullRequest.Refresh"
+                    class="com.github.jpmand.idea.plugin.gitea.pullrequest.ui.GiteaPRRefreshAction"/>
+            <action id="Gitea.PullRequest.OpenOnWeb"
+                    class="com.github.jpmand.idea.plugin.gitea.pullrequest.ui.GiteaPROpenOnWebAction"/>
+        </group>
     </actions>
 </idea-plugin>
