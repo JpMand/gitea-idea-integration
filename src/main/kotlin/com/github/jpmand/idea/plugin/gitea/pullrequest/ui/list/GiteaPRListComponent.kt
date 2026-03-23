@@ -1,6 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
+import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaStateEnum
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.GiteaPRRefreshAction
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.openapi.actionSystem.ActionManager
@@ -9,27 +10,38 @@ import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.asContextElement
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.ComboBox
+import com.intellij.ui.DocumentAdapter
+import com.intellij.ui.SearchTextField
+import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.awt.BorderLayout
 import java.awt.CardLayout
+import java.awt.event.ItemEvent
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import javax.swing.DefaultListModel
 import javax.swing.JPanel
 import javax.swing.ListSelectionModel
+import javax.swing.event.DocumentEvent
 
 /**
- * Full list panel: toolbar (refresh + filters) + content area that switches between
+ * Full list panel: filter bar (search + state) at top + content area that switches between
  * loading / empty / error / list cards based on [GiteaPRListViewModel.listState].
+ *
+ * Refresh is available via right-click context menu on the list.
  */
 class GiteaPRListComponent(
     @Suppress("unused") project: Project,
     cs: CoroutineScope,
     private val vm: GiteaPRListViewModel,
-    @Suppress("unused") filters: GiteaPRListFiltersModel
+    private val filters: GiteaPRListFiltersModel
 ) : JPanel(BorderLayout()) {
 
     companion object {
@@ -55,23 +67,68 @@ class GiteaPRListComponent(
     private val errorLabel = JBLabel("", JBLabel.CENTER)
 
     init {
-        // ── Toolbar ────────────────────────────────────────────────────
-        val group = DefaultActionGroup().apply {
-            add(GiteaPRRefreshAction(vm))
+        // ── Filter bar ─────────────────────────────────────────────────────
+        val stateCombo = ComboBox(arrayOf(GiteaStateEnum.OPEN, GiteaStateEnum.CLOSED, GiteaStateEnum.ALL)).apply {
+            renderer = SimpleListCellRenderer.create { label, value, _ ->
+                label.text = when (value) {
+                    GiteaStateEnum.OPEN -> GiteaBundle.message("pullrequest.list.filter.state.open")
+                    GiteaStateEnum.CLOSED -> GiteaBundle.message("pullrequest.list.filter.state.closed")
+                    GiteaStateEnum.ALL -> GiteaBundle.message("pullrequest.list.filter.state.all")
+                    null -> ""
+                }
+            }
+            addItemListener { e ->
+                if (e.stateChange == ItemEvent.SELECTED) {
+                    (e.item as? GiteaStateEnum)?.let { filters.state.value = it }
+                }
+            }
         }
-        val toolbar = ActionManager.getInstance()
-            .createActionToolbar("Gitea.PullRequest.ToolWindow", group, true)
-            .also { it.targetComponent = this }
-        add(toolbar.component, BorderLayout.NORTH)
 
-        // ── State cards ────────────────────────────────────────────────
+        val searchField = SearchTextField(false).apply {
+            textEditor.emptyText.setText(GiteaBundle.message("pullrequest.list.search.placeholder"))
+            addDocumentListener(object : DocumentAdapter() {
+                override fun textChanged(e: DocumentEvent) {
+                    filters.searchText.value = text
+                }
+            })
+        }
+
+        val filterBar = JPanel(BorderLayout(JBUI.scale(8), 0)).apply {
+            border = JBUI.Borders.empty(4, 8, 4, 8)
+            add(stateCombo, BorderLayout.WEST)
+            add(searchField, BorderLayout.CENTER)
+        }
+        add(filterBar, BorderLayout.NORTH)
+
+        // ── Right-click context menu ────────────────────────────────────────
+        jbList.addMouseListener(object : MouseAdapter() {
+            override fun mousePressed(e: MouseEvent) = maybeShowPopup(e)
+            override fun mouseReleased(e: MouseEvent) = maybeShowPopup(e)
+
+            fun maybeShowPopup(e: MouseEvent) {
+                if (!e.isPopupTrigger) return
+                // Select the item under the cursor before showing the menu
+                val idx = jbList.locationToIndex(e.point)
+                if (idx >= 0) jbList.selectedIndex = idx
+
+                val group = DefaultActionGroup().apply {
+                    add(GiteaPRRefreshAction(vm))
+                }
+                val popup = ActionManager.getInstance()
+                    .createActionPopupMenu("Gitea.PullRequest.List.Context", group)
+                popup.setTargetComponent(jbList)
+                popup.component.show(jbList, e.x, e.y)
+            }
+        })
+
+        // ── State cards ────────────────────────────────────────────────────
         cardPanel.add(buildCentredLabel(GiteaBundle.message("pullrequest.list.loading")), CARD_LOADING)
         cardPanel.add(buildCentredLabel(GiteaBundle.message("pullrequest.list.empty")), CARD_EMPTY)
         cardPanel.add(JPanel(BorderLayout()).also { it.add(errorLabel, BorderLayout.CENTER) }, CARD_ERROR)
         cardPanel.add(JBScrollPane(jbList), CARD_LIST)
         add(cardPanel, BorderLayout.CENTER)
 
-        // ── Observe VM state on EDT ────────────────────────────────────
+        // ── Observe VM state on EDT ────────────────────────────────────────
         cs.launch(Dispatchers.EDT + ModalityState.any().asContextElement()) {
             vm.listState.collect { state ->
                 when (state) {

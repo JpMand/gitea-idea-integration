@@ -34,15 +34,16 @@ class GiteaPRListViewModel(
         val state: GiteaStateEnum,
         val author: String?,
         val label: String?,
-        val assignee: String?
+        val assignee: String?,
+        val searchText: String
     )
 
     private val prService: GiteaPullRequestsProjectService = project.service()
 
     private val filtersFlow: StateFlow<FilterSnapshot> = combine(
-        filters.state, filters.author, filters.label, filters.assignee
-    ) { s, a, l, ass -> FilterSnapshot(s, a, l, ass) }
-        .stateIn(cs, SharingStarted.Eagerly, FilterSnapshot(GiteaStateEnum.OPEN, null, null, null))
+        filters.state, filters.author, filters.label, filters.assignee, filters.searchText
+    ) { s, a, l, ass, q -> FilterSnapshot(s, a, l, ass, q) }
+        .stateIn(cs, SharingStarted.Eagerly, FilterSnapshot(GiteaStateEnum.OPEN, null, null, null, ""))
 
     val listState: StateFlow<ListState> =
         prService.pullRequestsState.combine(filtersFlow) { result, f ->
@@ -53,7 +54,10 @@ class GiteaPRListViewModel(
                         (f.state == GiteaStateEnum.ALL || pr.state == f.state.value) &&
                                 (f.author == null || pr.author.login.equals(f.author, ignoreCase = true)) &&
                                 (f.label == null || pr.labels.any { it.name.equals(f.label, ignoreCase = true) }) &&
-                                (f.assignee == null || pr.assignees.any { it.login.equals(f.assignee, ignoreCase = true) })
+                                (f.assignee == null || pr.assignees.any { it.login.equals(f.assignee, ignoreCase = true) }) &&
+                                (f.searchText.isBlank() ||
+                                        pr.title.contains(f.searchText, ignoreCase = true) ||
+                                        pr.number.toString() == f.searchText.trim())
                     }
                     if (filtered.isEmpty()) ListState.Empty else ListState.Items(filtered)
                 },

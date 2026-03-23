@@ -12,4 +12,6 @@ class GiteaPRListFiltersModel {
     val author = MutableStateFlow<String?>(null)
     val label = MutableStateFlow<String?>(null)
     val assignee = MutableStateFlow<String?>(null)
+    /** Free-text search against PR title or number. */
+    val searchText = MutableStateFlow("")
 }
