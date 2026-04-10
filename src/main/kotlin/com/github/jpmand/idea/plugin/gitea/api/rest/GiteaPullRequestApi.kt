@@ -190,6 +190,24 @@ suspend fun GiteaApi.repoDeletePullRequestComment(owner: String, repo: String, c
   rest.loadOptionalJsonValue<Unit>(request)
 }
 
+// ── Diff comments (aggregated across all reviews) ──────────────────────────
+
+/**
+ * Aggregates all inline diff review comments for a pull request by loading
+ * all reviews and then fetching comments for each PENDING/APPROVED/REQUEST_CHANGES review.
+ */
+@Suppress("UnstableApiUsage")
+suspend fun GiteaApi.repoGetAllPullRequestDiffComments(
+    owner: String,
+    repo: String,
+    index: Int,
+): List<GiteaPullRequestReviewCommentDTO> {
+    val reviews = repoListPullRequestReviews(owner, repo, index)
+    return reviews.flatMap { review ->
+        repoGetPullRequestReviewComments(owner, repo, index, review.id)
+    }
+}
+
 // ── Files and commits ─────────────────────────────────────────────────────
 
 @Suppress("UnstableApiUsage")

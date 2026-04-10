@@ -53,6 +53,8 @@ open class GiteaPullRequestDTO(
     author = user.toUser(),
     headBranch = head.ref,
     baseBranch = base.ref,
+    headSha = head.sha,
+    baseSha = base.sha,
     htmlUrl = htmlUrl,
     createdAt = createdAt,
     updatedAt = updatedAt,

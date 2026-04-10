@@ -15,6 +15,8 @@ data class GiteaPullRequest(
     val author: GiteaUser,
     val headBranch: String,
     val baseBranch: String,
+    val headSha: String,
+    val baseSha: String,
     val htmlUrl: String,
     val createdAt: Date,
     val updatedAt: Date,

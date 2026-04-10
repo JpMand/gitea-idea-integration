@@ -26,6 +26,10 @@
                              displayName="Gitea"/>
         <projectService
             serviceImplementation="com.github.jpmand.idea.plugin.gitea.pullrequest.service.GiteaPullRequestsProjectService"/>
+        <projectService
+            serviceImplementation="com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffService"/>
+        <vfs.impl implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.file.GiteaPRVirtualFileSystem"/>
+        <diff.DiffExtension implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffExtension"/>
         <toolWindow id="Gitea Pull Requests"
                     anchor="right"
                     doNotActivateOnStart="true"

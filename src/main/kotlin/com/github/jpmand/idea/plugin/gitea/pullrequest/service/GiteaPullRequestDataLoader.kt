@@ -1,10 +1,12 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.service
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaChangedFile
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaDiffComment
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequestComment
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequestReview
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.commit.GiteaCommitDTO
+import com.github.jpmand.idea.plugin.gitea.api.rest.repoGetAllPullRequestDiffComments
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoGetPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoListPullRequestComments
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoListPullRequestCommits
@@ -42,6 +44,9 @@ class GiteaPullRequestDataLoader(
     private val _commitsState = MutableStateFlow<Result<List<GiteaCommitDTO>>?>(null)
     val commitsState: StateFlow<Result<List<GiteaCommitDTO>>?> = _commitsState
 
+    private val _diffCommentsState = MutableStateFlow<Result<List<GiteaDiffComment>>?>(null)
+    val diffCommentsState: StateFlow<Result<List<GiteaDiffComment>>?> = _diffCommentsState
+
     init {
         loadAll()
     }
@@ -52,6 +57,7 @@ class GiteaPullRequestDataLoader(
         reloadComments()
         reloadFiles()
         reloadCommits()
+        reloadDiffComments()
     }
 
     fun reloadPr() {
@@ -95,6 +101,15 @@ class GiteaPullRequestDataLoader(
             _commitsState.value = runCatching {
                 val api = service.getOrLoadApiForActiveRepo() ?: error("No API available")
                 api.repoListPullRequestCommits(owner, repo, index)
+            }
+        }
+    }
+
+    fun reloadDiffComments() {
+        cs.launch {
+            _diffCommentsState.value = runCatching {
+                val api = service.getOrLoadApiForActiveRepo() ?: error("No API available")
+                api.repoGetAllPullRequestDiffComments(owner, repo, index).map { it.toDiffComment() }
             }
         }
     }

@@ -1,5 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow
 
+import com.github.jpmand.idea.plugin.gitea.pullrequest.service.GiteaPullRequestsProjectService
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.GiteaPRDetailsComponent
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListComponent
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListFiltersModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListViewModel
@@ -7,6 +9,7 @@ import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.asContextElement
+import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.ui.components.JBLabel
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +39,11 @@ class GiteaPRToolWindowController(
 
     private val cards = JPanel(CardLayout())
     private val cardLayout = cards.layout as CardLayout
+    private val prService: GiteaPullRequestsProjectService = project.service()
+
+    /** Tracks the prNumber whose details panel is currently installed. */
+    private var currentDetailsPrNumber: Int? = null
+    private val detailsContainer = JPanel(BorderLayout())
 
     init {
         val loginPanel = JPanel(BorderLayout()).also {
@@ -49,13 +57,10 @@ class GiteaPRToolWindowController(
         val listVm = GiteaPRListViewModel(project, cs, vm, filtersModel)
         val listComponent = GiteaPRListComponent(project, cs, listVm, filtersModel)
 
-        // Placeholder for the details panel (implemented in step 7)
-        val detailsPlaceholder = JPanel()
-
         cards.add(loginPanel, CARD_LOGIN)
         cards.add(noRepoPanel, CARD_NO_REPO)
         cards.add(listComponent, CARD_LIST)
-        cards.add(detailsPlaceholder, CARD_DETAILS)
+        cards.add(detailsContainer, CARD_DETAILS)
 
         add(cards, BorderLayout.CENTER)
 
@@ -72,13 +77,36 @@ class GiteaPRToolWindowController(
                     is GiteaPRToolWindowViewModel.PanelState.PRList ->
                         cardLayout.show(cards, CARD_LIST)
 
-                    is GiteaPRToolWindowViewModel.PanelState.PRDetails ->
-                        // Full details panel will be wired in step 7; fall back to list for now
-                        cardLayout.show(cards, CARD_LIST)
+                    is GiteaPRToolWindowViewModel.PanelState.PRDetails -> {
+                        showDetailsPanel(project, cs, state.prNumber)
+                        cardLayout.show(cards, CARD_DETAILS)
+                    }
                 }
                 revalidate()
                 repaint()
             }
         }
+    }
+
+    private fun showDetailsPanel(project: Project, cs: CoroutineScope, prNumber: Int) {
+        if (currentDetailsPrNumber == prNumber) return  // already shown
+        currentDetailsPrNumber = prNumber
+        detailsContainer.removeAll()
+
+        val mapping = prService.activeRepoMappingState.value ?: return
+        val owner = mapping.repository.repositoryPath.owner
+        val repo = mapping.repository.repositoryPath.repository
+        val loader = prService.getDataLoader(owner, repo, prNumber)
+
+        val detailsPanel = GiteaPRDetailsComponent(
+            project = project,
+            cs = cs,
+            prService = prService,
+            loader = loader,
+            onBack = { vm.backToList() },
+        )
+        detailsContainer.add(detailsPanel, BorderLayout.CENTER)
+        detailsContainer.revalidate()
+        detailsContainer.repaint()
     }
 }
