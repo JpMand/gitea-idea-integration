@@ -21,7 +21,7 @@ import javax.swing.JPanel
  * Uses a [CardLayout] to switch between Login / NoRepo / PRList / PRDetails panels
  * as [GiteaPRToolWindowViewModel.panelState] changes.
  */
-class GiteaPRToolWindowController(
+class GiteaPRsToolWindowController(
     project: Project,
     cs: CoroutineScope,
     private val vm: GiteaPRToolWindowViewModel
