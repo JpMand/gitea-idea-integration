@@ -1,6 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.authentication.ui
 
-import com.github.jpmand.idea.plugin.gitea.GiteaBundle
+import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApi
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.api.rest.currentUser

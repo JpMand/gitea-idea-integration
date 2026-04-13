@@ -1,6 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.authentication
 
-import com.github.jpmand.idea.plugin.gitea.GiteaBundle
+import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.authentication.ui.GiteaTokenLoginPanelModel
 import com.intellij.collaboration.auth.ui.login.LoginException
 import com.intellij.collaboration.messages.CollaborationToolsBundle

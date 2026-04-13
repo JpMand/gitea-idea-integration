@@ -34,7 +34,6 @@ class GitePersistentAccountsTest {
       GiteaAccount("bob", GiteaServerPath.from("https://gitea.example.com:3000"), id2)
     )
 
-    @Suppress("UsePropertyAccessSyntax")
     val state = service.getState()
     val element = serialize(state)!!
     val xml = JDOMUtil.write(element)
@@ -54,7 +53,8 @@ class GitePersistentAccountsTest {
     val id1 = "a1b2c3d4-0000-0000-0000-000000000001"
     val id2 = "a1b2c3d4-0000-0000-0000-000000000002"
 
-    val element = JDOMUtil.load("""
+    val element = JDOMUtil.load(
+      """
       <component name="GiteaAccounts">
         <account name="alice" id="$id1">
           <Server useHttp="false" host="gitea.example.com" port="-1" />
@@ -63,7 +63,8 @@ class GitePersistentAccountsTest {
           <Server useHttp="false" host="gitea.example.com" port="3000" />
         </account>
       </component>
-    """.trimIndent())
+    """.trimIndent()
+    )
     deserializeAndLoadState(service, element)
 
     val accounts = service.accounts.sortedBy { it.name }
@@ -90,7 +91,6 @@ class GitePersistentAccountsTest {
     val original = GiteaAccount("roundtripuser", GiteaServerPath.from("https://gitea.example.com:3000"), id)
     service.accounts = setOf(original)
 
-    @Suppress("UsePropertyAccessSyntax")
     val element = serialize(service.getState())!!
 
     val restored = GitePersistentAccounts()
@@ -110,7 +110,6 @@ class GitePersistentAccountsTest {
     val service = GitePersistentAccounts()
     service.accounts = emptySet()
 
-    @Suppress("UsePropertyAccessSyntax")
     val state = service.getState()
     assertEquals(0, state.size)
   }

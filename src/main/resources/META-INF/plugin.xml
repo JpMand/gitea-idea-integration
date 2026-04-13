@@ -17,13 +17,34 @@
                             serviceImplementation="com.github.jpmand.idea.plugin.gitea.authentication.account.PersistentGiteaAccountManager"/>
         <applicationService serviceInterface="com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager"
                             serviceImplementation="com.github.jpmand.idea.plugin.gitea.api.GiteaApiManagerImpl"/>
+        <projectService serviceInterface="com.github.jpmand.idea.plugin.gitea.GiteaRepositoriesManager"
+                        serviceImplementation="com.github.jpmand.idea.plugin.gitea.GiteaRepositoriesManagerImpl"/>
+        <!--suppress PluginXmlI18n Name Gitea should not be translated-->
         <projectConfigurable parentId="project.propVCSSupport.Mappings" groupWeight="-600"
                              instance="com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable"
                              displayName="Gitea"/>
     </extensions>
     <extensions defaultExtensionNs="Git4Idea">
+        <GitHttpAuthDataProvider id="Gitea.Silent"
+                                 implementation="com.github.jpmand.idea.plugin.gitea.authentication.extensions.GiteaSilentHttpAuthDataProvider" />
         <GitHttpAuthDataProvider id="Gitea"
                                  implementation="com.github.jpmand.idea.plugin.gitea.authentication.extensions.GiteaHttpAuthDataProvider"/>
     </extensions>
 
+    <actions>
+        <!--suppress PluginXmlCapitalization -->
+        <action id="Gitea.Open.Settings"
+                class="com.github.jpmand.idea.plugin.gitea.GiteaOpenSettingsAction"
+                icon="/images/giteaLogo.svg">
+            <!--suppress PluginXmlCapitalization -->
+            <override-text place="MainMenu"/>
+            <!--suppress PluginXmlCapitalization -->
+            <override-text place="popup@GoToAction"/>
+            <synonym key="action.Gitea.Add.Account.synonym"/>
+        </action>
+
+        <group id="Gitea.PullRequest.ToolWindow"
+               class="com.intellij.openapi.actionSystem.DefaultActionGroup">
+        </group>
+    </actions>
 </idea-plugin>
