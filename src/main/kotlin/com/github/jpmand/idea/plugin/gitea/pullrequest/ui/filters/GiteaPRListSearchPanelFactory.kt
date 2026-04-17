@@ -1,5 +1,6 @@
-package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list
+package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.filters
 
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListQuickFilter
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.codereview.list.search.ReviewListSearchPanelFactory
 import kotlinx.coroutines.CoroutineScope

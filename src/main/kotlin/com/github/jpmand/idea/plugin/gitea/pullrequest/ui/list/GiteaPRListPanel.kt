@@ -1,6 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.filters.GiteaPRListSearchPanelFactory
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.codereview.list.NamedCollection
 import com.intellij.collaboration.ui.codereview.list.ReviewListComponentFactory
@@ -11,7 +12,6 @@ import com.intellij.collaboration.ui.codereview.list.UserPresentation
 import com.intellij.ui.ColorHexUtil
 import icons.CollaborationToolsIcons
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 import java.awt.BorderLayout
 import java.awt.Color
 import javax.swing.JComponent

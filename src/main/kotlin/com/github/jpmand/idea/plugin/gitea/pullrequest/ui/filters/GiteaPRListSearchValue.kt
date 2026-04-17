@@ -1,4 +1,4 @@
-package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list
+package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.filters
 
 import com.intellij.collaboration.ui.codereview.list.search.ReviewListSearchValue
 
