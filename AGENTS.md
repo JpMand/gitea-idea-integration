@@ -54,7 +54,7 @@ api/                         ← HTTP client + JSON layer
   GiteaJsonDeSerializer.kt     Jackson singleton (SNAKE_CASE, ANY field visibility)
   GiteaServerPath.kt           Parses server URL; restApiUri() appends /api/v1/
   rest/                        Thin suspend-fun API wrappers (GiteaUsersApi, etc.)
-  rest/models/                 DTOs deserialized from Gitea REST responses
+  rest/models/                 DTOs deserialized from Gitea REST responses (may be grouped by role/context)
   models/                      Domain model objects (converted from DTOs via .toUser() etc.)
 
 authentication/
@@ -66,10 +66,8 @@ authentication/
     GiteaSilentHttpAuthDataProvider  Tries token silently (no UI) – registered first
     GiteaHttpAuthDataProvider        Falls back with interactive login dialog
   ui/                          Account settings panel + login dialogs (TokenLoginDialog)
-
 ui/
   GiteaSettingsConfigurable.kt  Settings > VCS > Gitea panel
-  clone/                        Clone-from-Gitea UI (ViewModel + Component)
 
 util/
   GiteaBundle.kt               i18n wrapper; all UI strings via GiteaBundle.message("key")
@@ -107,6 +105,20 @@ util/
    }
    ```
 4. If callers outside `api/` need the data, add `.toXxx()` on the DTO and a domain class in `api/models/`.
+
+## Platform Services
+
+| What you need | How to get it |
+|---|---|
+| Account list / tokens | `service<GiteaAccountManager>()` |
+| API client for an account | `service<GiteaApiManager>().getClient(account.server, token)` |
+| Unauthenticated client | `service<GiteaApiManager>().getUnauthenticatedClient(server)` |
+| Known Git repositories | `project.service<GiteaRepositoriesManager>().knownRepositoriesState` |
+| Project default account | `project.service<GiteaProjectDefaultAccountHolder>()` |
+
+Services declared in `plugin.xml` use interface/implementation pairs —
+always inject the **interface** via `service<GiteaAccountManager>()`, not the impl class.  
+Docs: [Plugin Services](https://plugins.jetbrains.com/docs/intellij/plugin-services.html) · [Plugin Dependencies](https://plugins.jetbrains.com/docs/intellij/plugin-dependencies.html)
 
 ---
 
