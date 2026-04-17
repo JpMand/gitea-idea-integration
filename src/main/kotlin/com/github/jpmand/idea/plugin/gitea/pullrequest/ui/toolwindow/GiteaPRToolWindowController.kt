@@ -3,6 +3,8 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContext
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContextHolder
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.GiteaPRDetailsPanel
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.GiteaPRDetailsViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListPanel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListViewModel
 import com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable
@@ -14,6 +16,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.ui.HyperlinkLabel
 import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.panels.Wrapper
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.CoroutineScope
@@ -92,8 +95,35 @@ class GiteaPRToolWindowController(
 
     private fun createPRPanel(ctx: GiteaPRDataContext, panelCs: CoroutineScope): JComponent {
         val repository = GiteaPRRepository(ctx)
-        val vm = GiteaPRListViewModel(panelCs, repository)
-        return GiteaPRListPanel(panelCs, vm).create()
+        val listVm = GiteaPRListViewModel(panelCs, repository)
+        val navigationWrapper = Wrapper()
+        var currentDetailsJob: Job? = null
+
+        lateinit var listPanel: GiteaPRListPanel
+        lateinit var listContent: JComponent
+
+        fun showList() {
+            currentDetailsJob?.cancel()
+            currentDetailsJob = null
+            listPanel.clearSelection()
+            navigationWrapper.setContent(listContent)
+            navigationWrapper.repaint()
+        }
+
+        fun showDetails(pr: com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest) {
+            val detailsJob = SupervisorJob(panelCs.coroutineContext[Job])
+            currentDetailsJob = detailsJob
+            val detailsCs = CoroutineScope(panelCs.coroutineContext + detailsJob)
+            val detailsVm = GiteaPRDetailsViewModel(detailsCs, pr, repository)
+            val detailsPanel = GiteaPRDetailsPanel(detailsCs, detailsVm, onBack = ::showList).create()
+            navigationWrapper.setContent(detailsPanel)
+            navigationWrapper.repaint()
+        }
+
+        listPanel = GiteaPRListPanel(panelCs, listVm, onPRSelected = ::showDetails)
+        listContent = listPanel.create()
+        navigationWrapper.setContent(listContent)
+        return navigationWrapper
     }
 
     override fun dispose() {

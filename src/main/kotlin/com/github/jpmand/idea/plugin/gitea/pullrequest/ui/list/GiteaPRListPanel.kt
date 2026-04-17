@@ -24,19 +24,26 @@ class GiteaPRListPanel(
     private val onPRSelected: ((GiteaPullRequest) -> Unit)? = null,
 ) {
 
+    private var list: javax.swing.JList<GiteaPullRequest>? = null
+
+    fun clearSelection() {
+        list?.clearSelection()
+    }
+
     fun create(): JComponent {
-        val list = ReviewListComponentFactory(vm.listModel).create { pr ->
+        val l = ReviewListComponentFactory(vm.listModel).create { pr ->
             createPresentation(pr)
         }
+        list = l
 
-        list.addListSelectionListener { e ->
+        l.addListSelectionListener { e ->
             if (!e.valueIsAdjusting) {
-                list.selectedValue?.let { pr -> onPRSelected?.invoke(pr) }
+                l.selectedValue?.let { pr -> onPRSelected?.invoke(pr) }
             }
         }
 
         val searchPanel = GiteaPRListSearchPanelFactory(vm.searchVm).create(cs)
-        val scrollPane = ReviewListUtil.wrapWithLazyVerticalScroll(cs, list) { /* pagination deferred */ }
+        val scrollPane = ReviewListUtil.wrapWithLazyVerticalScroll(cs, l) { /* pagination deferred */ }
 
         return JPanel(BorderLayout()).apply {
             add(searchPanel, BorderLayout.NORTH)
