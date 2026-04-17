@@ -6,6 +6,7 @@ enum class GiteaReviewStateEnum {
     APPROVED,
     REQUEST_CHANGES,
     COMMENT,
+    REQUEST_REVIEW,
 
     @JsonEnumDefaultValue
     PENDING

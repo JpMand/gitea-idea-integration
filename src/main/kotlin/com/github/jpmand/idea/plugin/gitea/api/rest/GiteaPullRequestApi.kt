@@ -8,7 +8,9 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaCreateIssueCo
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaCreatePullRequestReviewRequestDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaDismissReviewRequestDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaEditIssueCommentDTO
+import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaEditPullRequestRequestDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaIssueCommentDTO
+import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaMergePullRequestRequestDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaPullRequestDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaPullRequestFileDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaPullRequestReviewCommentDTO
@@ -18,6 +20,7 @@ import com.intellij.collaboration.api.json.loadJsonList
 import com.intellij.collaboration.api.json.loadJsonValue
 import com.intellij.collaboration.api.json.loadOptionalJsonValue
 import com.intellij.collaboration.util.resolveRelative
+import java.net.http.HttpRequest
 
 /***
  * List a repo's pull requests
@@ -222,5 +225,59 @@ suspend fun GiteaApi.repoListPullRequestCommits(
     .build(server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/commits"))
   val request = request(uri).GET().build()
   return rest.loadJsonList<GiteaCommitDTO>(request).body()
+}
+
+// ── Edit / Merge ──────────────────────────────────────────────────────────
+
+/** PATCH /repos/{owner}/{repo}/pulls/{index} — edit title, body, state, assignees, etc. */
+@Suppress("UnstableApiUsage")
+suspend fun GiteaApi.repoEditPullRequest(
+  owner: String,
+  repo: String,
+  index: Int,
+  body: GiteaEditPullRequestRequestDTO,
+): GiteaPullRequestDTO {
+  val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index")
+  val request = request(uri).method("PATCH", rest.jsonBodyPublisher(uri, body)).build()
+  return rest.loadJsonValue<GiteaPullRequestDTO>(request).body()
+}
+
+/** POST /repos/{owner}/{repo}/pulls/{index}/merge — merge the pull request. */
+@Suppress("UnstableApiUsage")
+suspend fun GiteaApi.repoMergePullRequest(
+  owner: String,
+  repo: String,
+  index: Int,
+  body: GiteaMergePullRequestRequestDTO,
+) {
+  val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/merge")
+  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body)).build()
+  rest.loadOptionalJsonValue<Unit>(request)
+}
+
+// ── Comment resolve / unresolve ───────────────────────────────────────────
+
+/** POST /repos/{owner}/{repo}/pulls/comments/{id}/resolve — mark comment as resolved. */
+@Suppress("UnstableApiUsage")
+suspend fun GiteaApi.repoResolvePullRequestReviewComment(
+  owner: String,
+  repo: String,
+  commentId: Long,
+): GiteaPullRequestReviewCommentDTO {
+  val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/comments/$commentId/resolve")
+  val request = request(uri).POST(HttpRequest.BodyPublishers.noBody()).build()
+  return rest.loadJsonValue<GiteaPullRequestReviewCommentDTO>(request).body()
+}
+
+/** POST /repos/{owner}/{repo}/pulls/comments/{id}/unresolve — un-resolve a resolved comment. */
+@Suppress("UnstableApiUsage")
+suspend fun GiteaApi.repoUnresolvePullRequestReviewComment(
+  owner: String,
+  repo: String,
+  commentId: Long,
+): GiteaPullRequestReviewCommentDTO {
+  val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/comments/$commentId/unresolve")
+  val request = request(uri).POST(HttpRequest.BodyPublishers.noBody()).build()
+  return rest.loadJsonValue<GiteaPullRequestReviewCommentDTO>(request).body()
 }
 
