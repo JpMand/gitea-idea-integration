@@ -37,6 +37,7 @@ class GiteaPRDetailsPanel(
     private val cs: CoroutineScope,
     private val vm: GiteaPRDetailsViewModel,
     private val onBack: () -> Unit,
+    private val onViewChanges: (() -> Unit)? = null,
 ) {
 
     fun create(): JComponent {
@@ -44,6 +45,11 @@ class GiteaPRDetailsPanel(
             border = JBUI.Borders.empty(4, 8)
         }
 
+        val viewChangesLink = onViewChanges?.let {
+            ActionLink(GiteaBundle.message("pull.request.action.view.changes")) { it() }.apply {
+                border = JBUI.Borders.empty(4, 8)
+            }
+        }
         val actionGroup = createActionGroup()
 
         val titleComponent = CodeReviewDetailsTitleComponentFactory.create(
@@ -92,7 +98,12 @@ class GiteaPRDetailsPanel(
 
         return JPanel(MigLayout(LC().emptyBorders().fill().flowY().noGrid())).apply {
             isOpaque = false
-            add(backLink, CC().growX())
+            val navBar = JPanel(MigLayout(LC().emptyBorders().fill().noGrid(), AC().gap("push"))).apply {
+                isOpaque = false
+                add(backLink)
+                viewChangesLink?.let { add(it) }
+            }
+            add(navBar, CC().growX())
             add(scrollPane, CC().grow().push())
         }
     }

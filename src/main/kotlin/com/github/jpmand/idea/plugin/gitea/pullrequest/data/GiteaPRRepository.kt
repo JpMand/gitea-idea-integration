@@ -9,7 +9,9 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.models.commit.GiteaCommitDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaCreatePullRequestReviewRequestDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaEditPullRequestRequestDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaMergePullRequestRequestDTO
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaPullRequestFileDTO
+import com.github.jpmand.idea.plugin.gitea.api.rest.getFileContents
+import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
+import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.toChangedFile
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoCreatePullRequestReview
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoEditPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoGetPullRequest
@@ -23,6 +25,7 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.repoMergePullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoResolvePullRequestReviewComment
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoUnresolvePullRequestReviewComment
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoCombinedStatus
+import kotlinx.coroutines.CancellationException
 
 /**
  * Data-access layer for PR operations scoped to a single [GiteaPRDataContext].
@@ -79,9 +82,24 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
 
     // ── Files & Commits ───────────────────────────────────────────────────
 
-    /** Returns raw DTOs; domain model for changed files will be added in Phase 6. */
-    suspend fun loadChangedFiles(prNumber: Int): List<GiteaPullRequestFileDTO> =
-        ctx.api.repoListPullRequestFiles(owner, repo, prNumber)
+    /** Returns domain models for files changed in the given PR. */
+    suspend fun loadChangedFiles(prNumber: Int): List<GiteaPRChangedFile> =
+        ctx.api.repoListPullRequestFiles(owner, repo, prNumber).map { it.toChangedFile() }
+
+    /**
+     * Fetches the raw text content of a file at a specific ref (branch name, tag, or SHA).
+     * Returns an empty string when the file does not exist at that ref (e.g. for added/deleted files).
+     */
+    suspend fun loadFileContent(path: String, ref: String): String {
+        return try {
+            val dto = ctx.api.getFileContents(owner, repo, path, ref)
+            dto.decodeContent() ?: ""
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            ""
+        }
+    }
 
     suspend fun loadCommits(prNumber: Int): List<GiteaCommitDTO> =
         ctx.api.repoListPullRequestCommits(owner, repo, prNumber)

@@ -3,6 +3,8 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContext
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContextHolder
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
+import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffViewModel
+import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffVirtualFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.GiteaPRDetailsPanel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.GiteaPRDetailsViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListPanel
@@ -11,6 +13,7 @@ import com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.service
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
@@ -101,6 +104,7 @@ class GiteaPRToolWindowController(
 
         lateinit var listPanel: GiteaPRListPanel
         lateinit var listContent: JComponent
+        var currentDiffJob: Job? = null
 
         fun showList() {
             currentDetailsJob?.cancel()
@@ -114,8 +118,25 @@ class GiteaPRToolWindowController(
             val detailsJob = SupervisorJob(panelCs.coroutineContext[Job])
             currentDetailsJob = detailsJob
             val detailsCs = CoroutineScope(panelCs.coroutineContext + detailsJob)
+
+            // Diff scope: scoped to panelCs so it outlives the details panel (back navigation),
+            // cancelled here when a new PR is opened.
+            currentDiffJob?.cancel()
+            val diffJob = SupervisorJob(panelCs.coroutineContext[Job])
+            currentDiffJob = diffJob
+            val diffCs = CoroutineScope(panelCs.coroutineContext + diffJob)
+
             val detailsVm = GiteaPRDetailsViewModel(detailsCs, pr, repository)
-            val detailsPanel = GiteaPRDetailsPanel(detailsCs, detailsVm, onBack = ::showList).create()
+            val diffVm = GiteaPRDiffViewModel(diffCs, project, pr, repository)
+            val diffFile = GiteaPRDiffVirtualFile(pr.number, diffCs, project, diffVm)
+
+            val detailsPanel = GiteaPRDetailsPanel(
+                detailsCs, detailsVm,
+                onBack = ::showList,
+                onViewChanges = {
+                    FileEditorManager.getInstance(project).openFile(diffFile, true)
+                },
+            ).create()
             navigationWrapper.setContent(detailsPanel)
             navigationWrapper.repaint()
         }
