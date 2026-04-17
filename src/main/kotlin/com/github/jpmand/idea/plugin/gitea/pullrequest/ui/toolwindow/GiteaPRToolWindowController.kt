@@ -2,6 +2,9 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow
 
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContext
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContextHolder
+import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListPanel
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListViewModel
 import com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.openapi.Disposable
@@ -15,6 +18,7 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collect
@@ -47,10 +51,21 @@ class GiteaPRToolWindowController(
         }
     }
 
+    private var currentPanelJob: Job? = null
+
     private fun updateContent(ctx: GiteaPRDataContext?) {
+        currentPanelJob?.cancel()
+        currentPanelJob = null
         val cm = toolWindow.contentManager
         cm.removeAllContents(true)
-        val panel = if (ctx == null) createEmptyStatePanel() else createPRPanel(ctx)
+        val panel = if (ctx == null) {
+            createEmptyStatePanel()
+        } else {
+            val panelJob = SupervisorJob(cs.coroutineContext[Job])
+            currentPanelJob = panelJob
+            val panelCs = CoroutineScope(cs.coroutineContext + panelJob)
+            createPRPanel(ctx, panelCs)
+        }
         cm.addContent(cm.factory.createContent(panel, null, false))
     }
 
@@ -75,15 +90,10 @@ class GiteaPRToolWindowController(
         }
     }
 
-    /** Placeholder content replaced in Phase 4 with the full PR list panel. */
-    private fun createPRPanel(ctx: GiteaPRDataContext): JComponent {
-        return JPanel(GridBagLayout()).apply {
-            add(JBLabel(GiteaBundle.message(
-                "pull.request.toolwindow.placeholder",
-                ctx.repo.repositoryPath.owner,
-                ctx.repo.repositoryPath.repository
-            )).apply { horizontalAlignment = SwingConstants.CENTER })
-        }
+    private fun createPRPanel(ctx: GiteaPRDataContext, panelCs: CoroutineScope): JComponent {
+        val repository = GiteaPRRepository(ctx)
+        val vm = GiteaPRListViewModel(panelCs, repository)
+        return GiteaPRListPanel(panelCs, vm).create()
     }
 
     override fun dispose() {
