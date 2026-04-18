@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.SimpleHtmlPane
 import com.intellij.collaboration.ui.VerticalListPanel
+import kotlinx.coroutines.flow.StateFlow
 import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsBranchComponentFactory
 import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsCommitsComponentFactory
 import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsDescriptionComponentFactory
@@ -21,6 +22,7 @@ import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.components.ActionLink
 import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import net.miginfocom.layout.AC
 import net.miginfocom.layout.CC
 import net.miginfocom.layout.LC
@@ -38,6 +40,8 @@ class GiteaPRDetailsPanel(
     private val vm: GiteaPRDetailsViewModel,
     private val onBack: () -> Unit,
     private val onViewChanges: (() -> Unit)? = null,
+    private val onSubmitReview: (suspend (JComponent) -> Unit)? = null,
+    private val draftCommentsCount: StateFlow<Int>? = null,
 ) {
 
     fun create(): JComponent {
@@ -49,6 +53,34 @@ class GiteaPRDetailsPanel(
             ActionLink(GiteaBundle.message("pull.request.action.view.changes")) { it() }.apply {
                 border = JBUI.Borders.empty(4, 8)
             }
+        }
+
+        val submitReviewButton = onSubmitReview?.let { submitFn ->
+            val button = JButton(GiteaBundle.message("pull.request.review.submit.action")).apply {
+                border = JBUI.Borders.empty(4, 8)
+                isOpaque = false
+            }
+            button.addActionListener {
+                button.isEnabled = false
+                cs.launch {
+                    try {
+                        submitFn(button)
+                    } finally {
+                        button.isEnabled = true
+                    }
+                }
+            }
+            if (draftCommentsCount != null) {
+                cs.launch {
+                    draftCommentsCount.collect { count ->
+                        button.text = if (count > 0)
+                            GiteaBundle.message("pull.request.review.submit.action.with.count", count)
+                        else
+                            GiteaBundle.message("pull.request.review.submit.action")
+                    }
+                }
+            }
+            button
         }
         val actionGroup = createActionGroup()
 
@@ -102,6 +134,7 @@ class GiteaPRDetailsPanel(
                 isOpaque = false
                 add(backLink)
                 viewChangesLink?.let { add(it) }
+                submitReviewButton?.let { add(it) }
             }
             add(navBar, CC().growX())
             add(scrollPane, CC().grow().push())
