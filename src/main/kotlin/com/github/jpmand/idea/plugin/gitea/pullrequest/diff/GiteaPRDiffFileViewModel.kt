@@ -11,14 +11,14 @@ import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.transformLatest
 
 @Suppress("UnstableApiUsage")
 class GiteaPRDiffFileViewModel(
@@ -34,8 +34,9 @@ class GiteaPRDiffFileViewModel(
 
     private val _reloadTrigger = MutableStateFlow(0)
 
-    override val request: StateFlow<ComputedResult<DiffRequest>?> = flow {
-        _reloadTrigger.collectLatest {
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override val request: StateFlow<ComputedResult<DiffRequest>?> =
+        _reloadTrigger.transformLatest {
             emit(ComputedResult.loading())
             try {
                 emit(ComputedResult.success(buildDiffRequest()))
@@ -44,8 +45,7 @@ class GiteaPRDiffFileViewModel(
             } catch (e: Exception) {
                 emit(ComputedResult.failure(e))
             }
-        }
-    }.stateIn(cs, SharingStarted.Eagerly, null)
+        }.stateIn(cs, SharingStarted.Eagerly, null)
 
     override fun reloadRequest() {
         _reloadTrigger.value++
