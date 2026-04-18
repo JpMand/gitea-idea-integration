@@ -4,6 +4,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContext
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContextHolder
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffViewModel
+import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffVirtualFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.GiteaPRDetailsPanel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.GiteaPRDetailsViewModel
@@ -128,6 +129,7 @@ class GiteaPRToolWindowController(
 
             val detailsVm = GiteaPRDetailsViewModel(detailsCs, pr, repository)
             val diffVm = GiteaPRDiffViewModel(diffCs, project, pr, repository)
+            val discussionsVm = GiteaPRDiscussionsViewModels(diffCs, pr.number, repository)
             val diffFile = GiteaPRDiffVirtualFile(pr.number, diffCs, project, diffVm)
 
             val detailsPanel = GiteaPRDetailsPanel(

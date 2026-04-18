@@ -9,6 +9,8 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.models.commit.GiteaCommitDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaCreatePullRequestReviewRequestDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaEditPullRequestRequestDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaMergePullRequestRequestDTO
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewThread
+import com.github.jpmand.idea.plugin.gitea.api.models.toThreads
 import com.github.jpmand.idea.plugin.gitea.api.rest.getFileContents
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.toChangedFile
@@ -70,6 +72,10 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     /** Convenience: load comments from all reviews in one call. */
     suspend fun loadAllReviewComments(prNumber: Int): List<GiteaReviewComment> =
         loadReviews(prNumber).flatMap { review -> loadReviewComments(prNumber, review.id) }
+
+    /** Groups all review comments for a PR into synthetic [GiteaReviewThread]s. */
+    suspend fun loadThreads(prNumber: Int): List<GiteaReviewThread> =
+        loadAllReviewComments(prNumber).toThreads()
 
     suspend fun submitReview(prNumber: Int, body: GiteaCreatePullRequestReviewRequestDTO): GiteaReview =
         ctx.api.repoCreatePullRequestReview(owner, repo, prNumber, body).toReview()
