@@ -9,6 +9,7 @@ import com.intellij.diff.requests.DiffRequest
 import com.intellij.diff.requests.SimpleDiffRequest
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Key
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -29,6 +30,10 @@ class GiteaPRDiffFileViewModel(
     private val baseSha: String,
     private val headSha: String,
 ) : AsyncDiffViewModel {
+
+    companion object {
+        val CONTEXT_KEY: Key<GiteaPRDiffFileViewModel> = Key.create("gitea.pr.diff.file.vm")
+    }
 
     private val cs = CoroutineScope(parentCs.coroutineContext + SupervisorJob(parentCs.coroutineContext[Job]))
 
@@ -79,7 +84,7 @@ class GiteaPRDiffFileViewModel(
             baseDoc, headDoc,
             "Base (${baseSha.take(7)})",
             "Head (${headSha.take(7)})",
-        )
+        ).also { it.putUserData(CONTEXT_KEY, this) }
     }
 
     override fun equals(other: Any?): Boolean {

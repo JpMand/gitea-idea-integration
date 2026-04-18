@@ -130,7 +130,7 @@ class GiteaPRToolWindowController(
             val detailsVm = GiteaPRDetailsViewModel(detailsCs, pr, repository)
             val diffVm = GiteaPRDiffViewModel(diffCs, project, pr, repository)
             val discussionsVm = GiteaPRDiscussionsViewModels(diffCs, pr.number, repository)
-            val diffFile = GiteaPRDiffVirtualFile(pr.number, diffCs, project, diffVm)
+            val diffFile = GiteaPRDiffVirtualFile(pr.number, diffCs, project, diffVm, discussionsVm)
 
             val detailsPanel = GiteaPRDetailsPanel(
                 detailsCs, detailsVm,

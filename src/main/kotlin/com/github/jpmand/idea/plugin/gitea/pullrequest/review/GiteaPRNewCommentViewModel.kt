@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * @param newPosition 1-indexed head-file line; null for base-only (deleted-line) comments.
  * @param oldPosition 1-indexed base-file line; null for head-only (added-line) comments.
  * @param onCancel Invoked when the user cancels the compose inlay (e.g., to remove the UI).
+ * @param onSubmit Invoked after the draft has been added (e.g., to replace the compose inlay with a draft inlay).
  */
 class GiteaPRNewCommentViewModel(
     val path: String,
@@ -24,6 +25,7 @@ class GiteaPRNewCommentViewModel(
     val oldPosition: Int?,
     private val discussionsVm: GiteaPRDiscussionsViewModels,
     private val onCancel: () -> Unit,
+    private val onSubmit: () -> Unit,
 ) {
     private val _text = MutableStateFlow("")
     val text: StateFlow<String> = _text.asStateFlow()
@@ -43,7 +45,9 @@ class GiteaPRNewCommentViewModel(
     fun submit(): Long {
         val body = _text.value.trim()
         check(body.isNotEmpty()) { "Cannot submit a blank comment" }
-        return discussionsVm.addDraftComment(path, newPosition, oldPosition, body)
+        val id = discussionsVm.addDraftComment(path, newPosition, oldPosition, body)
+        onSubmit()
+        return id
     }
 
     /** Cancels the in-progress comment and invokes the [onCancel] callback. */

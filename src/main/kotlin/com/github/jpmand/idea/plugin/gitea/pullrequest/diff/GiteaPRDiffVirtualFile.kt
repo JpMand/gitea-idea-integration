@@ -1,7 +1,9 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.diff
 
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaPRFileStatusEnum
+import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.intellij.collaboration.ui.codereview.diff.AsyncDiffRequestProcessorFactory
+import com.intellij.collaboration.util.KeyValuePair
 import com.intellij.diff.editor.DiffViewerVirtualFile
 import com.intellij.diff.impl.DiffEditorViewer
 import com.intellij.openapi.project.Project
@@ -17,6 +19,7 @@ class GiteaPRDiffVirtualFile(
     private val cs: CoroutineScope,
     private val project: Project,
     private val vm: GiteaPRDiffViewModel,
+    private val discussionsVm: GiteaPRDiscussionsViewModels,
 ) : DiffViewerVirtualFile("gitea-pr-$prNumber") {
 
     override fun isValid(): Boolean = !project.isDisposed
@@ -25,7 +28,7 @@ class GiteaPRDiffVirtualFile(
         AsyncDiffRequestProcessorFactory.createIn(
             cs, project,
             flowOf(vm),
-            createContext = { emptyList() },
+            createContext = { listOf(KeyValuePair(GiteaPRDiscussionsViewModels.CONTEXT_KEY, discussionsVm)) },
             changePresenter = { fileVm ->
                 object : PresentableChange {
                     override fun getFilePath() = LocalFilePath(fileVm.file.filename, false)

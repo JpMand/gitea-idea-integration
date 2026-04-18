@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.review
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewThread
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.intellij.collaboration.util.ComputedResult
+import com.intellij.openapi.util.Key
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +33,10 @@ class GiteaPRDiscussionsViewModels(
     private val prNumber: Int,
     private val repository: GiteaPRRepository,
 ) {
+    companion object {
+        val CONTEXT_KEY: Key<GiteaPRDiscussionsViewModels> = Key.create("gitea.pr.discussions.vm")
+    }
+
     private val cs = CoroutineScope(parentCs.coroutineContext + SupervisorJob(parentCs.coroutineContext[Job]))
 
     // ── Threads ───────────────────────────────────────────────────────────
