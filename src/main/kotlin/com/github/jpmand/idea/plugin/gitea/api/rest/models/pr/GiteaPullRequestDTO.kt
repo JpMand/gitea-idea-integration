@@ -1,5 +1,8 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.models.pr
 
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaBranchInfo
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaLabel
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaLabelDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaTeamDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaUserDTO
@@ -43,4 +46,32 @@ open class GiteaPullRequestDTO(
   val updatedAt: Date,
   val url: String,
   val user: GiteaUserDTO
-)
+) {
+  fun toPullRequest(): GiteaPullRequest = GiteaPullRequest(
+    id = id,
+    number = number,
+    title = title,
+    body = body,
+    state = state,
+    draft = draft,
+    merged = merged,
+    mergeable = mergeable,
+    author = user.toUser(),
+    assignee = assignee?.toUser(),
+    assignees = assignees?.map { it.toUser() } ?: emptyList(),
+    labels = labels.map { it.toLabel() },
+    base = base.toBranchInfo(),
+    head = head.toBranchInfo(),
+    mergeBaseSha = mergeBase,
+    htmlUrl = htmlUrl,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    mergedAt = mergedAt,
+    closedAt = closedAt,
+    reviewComments = reviewComments,
+    changedFiles = changedFiles,
+    additions = additions,
+    deletions = deletions,
+    requestedReviewers = requestedReviewers?.map { it.toUser() } ?: emptyList()
+  )
+}
