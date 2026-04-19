@@ -2,6 +2,8 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.review
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewThread
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
+import com.intellij.collaboration.ui.codereview.diff.DiscussionsViewOption
+import com.intellij.collaboration.ui.codereview.editor.CodeReviewInEditorViewModel
 import com.intellij.collaboration.util.ComputedResult
 import com.intellij.openapi.util.Key
 import kotlinx.coroutines.CancellationException
@@ -32,7 +34,7 @@ class GiteaPRDiscussionsViewModels(
     parentCs: CoroutineScope,
     private val prNumber: Int,
     private val repository: GiteaPRRepository,
-) {
+) : CodeReviewInEditorViewModel {
     companion object {
         val CONTEXT_KEY: Key<GiteaPRDiscussionsViewModels> = Key.create("gitea.pr.discussions.vm")
     }
@@ -67,6 +69,18 @@ class GiteaPRDiscussionsViewModels(
     fun reload() {
         _reloadTrigger.value++
     }
+
+    // ── CodeReviewInEditorViewModel ───────────────────────────────────────
+
+    private val _discussionsViewOption = MutableStateFlow(DiscussionsViewOption.ALL)
+    override val discussionsViewOption: StateFlow<DiscussionsViewOption> = _discussionsViewOption.asStateFlow()
+    override fun setDiscussionsViewOption(viewOption: DiscussionsViewOption) { _discussionsViewOption.value = viewOption }
+
+    /** Always false — Gitea plugin does not track local-branch sync state. */
+    override val updateRequired: StateFlow<Boolean> = MutableStateFlow(false)
+
+    /** No-op — `updateRequired` is always false so this button is never enabled. */
+    override fun updateBranch() = Unit
 
     // ── Draft comments ────────────────────────────────────────────────────
 

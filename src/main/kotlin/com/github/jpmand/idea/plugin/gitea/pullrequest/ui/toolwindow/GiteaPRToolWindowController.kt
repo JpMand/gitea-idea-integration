@@ -161,6 +161,10 @@ class GiteaPRToolWindowController(
                 onViewChanges = {
                     FileEditorManager.getInstance(project).openFile(diffFile, true)
                 },
+                onRefresh = {
+                    detailsVm.refresh()
+                    discussionsVm.reload()
+                },
                 onSubmitReview = onSubmitReview,
                 draftCommentsCount = draftCommentsCount,
             ).create()

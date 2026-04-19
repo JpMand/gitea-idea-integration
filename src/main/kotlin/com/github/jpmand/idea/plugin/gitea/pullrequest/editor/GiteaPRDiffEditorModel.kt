@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.editor
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRNewCommentViewModel
 import com.intellij.collaboration.ui.codereview.diff.DiffLineLocation
+import com.intellij.collaboration.ui.codereview.diff.DiscussionsViewOption
 import com.intellij.collaboration.ui.codereview.editor.CodeReviewEditorGutterControlsModel
 import com.intellij.collaboration.ui.codereview.editor.CodeReviewEditorModel
 import com.intellij.diff.util.Side
@@ -35,10 +36,12 @@ class GiteaPRDiffEditorModel(
     // ── Thread inlays (existing server-side review threads) ────────────────
 
     private val threadInlays: StateFlow<List<GiteaPRInlayModel.Thread>> =
-        discussionsVm.threads.map { result ->
+        combine(discussionsVm.threads, discussionsVm.discussionsViewOption) { result, viewOption ->
+            if (viewOption == DiscussionsViewOption.DONT_SHOW) return@combine emptyList()
             val threadVms = result?.result?.getOrNull() ?: emptyList()
             threadVms.mapNotNull { vm ->
                 if (vm.path != path) return@mapNotNull null
+                if (viewOption == DiscussionsViewOption.UNRESOLVED_ONLY && vm.isResolved) return@mapNotNull null
                 val lineIdx = when (side) {
                     Side.RIGHT -> vm.newLine?.let { locationToLine(Pair(Side.RIGHT, it - 1)) }
                     Side.LEFT -> vm.oldLine?.let { locationToLine(Pair(Side.LEFT, it - 1)) }
@@ -81,7 +84,7 @@ class GiteaPRDiffEditorModel(
     // ── Gutter controls state ─────────────────────────────────────────────
 
     override val gutterControlsState: StateFlow<CodeReviewEditorGutterControlsModel.ControlsState?> =
-        combine(threadInlays, _pendingNewComments, draftInlays) { threads, pending, drafts ->
+        combine(threadInlays, _pendingNewComments, draftInlays, discussionsVm.discussionsViewOption) { threads, pending, drafts, viewOption ->
             val linesWithComments = (
                     threads.mapNotNull { it.line.value } +
                     drafts.mapNotNull { it.line.value }
@@ -90,7 +93,8 @@ class GiteaPRDiffEditorModel(
             object : CodeReviewEditorGutterControlsModel.ControlsState {
                 override val linesWithComments: Set<Int> = linesWithComments
                 override val linesWithNewComments: Set<Int> = linesWithNewComments
-                override fun isLineCommentable(lineIdx: Int): Boolean = lineToLocation(lineIdx) != null
+                override fun isLineCommentable(lineIdx: Int): Boolean =
+                    viewOption != DiscussionsViewOption.DONT_SHOW && lineToLocation(lineIdx) != null
             }
         }.stateIn(cs, SharingStarted.Eagerly, null)
 

@@ -5,6 +5,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.editor.GiteaPRInlayCompon
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.intellij.collaboration.async.launchNow
 import com.intellij.collaboration.ui.codereview.diff.viewer.showCodeReview
+import com.intellij.collaboration.ui.codereview.editor.ReviewInEditorUtil
 import com.intellij.diff.DiffContext
 import com.intellij.diff.DiffExtension
 import com.intellij.diff.FrameDiffTool
@@ -36,7 +37,10 @@ class GiteaPRDiffExtension : DiffExtension() {
 
         cs.launchNow {
             viewer.showCodeReview(
-                modelFactory = { _, side, locationToLine, lineToLocation, _ ->
+                modelFactory = { editor, side, locationToLine, lineToLocation, _ ->
+                    launchNow {
+                        ReviewInEditorUtil.showReviewToolbar(discussionsVm, editor)
+                    }
                     GiteaPRDiffEditorModel(this, fileVm.file.filename, side, discussionsVm, locationToLine, lineToLocation)
                 },
                 rendererFactory = { inlayModel ->

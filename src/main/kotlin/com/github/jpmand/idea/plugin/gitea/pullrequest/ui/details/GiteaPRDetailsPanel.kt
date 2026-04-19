@@ -40,6 +40,7 @@ class GiteaPRDetailsPanel(
     private val vm: GiteaPRDetailsViewModel,
     private val onBack: () -> Unit,
     private val onViewChanges: (() -> Unit)? = null,
+    private val onRefresh: (() -> Unit)? = null,
     private val onSubmitReview: (suspend (JComponent) -> Unit)? = null,
     private val draftCommentsCount: StateFlow<Int>? = null,
 ) {
@@ -51,6 +52,12 @@ class GiteaPRDetailsPanel(
 
         val viewChangesLink = onViewChanges?.let {
             ActionLink(GiteaBundle.message("pull.request.action.view.changes")) { it() }.apply {
+                border = JBUI.Borders.empty(4, 8)
+            }
+        }
+
+        val refreshLink = onRefresh?.let {
+            ActionLink(GiteaBundle.message("pull.request.action.refresh")) { it() }.apply {
                 border = JBUI.Borders.empty(4, 8)
             }
         }
@@ -134,6 +141,7 @@ class GiteaPRDetailsPanel(
                 isOpaque = false
                 add(backLink)
                 viewChangesLink?.let { add(it) }
+                refreshLink?.let { add(it) }
                 submitReviewButton?.let { add(it) }
             }
             add(navBar, CC().growX())
