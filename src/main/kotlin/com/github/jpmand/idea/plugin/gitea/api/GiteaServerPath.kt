@@ -53,7 +53,7 @@ class GiteaServerPath(useHttp: Boolean?, host: String, port: Int?, path: String?
   }.build()
 
   companion object{
-    val DEFAULT_SERVER = GiteaServerPath(false, "localhost", -1, null)
+    val DEFAULT_SERVER = from("https://gitea.com")
     const val API_PREFIX = "/api/v1/"
 
     @JvmStatic

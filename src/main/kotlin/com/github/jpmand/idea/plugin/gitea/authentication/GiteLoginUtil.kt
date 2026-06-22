@@ -25,7 +25,7 @@ object GiteLoginUtil {
 
   internal fun buildNewTokenUrl(serverUri: String): String? {
     //Pre-filled grained token generation is not supported. So only redirect to token page
-    return parseEncoded("${serverUri}/settings/applications")?.toExternalForm()
+    return parseEncoded("${serverUri}/user/settings/applications")?.toExternalForm()
   }
 
   @RequiresEdt

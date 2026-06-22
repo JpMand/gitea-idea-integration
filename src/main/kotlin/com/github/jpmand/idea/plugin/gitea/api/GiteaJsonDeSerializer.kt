@@ -17,6 +17,7 @@ import com.intellij.collaboration.api.json.JsonDataSerializer
 import java.io.Reader
 import java.util.TimeZone
 
+@Suppress("UnstableApiUsage")
 object GiteaJsonDeSerializer : JsonDataSerializer, JsonDataDeserializer {
   private val mapper: ObjectMapper = giteaJacksonMapper()
     .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)

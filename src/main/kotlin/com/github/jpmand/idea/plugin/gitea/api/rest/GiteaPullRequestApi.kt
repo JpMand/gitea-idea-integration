@@ -16,13 +16,14 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaPullRequestFi
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaPullRequestReviewCommentDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaPullRequestReviewDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaPullRequestSortEnum
+import com.intellij.collaboration.api.httpclient.HttpClientUtil
 import com.intellij.collaboration.api.json.loadJsonList
 import com.intellij.collaboration.api.json.loadJsonValue
 import com.intellij.collaboration.api.json.loadOptionalJsonValue
 import com.intellij.collaboration.util.resolveRelative
 import java.net.http.HttpRequest
 
-/***
+/**
  * List a repo's pull requests
  *
  * @param owner Owner of the repo
@@ -115,7 +116,9 @@ suspend fun GiteaApi.repoCreatePullRequestReview(
   body: GiteaCreatePullRequestReviewRequestDTO,
 ): GiteaPullRequestReviewDTO {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/reviews")
-  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body)).build()
+  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
+    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
+    .build()
   return rest.loadJsonValue<GiteaPullRequestReviewDTO>(request).body()
 }
 
@@ -136,7 +139,9 @@ suspend fun GiteaApi.repoDismissPullRequestReview(
 ): GiteaPullRequestReviewDTO {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/reviews/$id/dismissals")
   val body = GiteaDismissReviewRequestDTO(message)
-  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body)).build()
+  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
+    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
+    .build()
   return rest.loadJsonValue<GiteaPullRequestReviewDTO>(request).body()
 }
 
@@ -170,7 +175,9 @@ suspend fun GiteaApi.repoCreatePullRequestComment(
   body: GiteaCreateIssueCommentDTO,
 ): GiteaIssueCommentDTO {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/issues/$index/comments")
-  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body)).build()
+  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
+    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
+    .build()
   return rest.loadJsonValue<GiteaIssueCommentDTO>(request).body()
 }
 
@@ -182,7 +189,9 @@ suspend fun GiteaApi.repoEditPullRequestComment(
   body: GiteaEditIssueCommentDTO,
 ): GiteaIssueCommentDTO {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/issues/comments/$commentId")
-  val request = request(uri).method("PATCH", rest.jsonBodyPublisher(uri, body)).build()
+  val request = request(uri).method("PATCH", rest.jsonBodyPublisher(uri, body))
+    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
+    .build()
   return rest.loadJsonValue<GiteaIssueCommentDTO>(request).body()
 }
 
@@ -238,7 +247,9 @@ suspend fun GiteaApi.repoEditPullRequest(
   body: GiteaEditPullRequestRequestDTO,
 ): GiteaPullRequestDTO {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index")
-  val request = request(uri).method("PATCH", rest.jsonBodyPublisher(uri, body)).build()
+  val request = request(uri).method("PATCH", rest.jsonBodyPublisher(uri, body))
+    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
+    .build()
   return rest.loadJsonValue<GiteaPullRequestDTO>(request).body()
 }
 
@@ -251,7 +262,9 @@ suspend fun GiteaApi.repoMergePullRequest(
   body: GiteaMergePullRequestRequestDTO,
 ) {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/merge")
-  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body)).build()
+  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
+    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
+    .build()
   rest.loadOptionalJsonValue<Unit>(request)
 }
 
