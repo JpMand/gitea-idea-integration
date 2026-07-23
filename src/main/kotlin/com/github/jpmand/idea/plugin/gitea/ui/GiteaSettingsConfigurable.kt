@@ -102,7 +102,6 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
   category = SettingsCategory.TOOLS
 )
 class GiteaSettings : SerializablePersistentStateComponent<GiteaSettings.State>(State()) {
-  @Serializable
   data class State(
     val automaticallyMarkAsViewed: Boolean = false,
     val connectionTimeout: Int = 5_000
