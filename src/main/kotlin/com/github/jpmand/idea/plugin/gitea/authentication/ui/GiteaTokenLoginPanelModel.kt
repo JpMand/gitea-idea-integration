@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.withContext
 
+@Suppress("UnstableApiUsage")
 class GiteaTokenLoginPanelModel(
   var requiredUsername: String? = null,
   var uniqueAccountPredicate: (GiteaServerPath, String) -> Boolean

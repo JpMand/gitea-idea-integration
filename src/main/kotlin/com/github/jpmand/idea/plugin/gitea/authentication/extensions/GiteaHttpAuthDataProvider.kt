@@ -21,6 +21,7 @@ import git4idea.remote.hosting.GitHostingUrlUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+@Suppress("UnstableApiUsage")
 class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
 
   @RequiresBackgroundThread

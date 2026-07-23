@@ -36,6 +36,11 @@
                              displayName="Gitea"/>
         <vcsAnnotationGutterActionProvider
                 implementation="com.github.jpmand.idea.plugin.gitea.extensions.GiteaAnnotationGutterActionProvider"/>
+
+        <openapi.vcs.ui.cloneDialog.VcsCloneDialogExtension
+            id="com.github.jpmand.idea.plugin.gitea.ui.clone.GiteaCloneDialogExtension"
+            implementation="com.github.jpmand.idea.plugin.gitea.ui.clone.GiteaCloneDialogExtension"
+            order="last"/>
     </extensions>
     <extensions defaultExtensionNs="Git4Idea">
         <GitHttpAuthDataProvider id="Gitea.Silent"
@@ -73,5 +78,11 @@
             <override-text place="CopyReferencePopup"/>
             <add-to-group group-id="Git.Hosting.Copy.Link.Group"/>
         </group>
+        <action id="Gitea.Clone"
+                class="com.github.jpmand.idea.plugin.gitea.ui.clone.GiteaCloneAction"
+                icon="com.github.jpmand.idea.plugin.gitea.GiteaIcons.Logo">
+            <override-text place="MainMenu"/>
+            <override-text place="popup@GoToAction"/>
+        </action>
     </actions>
 </idea-plugin>

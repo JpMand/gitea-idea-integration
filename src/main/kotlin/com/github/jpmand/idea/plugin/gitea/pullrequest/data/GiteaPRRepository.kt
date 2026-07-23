@@ -35,7 +35,6 @@ import kotlinx.coroutines.CancellationException
  * Provides suspend functions that call the API and map responses to domain models.
  * Instantiate one per context; discard when the context changes.
  */
-@Suppress("UnstableApiUsage")
 class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
 
     private val owner: String get() = ctx.repo.repositoryPath.owner

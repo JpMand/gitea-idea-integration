@@ -23,7 +23,6 @@ import kotlinx.coroutines.launch
  * a [StateFlow] that emits the current context (or null when none can be resolved).
  * The first repository whose server matches any known account is used.
  */
-@Suppress("UnstableApiUsage")
 @Service(Service.Level.PROJECT)
 class GiteaPRDataContextHolder(
     private val project: Project,

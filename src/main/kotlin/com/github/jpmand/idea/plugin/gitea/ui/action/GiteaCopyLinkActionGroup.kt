@@ -10,6 +10,7 @@ import git4idea.remote.hosting.action.HostedGitRepositoryReference
 import java.awt.datatransfer.StringSelection
 import java.net.URI
 
+@Suppress("UnstableApiUsage")
 class GiteaCopyLinkActionGroup : GlobalHostedGitRepositoryReferenceActionGroup() {
     override fun repositoriesManager(project: Project): HostedGitRepositoriesManager<*> = project.service<GiteaRepositoriesManager>()
 

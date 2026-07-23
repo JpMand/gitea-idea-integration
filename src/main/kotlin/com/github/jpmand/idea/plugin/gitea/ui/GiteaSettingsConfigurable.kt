@@ -84,6 +84,12 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
           .gap(RightGap.COLUMNS)
       }
 
+      row {
+        checkBox(message("settings.clone.with.ssh"))
+          .bindSelected(
+            { giteaSettings.cloneWithSsh },
+            { giteaSettings.cloneWithSsh = it })
+      }
 
       addWarningForMemoryOnlyPasswordSafeAndGet(
         scope,
@@ -104,7 +110,8 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
 class GiteaSettings : SerializablePersistentStateComponent<GiteaSettings.State>(State()) {
   data class State(
     val automaticallyMarkAsViewed: Boolean = false,
-    val connectionTimeout: Int = 5_000
+    val connectionTimeout: Int = 5_000,
+    val cloneWithSsh: Boolean = false
   )
 
   var isAutomaticallyMarkAsViewed: Boolean
@@ -117,6 +124,12 @@ class GiteaSettings : SerializablePersistentStateComponent<GiteaSettings.State>(
     get() = state.connectionTimeout
     set(value) {
       updateState { it.copy(connectionTimeout = value) }
+    }
+
+  var cloneWithSsh: Boolean
+    get() = state.cloneWithSsh
+    set(value) {
+      updateState { it.copy(cloneWithSsh = value) }
     }
 
   companion object {

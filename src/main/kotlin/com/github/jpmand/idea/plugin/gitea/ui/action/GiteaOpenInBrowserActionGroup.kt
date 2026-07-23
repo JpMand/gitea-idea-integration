@@ -14,6 +14,7 @@ import git4idea.remote.hosting.action.GlobalHostedGitRepositoryReferenceActionGr
 import git4idea.remote.hosting.action.HostedGitRepositoryReference
 import java.net.URI
 
+@Suppress("UnstableApiUsage")
 class GiteaOpenInBrowserActionGroup : GlobalHostedGitRepositoryReferenceActionGroup(
     GiteaBundle.messagePointer("open.on.gitea.action"),
     GiteaBundle.messagePointer("open.on.gitea.action.description"),

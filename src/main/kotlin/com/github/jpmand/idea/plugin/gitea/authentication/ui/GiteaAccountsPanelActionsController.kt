@@ -12,6 +12,7 @@ import com.intellij.ui.awt.RelativePoint
 import com.intellij.util.asSafely
 import javax.swing.JComponent
 
+@Suppress("UnstableApiUsage")
 class GiteaAccountsPanelActionsController(
   private val project: Project,
   private val model: GiteaAccountsListModel
