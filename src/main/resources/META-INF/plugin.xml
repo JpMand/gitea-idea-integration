@@ -19,6 +19,8 @@
                             serviceImplementation="com.github.jpmand.idea.plugin.gitea.api.GiteaApiManagerImpl"/>
         <projectService serviceInterface="com.github.jpmand.idea.plugin.gitea.GiteaRepositoriesManager"
                         serviceImplementation="com.github.jpmand.idea.plugin.gitea.GiteaRepositoriesManagerImpl"/>
+        <applicationService serviceInterface="com.github.jpmand.idea.plugin.gitea.GiteaServersManager"
+                            serviceImplementation="com.github.jpmand.idea.plugin.gitea.CachingGiteaServersManager"/>
         <diff.DiffExtension implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffExtension"/>
         <toolWindow id="Gitea Pull Requests"
                     anchor="left"

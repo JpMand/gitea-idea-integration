@@ -4,6 +4,8 @@ import com.github.jpmand.idea.plugin.gitea.api.models.GiteaBranchInfo
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaLabel
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaLabelDTO
+import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaShortStateEnum
+import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaStateEnum
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaTeamDTO
 import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaUserDTO
 import java.util.Date
@@ -41,7 +43,7 @@ open class GiteaPullRequestDTO(
   val requestedReviewers: List<GiteaUserDTO>?,
   val requestedReviewersTeams: List<GiteaTeamDTO>?,
   val reviewComments: Int,
-  val state: String?,
+  val state: GiteaStateEnum,
   val title: String,
   val updatedAt: Date,
   val url: String,
@@ -52,7 +54,7 @@ open class GiteaPullRequestDTO(
     number = number,
     title = title,
     body = body,
-    state = state,
+    state = state.value,
     draft = draft,
     merged = merged,
     mergeable = mergeable,

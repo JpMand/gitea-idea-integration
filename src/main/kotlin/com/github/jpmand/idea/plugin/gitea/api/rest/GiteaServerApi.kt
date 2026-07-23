@@ -14,6 +14,9 @@ suspend fun GiteaApi.getServerVersion(): GiteaServerVersionDTO {
   return rest.loadJsonValue<GiteaServerVersionDTO>(request).body()
 }
 
+suspend fun GiteaApi.Rest.checkIsGiteaServer() : Boolean =
+  renderRawMarkdownAsHtml("*test*").isNotBlank()
+
 @Suppress("UnstableApiUsage")
 suspend fun GiteaApi.renderMarkdownAsHtml(context: String, mode: String, text: String): String {
   val uri = server.restApiUri().resolveRelative("markdown")
