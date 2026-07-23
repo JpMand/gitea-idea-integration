@@ -1,4 +1,4 @@
-package com.github.jpmand.idea.plugin.gitea
+package com.github.jpmand.idea.plugin.gitea.ui.action
 
 import com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable
 import com.intellij.openapi.actionSystem.ActionUpdateThread

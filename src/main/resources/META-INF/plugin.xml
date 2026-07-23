@@ -12,9 +12,11 @@
     <resource-bundle>messages.GiteaBundle</resource-bundle>
 
     <extensions defaultExtensionNs="com.intellij">
-        <applicationService serviceImplementation="com.github.jpmand.idea.plugin.gitea.authentication.account.GitePersistentAccounts"/>
-        <applicationService serviceInterface="com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager"
-                            serviceImplementation="com.github.jpmand.idea.plugin.gitea.authentication.account.PersistentGiteaAccountManager"/>
+        <applicationService
+                serviceImplementation="com.github.jpmand.idea.plugin.gitea.authentication.account.GitePersistentAccounts"/>
+        <applicationService
+                serviceInterface="com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager"
+                serviceImplementation="com.github.jpmand.idea.plugin.gitea.authentication.account.PersistentGiteaAccountManager"/>
         <applicationService serviceInterface="com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager"
                             serviceImplementation="com.github.jpmand.idea.plugin.gitea.api.GiteaApiManagerImpl"/>
         <projectService serviceInterface="com.github.jpmand.idea.plugin.gitea.GiteaRepositoriesManager"
@@ -32,10 +34,12 @@
         <projectConfigurable parentId="project.propVCSSupport.Mappings" groupWeight="-600"
                              instance="com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable"
                              displayName="Gitea"/>
+        <vcsAnnotationGutterActionProvider
+                implementation="com.github.jpmand.idea.plugin.gitea.extensions.GiteaAnnotationGutterActionProvider"/>
     </extensions>
     <extensions defaultExtensionNs="Git4Idea">
         <GitHttpAuthDataProvider id="Gitea.Silent"
-                                 implementation="com.github.jpmand.idea.plugin.gitea.authentication.extensions.GiteaSilentHttpAuthDataProvider" />
+                                 implementation="com.github.jpmand.idea.plugin.gitea.authentication.extensions.GiteaSilentHttpAuthDataProvider"/>
         <GitHttpAuthDataProvider id="Gitea"
                                  implementation="com.github.jpmand.idea.plugin.gitea.authentication.extensions.GiteaHttpAuthDataProvider"/>
     </extensions>
@@ -43,7 +47,7 @@
     <actions>
         <!--suppress PluginXmlCapitalization -->
         <action id="Gitea.Open.Settings"
-                class="com.github.jpmand.idea.plugin.gitea.GiteaOpenSettingsAction"
+                class="com.github.jpmand.idea.plugin.gitea.ui.action.GiteaOpenSettingsAction"
                 icon="/images/giteaLogo.svg">
             <!--suppress PluginXmlCapitalization -->
             <override-text place="MainMenu"/>
@@ -54,6 +58,20 @@
 
         <group id="Gitea.PullRequest.ToolWindow"
                class="com.intellij.openapi.actionSystem.DefaultActionGroup">
+        </group>
+        <group id="Gitea.Open.In.Browser"
+               class="com.github.jpmand.idea.plugin.gitea.ui.action.GiteaOpenInBrowserActionGroup">
+            <override-text place="GoToAction"/>
+            <override-text place="EditorTabPopup"/>
+            <override-text place="ProjectViewPopup" use-text-of-place="EditorTabPopup"/>
+            <override-text place="EditorPopup" use-text-of-place="EditorTabPopup"/>
+            <override-text place="BookmarksPopup" use-text-of-place="EditorTabPopup"/>
+            <add-to-group group-id="Git.Hosting.Open.In.Browser.Group"/>
+        </group>
+        <group id="Gitea.Copy.Link"
+               class="com.github.jpmand.idea.plugin.gitea.ui.action.GiteaCopyLinkActionGroup">
+            <override-text place="CopyReferencePopup"/>
+            <add-to-group group-id="Git.Hosting.Copy.Link.Group"/>
         </group>
     </actions>
 </idea-plugin>
