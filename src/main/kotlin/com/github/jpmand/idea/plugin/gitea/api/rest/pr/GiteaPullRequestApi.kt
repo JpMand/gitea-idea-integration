@@ -1,4 +1,4 @@
-package com.github.jpmand.idea.plugin.gitea.api.rest
+package com.github.jpmand.idea.plugin.gitea.api.rest.pr
 
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApi
 import com.github.jpmand.idea.plugin.gitea.api.GiteaUriUtil

@@ -8,7 +8,11 @@ open class GiteaPullRequestReviewDTO(
     val user: GiteaUserDTO?,
     val body: String?,
     val state: GiteaReviewStateEnum?,
-    val submittedAt: Date?,
+    val submittedAt: Date,
+    val updatedAt: Date?,
+    val pullRequestUrl : String,
+    val htmlUrl : String,
+    val commentsCount : Int,
     val stale: Boolean,
     val official: Boolean,
     val dismissed: Boolean,
@@ -28,6 +32,8 @@ open class GiteaPullRequestReviewDTO(
     submittedAt = submittedAt,
     dismissed = dismissed,
     stale = stale,
-    commitId = commitId
+    commitId = commitId,
+    commentsCount = commentsCount,
+    htmlUrl = htmlUrl,
   )
 }

@@ -10,5 +10,7 @@ data class GiteaReview(
     val submittedAt: Date?,
     val dismissed: Boolean,
     val stale: Boolean,
-    val commitId: String?
+    val commitId: String?,
+    val commentsCount: Int,
+    val htmlUrl : String
 )
