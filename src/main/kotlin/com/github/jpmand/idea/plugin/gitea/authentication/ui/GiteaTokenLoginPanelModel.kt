@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.authentication.ui
 
+import com.github.jpmand.idea.plugin.gitea.GiteaServersManager
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager
 import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.api.rest.currentUser
@@ -28,6 +29,11 @@ class GiteaTokenLoginPanelModel(
   override suspend fun checkToken(): String {
     val server = createServerPath(serverUri)
     val api = service<GiteaApiManager>().getClient(server, token)
+    val serversManager = service<GiteaServersManager>()
+    val metadata = withContext(Dispatchers.IO) { serversManager.getMetadata(api) }
+    if (metadata.version < serversManager.earliestSupportedVersion) {
+      throw LoginException.UnsupportedServerVersion(serversManager.earliestSupportedVersion.toString())
+    }
     val user = withContext(Dispatchers.IO) {
       api.currentUser()
     }

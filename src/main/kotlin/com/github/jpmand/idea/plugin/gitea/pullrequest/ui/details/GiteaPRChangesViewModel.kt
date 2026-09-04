@@ -1,6 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details
 
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.commit.GiteaCommitDTO
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.Commit
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.intellij.collaboration.ui.codereview.details.model.CodeReviewChangesViewModel
 import kotlinx.coroutines.CancellationException
@@ -21,21 +21,21 @@ class GiteaPRChangesViewModel(
     private val cs: CoroutineScope,
     val prNumber: Int,
     private val repository: GiteaPRRepository,
-) : CodeReviewChangesViewModel<GiteaCommitDTO> {
+) : CodeReviewChangesViewModel<Commit> {
 
-    private val _commits = MutableStateFlow<List<GiteaCommitDTO>>(emptyList())
+    private val _commits = MutableStateFlow<List<Commit>>(emptyList())
     private val _selectedCommitIndex = MutableStateFlow(-1)
 
     private val _error = MutableStateFlow<Throwable?>(null)
     val error: StateFlow<Throwable?> = _error.asStateFlow()
 
-    override val reviewCommits: SharedFlow<List<GiteaCommitDTO>> =
+    override val reviewCommits: SharedFlow<List<Commit>> =
         _commits.shareIn(cs, SharingStarted.Eagerly, replay = 1)
 
     override val selectedCommitIndex: SharedFlow<Int> =
         _selectedCommitIndex.shareIn(cs, SharingStarted.Eagerly, replay = 1)
 
-    override val selectedCommit: SharedFlow<GiteaCommitDTO?> =
+    override val selectedCommit: SharedFlow<Commit?> =
         combine(_commits, _selectedCommitIndex) { commits, idx ->
             if (idx == -1) null else commits.getOrNull(idx)
         }.shareIn(cs, SharingStarted.Eagerly, replay = 1)
@@ -70,5 +70,5 @@ class GiteaPRChangesViewModel(
     }
 
     /** Returns the full SHA — displayed text should be shortened in [CommitPresentation]. */
-    override fun commitHash(commit: GiteaCommitDTO): String = commit.sha
+    override fun commitHash(commit: Commit): String = commit.sha.orEmpty()
 }

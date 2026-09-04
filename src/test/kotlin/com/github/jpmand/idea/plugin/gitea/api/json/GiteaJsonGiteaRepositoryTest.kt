@@ -1,7 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.api.json
 
 import com.github.jpmand.idea.plugin.gitea.api.GiteaJsonDeSerializer
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaRepositoryDTO
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.Repository
 import com.intellij.util.containers.forEachGuaranteed
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -979,7 +979,7 @@ class GiteaJsonGiteaRepositoryTest {
 
   @Test
   fun `deserializes repository list`() {
-    val repos = deserialize(data, Array<GiteaRepositoryDTO>::class.java)
+    val repos = deserialize(data, Array<Repository>::class.java)
     assertNotNull(repos)
     assertEquals(10, repos!!.size)
     repos.forEachGuaranteed { assertNotNull(it) }
@@ -1025,13 +1025,13 @@ class GiteaJsonGiteaRepositoryTest {
       }
     """.trimIndent()
 
-    val repo = deserialize(json, GiteaRepositoryDTO::class.java)
+    val repo = deserialize(json, Repository::class.java)
     assertNotNull(repo)
-    assertEquals(113277, repo!!.id)
+    assertEquals(113277L, repo!!.id)
     assertEquals("my-repo", repo.name)
     assertEquals("evallab01/my-repo", repo.fullName)
     assertEquals("A test repository", repo.description)
-    assertTrue(repo.empty)
+    assertTrue(repo.empty!!)
     print(repo)
   }
 
@@ -1079,10 +1079,10 @@ class GiteaJsonGiteaRepositoryTest {
       }
     """.trimIndent()
 
-    val repo = deserialize(json, GiteaRepositoryDTO::class.java)
+    val repo = deserialize(json, Repository::class.java)
     assertNotNull(repo)
     assertNotNull(repo!!.owner)
-    assertEquals(178984, repo.owner.id)
+    assertEquals(178984L, repo.owner!!.id)
     assertEquals("abla-test", repo.owner.login)
     assertEquals("Alex Blais", repo.owner.fullName)
     assertEquals("178984+abla-test@noreply.gitea.com", repo.owner.email)
@@ -1127,7 +1127,7 @@ class GiteaJsonGiteaRepositoryTest {
       }
     """.trimIndent()
 
-    val repo = deserialize(json, GiteaRepositoryDTO::class.java)
+    val repo = deserialize(json, Repository::class.java)
     assertNotNull(repo)
     assertEquals("https://gitea.com/user/repo", repo!!.htmlUrl)
     print(repo)
@@ -1169,7 +1169,7 @@ class GiteaJsonGiteaRepositoryTest {
       }
     """.trimIndent()
 
-    val repo = deserialize(json, GiteaRepositoryDTO::class.java)
+    val repo = deserialize(json, Repository::class.java)
     assertNotNull(repo)
     assertEquals("git@gitea.com:user/repo.git", repo!!.sshUrl)
     print(repo)
@@ -1211,7 +1211,7 @@ class GiteaJsonGiteaRepositoryTest {
       }
     """.trimIndent()
 
-    val repo = deserialize(json, GiteaRepositoryDTO::class.java)
+    val repo = deserialize(json, Repository::class.java)
     assertNotNull(repo)
     assertEquals("https://gitea.com/user/repo.git", repo!!.cloneUrl)
     print(repo)
@@ -1254,11 +1254,11 @@ class GiteaJsonGiteaRepositoryTest {
       }
     """.trimIndent()
 
-    val repo = deserialize(json, GiteaRepositoryDTO::class.java)
+    val repo = deserialize(json, Repository::class.java)
     assertNotNull(repo)
     assertNotNull(repo!!.createdAt)
     // 2025-11-08T12:25:30Z epoch millis
-    assertEquals(1762604730000L, repo.createdAt.time)
+    assertEquals(1762604730000L, repo.createdAt?.toInstant()?.toEpochMilli())
     print(repo.createdAt)
   }
 
@@ -1298,7 +1298,7 @@ class GiteaJsonGiteaRepositoryTest {
       }
     """.trimIndent()
 
-    val repo = deserialize(json, GiteaRepositoryDTO::class.java)
+    val repo = deserialize(json, Repository::class.java)
     assertNotNull(repo)
     assertNull(repo!!.updatedAt)
     print(repo)
@@ -1341,19 +1341,19 @@ class GiteaJsonGiteaRepositoryTest {
       }
     """.trimIndent()
 
-    val repo = deserialize(json, GiteaRepositoryDTO::class.java)
+    val repo = deserialize(json, Repository::class.java)
     assertNotNull(repo)
-    assertTrue(repo!!.allowMergeCommits)
-    assertTrue(repo.allowRebase)
-    assertTrue(repo.allowRebaseExplicit)
-    assertTrue(repo.allowSquashMerge)
-    assertFalse(repo.allowFastForwardOnlyMerge)
-    assertTrue(repo.allowRebaseUpdate)
-    assertFalse(repo.allowManualMerge)
-    assertFalse(repo.autodetectManualMerge)
-    assertFalse(repo.defaultDeleteBranchAfterMerge)
+    assertTrue(repo!!.allowMergeCommits!!)
+    assertTrue(repo.allowRebase!!)
+    assertTrue(repo.allowRebaseExplicit!!)
+    assertTrue(repo.allowSquashMerge!!)
+    assertFalse(repo.allowFastForwardOnlyMerge!!)
+    assertTrue(repo.allowRebaseUpdate!!)
+    assertFalse(repo.allowManualMerge!!)
+    assertFalse(repo.autodetectManualMerge!!)
+    assertFalse(repo.defaultDeleteBranchAfterMerge!!)
     assertEquals("merge", repo.defaultMergeStyle)
-    assertFalse(repo.defaultAllowMaintainerEdit)
+    assertFalse(repo.defaultAllowMaintainerEdit!!)
     print(repo)
   }
 
@@ -1394,10 +1394,10 @@ class GiteaJsonGiteaRepositoryTest {
       }
     """.trimIndent()
 
-    val repo = deserialize(json, GiteaRepositoryDTO::class.java)
+    val repo = deserialize(json, Repository::class.java)
     assertNotNull(repo)
-    assertEquals(0, repo!!.openIssuesCount)
-    assertEquals(1, repo.openPrCounter)
+    assertEquals(0L, repo!!.openIssuesCount)
+    assertEquals(1L, repo.openPrCounter)
     print(repo)
   }
 
@@ -1438,7 +1438,7 @@ class GiteaJsonGiteaRepositoryTest {
       }
     """.trimIndent()
 
-    val repo = deserialize(json, GiteaRepositoryDTO::class.java)
+    val repo = deserialize(json, Repository::class.java)
     assertNotNull(repo)
     assertEquals("https://github.com/cloudchamb3r/acorn-final-be", repo!!.originalUrl)
     print(repo)
@@ -1489,13 +1489,13 @@ class GiteaJsonGiteaRepositoryTest {
       }
     """.trimIndent()
 
-    val dto = deserialize(json, GiteaRepositoryDTO::class.java)
+    val dto = deserialize(json, Repository::class.java)
     assertNotNull(dto)
-    assertEquals(123346, dto!!.id)
+    assertEquals(123346L, dto!!.id)
     assertEquals("abla-test-project", dto.name)
     assertEquals("abla-test/abla-test-project", dto.fullName)
     assertEquals("", dto.description)
-    assertTrue(dto.empty)
+    assertTrue(dto.empty!!)
     assertEquals("https://gitea.com/abla-test/abla-test-project", dto.htmlUrl)
     assertEquals("https://gitea.com/api/v1/repos/abla-test/abla-test-project", dto.url)
     assertEquals("git@gitea.com:abla-test/abla-test-project.git", dto.sshUrl)
@@ -1504,25 +1504,25 @@ class GiteaJsonGiteaRepositoryTest {
     assertEquals("main", dto.defaultBranch)
     assertNotNull(dto.createdAt)
     assertNotNull(dto.updatedAt)
-    assertTrue(dto.hasCode)
-    assertTrue(dto.hasIssues)
-    assertTrue(dto.hasPullRequests)
-    assertEquals(33, dto.openIssuesCount)
-    assertEquals(0, dto.openPrCounter)
-    assertTrue(dto.allowMergeCommits)
-    assertTrue(dto.allowRebase)
-    assertTrue(dto.allowRebaseExplicit)
-    assertTrue(dto.allowSquashMerge)
-    assertTrue(dto.allowFastForwardOnlyMerge)
-    assertTrue(dto.allowRebaseUpdate)
-    assertFalse(dto.allowManualMerge)
-    assertFalse(dto.autodetectManualMerge)
-    assertFalse(dto.defaultDeleteBranchAfterMerge)
+    assertTrue(dto.hasCode!!)
+    assertTrue(dto.hasIssues!!)
+    assertTrue(dto.hasPullRequests!!)
+    assertEquals(33L, dto.openIssuesCount)
+    assertEquals(0L, dto.openPrCounter)
+    assertTrue(dto.allowMergeCommits!!)
+    assertTrue(dto.allowRebase!!)
+    assertTrue(dto.allowRebaseExplicit!!)
+    assertTrue(dto.allowSquashMerge!!)
+    assertTrue(dto.allowFastForwardOnlyMerge!!)
+    assertTrue(dto.allowRebaseUpdate!!)
+    assertFalse(dto.allowManualMerge!!)
+    assertFalse(dto.autodetectManualMerge!!)
+    assertFalse(dto.defaultDeleteBranchAfterMerge!!)
     assertEquals("merge", dto.defaultMergeStyle)
-    assertFalse(dto.defaultAllowMaintainerEdit)
+    assertFalse(dto.defaultAllowMaintainerEdit!!)
 
     // Verify nested owner
-    assertEquals(178984, dto.owner.id)
+    assertEquals(178984L, dto.owner!!.id)
     assertEquals("abla-test", dto.owner.login)
     print(dto)
   }
@@ -1576,9 +1576,9 @@ class GiteaJsonGiteaRepositoryTest {
       }
     """.trimIndent()
 
-    val repo = deserialize(json, GiteaRepositoryDTO::class.java)
+    val repo = deserialize(json, Repository::class.java)
     assertNotNull(repo)
-    assertEquals(1, repo!!.id)
+    assertEquals(1L, repo!!.id)
     assertEquals("repo", repo.name)
     print(repo)
   }
@@ -1620,11 +1620,11 @@ class GiteaJsonGiteaRepositoryTest {
       }
     """.trimIndent()
 
-    val repo = deserialize(json, GiteaRepositoryDTO::class.java)
+    val repo = deserialize(json, Repository::class.java)
     assertNotNull(repo)
     assertEquals("", repo!!.defaultBranch)
-    assertTrue(repo.empty)
-    assertEquals(2, repo.openIssuesCount)
+    assertTrue(repo.empty!!)
+    assertEquals(2L, repo.openIssuesCount)
     print(repo)
   }
 }

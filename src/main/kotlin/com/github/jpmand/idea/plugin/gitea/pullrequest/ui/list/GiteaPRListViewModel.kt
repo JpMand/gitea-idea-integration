@@ -1,7 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaStateEnum
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.filters.GiteaPRListSearchPanelViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.filters.GiteaPRListSearchValue
@@ -51,12 +50,7 @@ class GiteaPRListViewModel(
         _isLoading.value = true
         _error.value = null
         try {
-            val stateEnum = when (filter.state) {
-                GiteaPRListSearchValue.State.OPEN -> GiteaStateEnum.OPEN
-                GiteaPRListSearchValue.State.CLOSED -> GiteaStateEnum.CLOSED
-                GiteaPRListSearchValue.State.ALL -> GiteaStateEnum.ALL
-            }
-            val prs = repository.loadPullRequests(stateEnum, page = null, limit = 50)
+            val prs = repository.loadPullRequests(filter.state.apiValue, page = null, limit = 50)
             val query = filter.searchQuery
             val filtered = if (query.isNullOrBlank()) prs
             else prs.filter { pr ->

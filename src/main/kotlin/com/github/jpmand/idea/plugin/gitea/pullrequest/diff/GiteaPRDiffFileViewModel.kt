@@ -1,6 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.diff
 
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaPRFileStatusEnum
+import com.github.jpmand.idea.plugin.gitea.api.rest.pr.GiteaPRFileStatusEnum
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.intellij.collaboration.ui.codereview.diff.model.AsyncDiffViewModel
 import com.intellij.collaboration.util.ComputedResult

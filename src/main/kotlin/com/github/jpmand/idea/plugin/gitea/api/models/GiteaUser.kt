@@ -1,11 +1,12 @@
 package com.github.jpmand.idea.plugin.gitea.api.models
 
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.User
 import com.intellij.collaboration.auth.AccountDetails
 import com.intellij.collaboration.ui.codereview.user.CodeReviewUser
 import com.intellij.openapi.util.NlsSafe
 
 open class GiteaUser(
-  val id: Int,
+  val id: Long,
   val login: @NlsSafe String,
   override val avatarUrl: String?,
   val email: @NlsSafe String?,
@@ -28,9 +29,20 @@ open class GiteaUser(
   }
 
   override fun hashCode(): Int {
-    var result = id
+    var result = id.hashCode()
     result = 31 * result + login.hashCode()
     result = 31 * result + (avatarUrl?.hashCode() ?: 0)
     return result
+  }
+
+  companion object {
+    fun fromDto(dto: User): GiteaUser = GiteaUser(
+      id = dto.id ?: 0L,
+      login = dto.login ?: "",
+      avatarUrl = dto.avatarUrl,
+      email = dto.email,
+      fullName = dto.fullName,
+      htmlUrl = dto.htmlUrl,
+    )
   }
 }

@@ -15,9 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Central ViewModel for the review discussion layer of a single PR.
@@ -82,31 +80,10 @@ class GiteaPRDiscussionsViewModels(
     /** No-op — `updateRequired` is always false so this button is never enabled. */
     override fun updateBranch() = Unit
 
-    // ── Draft comments ────────────────────────────────────────────────────
-
-    private val _draftComments = MutableStateFlow<List<GiteaPRDraftComment>>(emptyList())
-    val draftComments: StateFlow<List<GiteaPRDraftComment>> = _draftComments.asStateFlow()
-
-    private val nextLocalId = AtomicLong(1)
-
-    /**
-     * Adds a new draft comment and returns its [GiteaPRDraftComment.localId].
-     *
-     * @param newPosition 1-indexed head (new-file) line; null for base-only comments.
-     * @param oldPosition 1-indexed base (old-file) line; null for head-only comments.
-     */
-    fun addDraftComment(path: String, newPosition: Int?, oldPosition: Int?, body: String): Long {
-        val id = nextLocalId.getAndIncrement()
-        _draftComments.update { it + GiteaPRDraftComment(id, path, newPosition, oldPosition, body) }
-        return id
-    }
-
-    /** Removes the draft comment with the given [localId]. No-op if not found. */
-    fun removeDraftComment(localId: Long) {
-        _draftComments.update { it.filter { c -> c.localId != localId } }
-    }
+    // Draft-comment composition is Milestone 2 (comment/review submission) — not present here.
 
     // ── Resolve / unresolve ───────────────────────────────────────────────
+    // Present but intentionally not wired into any Milestone-1 UI control — Milestone 2.
 
     /**
      * Resolves the anchor comment of the thread identified by [threadId]

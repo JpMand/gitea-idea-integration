@@ -5,8 +5,6 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContextHo
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
-import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRReviewViewModel
-import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRSubmitReviewPopupHandler
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffVirtualFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.GiteaPRDetailsPanel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.GiteaPRDetailsViewModel
@@ -30,11 +28,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -135,25 +129,8 @@ class GiteaPRToolWindowController(
 
             val detailsVm = GiteaPRDetailsViewModel(detailsCs, pr, repository)
             val diffVm = GiteaPRDiffViewModel(diffCs, project, pr, repository)
-            val discussionsVm = GiteaPRDiscussionsViewModels(diffCs, pr.number, repository)
-            val diffFile = GiteaPRDiffVirtualFile(pr.number, diffCs, project, diffVm, discussionsVm)
-
-            val draftCommentsCount = discussionsVm.draftComments
-                .map { it.size }
-                .stateIn(diffCs, SharingStarted.Eagerly, 0)
-
-            val onSubmitReview: (suspend (javax.swing.JComponent) -> Unit) = { component ->
-                val ctx = currentCoroutineContext()
-                val reviewVm = GiteaPRReviewViewModel(
-                    cs = CoroutineScope(ctx),
-                    prNumber = pr.number,
-                    headSha = pr.head.sha,
-                    repository = repository,
-                    discussionsVm = discussionsVm,
-                    onDone = { ctx.cancel() },
-                )
-                GiteaPRSubmitReviewPopupHandler.show(reviewVm, component, above = true)
-            }
+            val discussionsVm = GiteaPRDiscussionsViewModels(diffCs, pr.number.toInt(), repository)
+            val diffFile = GiteaPRDiffVirtualFile(pr.number.toInt(), diffCs, project, diffVm, discussionsVm)
 
             val detailsPanel = GiteaPRDetailsPanel(
                 detailsCs, detailsVm,
@@ -165,8 +142,6 @@ class GiteaPRToolWindowController(
                     detailsVm.refresh()
                     discussionsVm.reload()
                 },
-                onSubmitReview = onSubmitReview,
-                draftCommentsCount = draftCommentsCount,
             ).create()
             navigationWrapper.setContent(detailsPanel)
             navigationWrapper.repaint()

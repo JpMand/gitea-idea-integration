@@ -1,7 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.api
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaRepositoryDTO
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.Repository
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
 import com.github.jpmand.idea.plugin.gitea.util.GiteaGitRepositoryMapping
 import com.intellij.openapi.project.Project
@@ -18,7 +18,7 @@ class GiteaRepositoryConnection internal constructor(
     private val scope: CoroutineScope,
     override val account: GiteaAccount,
     val currentUser: GiteaUser,
-    repositoryDto: GiteaRepositoryDTO?,
+    repositoryDto: Repository?,
     override val repo: GiteaGitRepositoryMapping,
     api: GiteaApi,
     tokenState: Flow<String>

@@ -3,14 +3,14 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.data
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReview
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewComment
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaCombinedStatusDTO
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaStateEnum
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.commit.GiteaCommitDTO
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaCreatePullRequestReviewRequestDTO
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaEditPullRequestRequestDTO
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaMergePullRequestRequestDTO
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewThread
 import com.github.jpmand.idea.plugin.gitea.api.models.toThreads
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CombinedStatus
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.Commit
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreatePullReviewOptions
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.EditPullRequestOption
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.MergePullRequestOption
+import com.github.jpmand.idea.plugin.gitea.api.rest.decodeContent
 import com.github.jpmand.idea.plugin.gitea.api.rest.getFileContents
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.toChangedFile
@@ -43,30 +43,30 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     // ── Pull Requests ─────────────────────────────────────────────────────
 
     suspend fun loadPullRequests(
-        state: GiteaStateEnum? = GiteaStateEnum.OPEN,
+        state: String? = "open",
         page: Int? = null,
         limit: Int? = null,
     ): List<GiteaPullRequest> =
         ctx.api.repoListPullRequests(owner, repo, null, state, null, null, null, null, page, limit)
-            .map { it.toPullRequest() }
+            .map { GiteaPullRequest.fromDto(it) }
 
     suspend fun loadPullRequest(number: Int): GiteaPullRequest =
-        ctx.api.repoGetPullRequest(owner, repo, number).toPullRequest()
+        GiteaPullRequest.fromDto(ctx.api.repoGetPullRequest(owner, repo, number))
 
-    suspend fun editPullRequest(number: Int, body: GiteaEditPullRequestRequestDTO): GiteaPullRequest =
-        ctx.api.repoEditPullRequest(owner, repo, number, body).toPullRequest()
+    suspend fun editPullRequest(number: Int, body: EditPullRequestOption): GiteaPullRequest =
+        GiteaPullRequest.fromDto(ctx.api.repoEditPullRequest(owner, repo, number, body))
 
-    suspend fun mergePullRequest(number: Int, body: GiteaMergePullRequestRequestDTO) =
+    suspend fun mergePullRequest(number: Int, body: MergePullRequestOption) =
         ctx.api.repoMergePullRequest(owner, repo, number, body)
 
     // ── Reviews & Comments ────────────────────────────────────────────────
 
     suspend fun loadReviews(prNumber: Int): List<GiteaReview> =
-        ctx.api.repoListPullRequestReviews(owner, repo, prNumber).map { it.toReview() }
+        ctx.api.repoListPullRequestReviews(owner, repo, prNumber).map { GiteaReview.fromDto(it) }
 
     suspend fun loadReviewComments(prNumber: Int, reviewId: Long): List<GiteaReviewComment> =
         ctx.api.repoGetPullRequestReviewComments(owner, repo, prNumber, reviewId)
-            .map { it.toReviewComment() }
+            .map { GiteaReviewComment.fromDto(it) }
 
     /** Convenience: load comments from all reviews in one call. */
     suspend fun loadAllReviewComments(prNumber: Int): List<GiteaReviewComment> =
@@ -76,14 +76,14 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     suspend fun loadThreads(prNumber: Int): List<GiteaReviewThread> =
         loadAllReviewComments(prNumber).toThreads()
 
-    suspend fun submitReview(prNumber: Int, body: GiteaCreatePullRequestReviewRequestDTO): GiteaReview =
-        ctx.api.repoCreatePullRequestReview(owner, repo, prNumber, body).toReview()
+    suspend fun submitReview(prNumber: Int, body: CreatePullReviewOptions): GiteaReview =
+        GiteaReview.fromDto(ctx.api.repoCreatePullRequestReview(owner, repo, prNumber, body))
 
     suspend fun resolveComment(commentId: Long): GiteaReviewComment =
-        ctx.api.repoResolvePullRequestReviewComment(owner, repo, commentId).toReviewComment()
+        GiteaReviewComment.fromDto(ctx.api.repoResolvePullRequestReviewComment(owner, repo, commentId))
 
     suspend fun unresolveComment(commentId: Long): GiteaReviewComment =
-        ctx.api.repoUnresolvePullRequestReviewComment(owner, repo, commentId).toReviewComment()
+        GiteaReviewComment.fromDto(ctx.api.repoUnresolvePullRequestReviewComment(owner, repo, commentId))
 
     // ── Files & Commits ───────────────────────────────────────────────────
 
@@ -106,12 +106,12 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         }
     }
 
-    suspend fun loadCommits(prNumber: Int): List<GiteaCommitDTO> =
+    suspend fun loadCommits(prNumber: Int): List<Commit> =
         ctx.api.repoListPullRequestCommits(owner, repo, prNumber)
 
     // ── CI Status ─────────────────────────────────────────────────────────
 
-    suspend fun loadCombinedStatus(ref: String): GiteaCombinedStatusDTO =
+    suspend fun loadCombinedStatus(ref: String): CombinedStatus =
         ctx.api.repoCombinedStatus(owner, repo, ref)
 
     suspend fun loadCommitStatuses(ref: String) =

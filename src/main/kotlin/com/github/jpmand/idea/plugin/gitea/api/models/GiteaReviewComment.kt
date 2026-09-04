@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.api.models
 
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.PullReviewComment
 import java.util.Date
 
 data class GiteaReviewComment(
@@ -21,4 +22,22 @@ data class GiteaReviewComment(
     val resolver: GiteaUser?
 ) {
     val isResolved: Boolean get() = resolver != null
+
+    companion object {
+        fun fromDto(dto: PullReviewComment): GiteaReviewComment = GiteaReviewComment(
+            id = dto.id ?: 0L,
+            author = dto.user?.let { GiteaUser.fromDto(it) },
+            body = dto.body,
+            createdAt = dto.createdAt?.toDate(),
+            updatedAt = dto.updatedAt?.toDate(),
+            path = dto.path,
+            newLine = dto.position,
+            oldLine = dto.originalPosition,
+            diffHunk = dto.diffHunk,
+            commitId = dto.commitId,
+            originalCommitId = dto.originalCommitId,
+            reviewId = dto.pullRequestReviewId,
+            resolver = dto.resolver?.let { GiteaUser.fromDto(it) },
+        )
+    }
 }

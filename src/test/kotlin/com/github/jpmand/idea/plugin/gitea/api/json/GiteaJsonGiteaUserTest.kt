@@ -1,7 +1,8 @@
 package com.github.jpmand.idea.plugin.gitea.api.json
 
 import com.github.jpmand.idea.plugin.gitea.api.GiteaJsonDeSerializer
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaUserDTO
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.User
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -29,9 +30,9 @@ class GiteaJsonGiteaUserTest {
       }
     """.trimIndent()
 
-    val user = deserialize(json, GiteaUserDTO::class.java)
+    val user = deserialize(json, User::class.java)
     assertNotNull(user)
-    assertEquals(42, user!!.id)
+    assertEquals(42L, user!!.id)
     assertEquals("jdoe", user.login)
     assertEquals("jdoe@example.com", user.email)
   }
@@ -46,7 +47,7 @@ class GiteaJsonGiteaUserTest {
       }
     """.trimIndent()
 
-    val user = deserialize(json, GiteaUserDTO::class.java)
+    val user = deserialize(json, User::class.java)
     assertNotNull(user)
     assertEquals("https://gitea.example.com/user/avatar/user/-1", user!!.avatarUrl)
   }
@@ -61,7 +62,7 @@ class GiteaJsonGiteaUserTest {
       }
     """.trimIndent()
 
-    val user = deserialize(json, GiteaUserDTO::class.java)
+    val user = deserialize(json, User::class.java)
     assertNotNull(user)
     assertEquals("John Doe", user!!.fullName)
   }
@@ -76,7 +77,7 @@ class GiteaJsonGiteaUserTest {
       }
     """.trimIndent()
 
-    val user = deserialize(json, GiteaUserDTO::class.java)
+    val user = deserialize(json, User::class.java)
     assertNotNull(user)
     assertEquals("https://gitea.example.com/user", user!!.htmlUrl)
   }
@@ -91,11 +92,11 @@ class GiteaJsonGiteaUserTest {
       }
     """.trimIndent()
 
-    val user = deserialize(json, GiteaUserDTO::class.java)
+    val user = deserialize(json, User::class.java)
     assertNotNull(user)
     assertNotNull(user!!.lastLogin)
     // Verify epoch time (timezone-independent)
-    assertEquals(1773352330000L, user.lastLogin?.time)
+    assertEquals(1773352330000L, user.lastLogin?.toInstant()?.toEpochMilli())
   }
 
   @Test
@@ -108,11 +109,11 @@ class GiteaJsonGiteaUserTest {
       }
     """.trimIndent()
 
-    val user = deserialize(json, GiteaUserDTO::class.java)
+    val user = deserialize(json, User::class.java)
     assertNotNull(user)
     assertNotNull(user!!.lastLogin)
     // Verify epoch time (timezone-independent) - same instant as UTC test but with +01:00 offset
-    assertEquals(1773348730000L, user.lastLogin?.time)
+    assertEquals(1773348730000L, user.lastLogin?.toInstant()?.toEpochMilli())
   }
 
   @Test
@@ -133,9 +134,9 @@ class GiteaJsonGiteaUserTest {
       }
     """.trimIndent()
 
-    val dto = deserialize(json, GiteaUserDTO::class.java)
+    val dto = deserialize(json, User::class.java)
     assertNotNull(dto)
-    assertEquals(123, dto!!.id)
+    assertEquals(123L, dto!!.id)
     assertEquals("testuser", dto.login)
     assertEquals("testuser@gitea.example.com", dto.email)
     assertEquals("Test User", dto.fullName)
@@ -153,9 +154,9 @@ class GiteaJsonGiteaUserTest {
       }
     """.trimIndent()
 
-    val user = deserialize(json, GiteaUserDTO::class.java)
+    val user = deserialize(json, User::class.java)
     assertNotNull(user)
-    assertEquals(1, user!!.id)
+    assertEquals(1L, user!!.id)
     assertEquals("minimal", user.login)
     assertNull(user.email)
     assertNull(user.fullName)
@@ -165,7 +166,7 @@ class GiteaJsonGiteaUserTest {
   }
 
   @Test
-  fun `toUser converts DTO to GiteaUser correctly`() {
+  fun `fromDto converts DTO to GiteaUser correctly`() {
     val json = """
       {
         "id": 7,
@@ -177,10 +178,10 @@ class GiteaJsonGiteaUserTest {
       }
     """.trimIndent()
 
-    val dto = deserialize(json, GiteaUserDTO::class.java)!!
-    val user = dto.toUser()
+    val dto = deserialize(json, User::class.java)!!
+    val user = GiteaUser.fromDto(dto)
 
-    assertEquals(7, user.id)
+    assertEquals(7L, user.id)
     assertEquals("converter", user.login)
     assertEquals("converter@example.com", user.email)
     assertEquals("Converter User", user.fullName)
@@ -201,9 +202,9 @@ class GiteaJsonGiteaUserTest {
       }
     """.trimIndent()
 
-    val user = deserialize(json, GiteaUserDTO::class.java)
+    val user = deserialize(json, User::class.java)
     assertNotNull(user)
-    assertEquals(1, user!!.id)
+    assertEquals(1L, user!!.id)
     assertEquals("user", user.login)
   }
 }

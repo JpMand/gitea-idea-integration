@@ -1,9 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaEditPullRequestRequestDTO
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaMergePullRequestRequestDTO
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.pr.GiteaMergeStyleEnum
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.intellij.collaboration.ui.codereview.details.data.ReviewRequestState
 import com.intellij.collaboration.ui.codereview.details.model.CodeReviewDetailsViewModel
@@ -19,6 +16,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * Milestone-1 (read-only) details view model: title/description/status/branches/commits.
+ * Mutating actions (merge/close/reopen) are intentionally not exposed here — Milestone 2.
+ */
 @Suppress("UnstableApiUsage")
 class GiteaPRDetailsViewModel(
     private val cs: CoroutineScope,
@@ -28,7 +29,7 @@ class GiteaPRDetailsViewModel(
 
     private val _pr = MutableStateFlow(initialPr)
 
-    val prNumber: Int = initialPr.number
+    val prNumber: Int = initialPr.number.toInt()
 
     override val number: String = "#${initialPr.number}"
     override val url: String = initialPr.htmlUrl
@@ -70,46 +71,6 @@ class GiteaPRDetailsViewModel(
                 _error.value = e
             } finally {
                 withContext(NonCancellable) { _isLoading.value = false }
-            }
-        }
-    }
-
-    fun merge(style: GiteaMergeStyleEnum = GiteaMergeStyleEnum.MERGE) {
-        cs.launch(Dispatchers.IO) {
-            _error.value = null
-            try {
-                repository.mergePullRequest(prNumber, GiteaMergePullRequestRequestDTO(style))
-                _pr.value = repository.loadPullRequest(prNumber)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _error.value = e
-            }
-        }
-    }
-
-    fun close() {
-        cs.launch(Dispatchers.IO) {
-            _error.value = null
-            try {
-                _pr.value = repository.editPullRequest(prNumber, GiteaEditPullRequestRequestDTO(state = "closed"))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _error.value = e
-            }
-        }
-    }
-
-    fun reopen() {
-        cs.launch(Dispatchers.IO) {
-            _error.value = null
-            try {
-                _pr.value = repository.editPullRequest(prNumber, GiteaEditPullRequestRequestDTO(state = "open"))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _error.value = e
             }
         }
     }

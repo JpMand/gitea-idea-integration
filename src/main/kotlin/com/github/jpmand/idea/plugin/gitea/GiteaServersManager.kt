@@ -7,7 +7,6 @@ import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.api.GiteaVersion
 import com.github.jpmand.idea.plugin.gitea.api.rest.checkIsGiteaServer
 import com.github.jpmand.idea.plugin.gitea.api.rest.getServerVersion
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaServerVersionDTO
 import com.intellij.openapi.components.serviceAsync
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
@@ -35,7 +34,7 @@ internal class CachingGiteaServersManager(private val serviceCs: CoroutineScope)
     private val metadataCache = ConcurrentHashMap<GiteaServerPath, GiteaServerMetadata>()
     private val metadataCacheGuard = Mutex()
 
-    override val earliestSupportedVersion: GiteaVersion = GiteaVersion(1, 27, 0)
+    override val earliestSupportedVersion: GiteaVersion = GiteaVersion(1, 27, 1)
 
     override suspend fun checkIsGiteaServer(server: GiteaServerPath): Boolean =
         testCache.getOrPut(server) {
@@ -64,7 +63,7 @@ private suspend fun getServerMetadata(api: GiteaApi): GiteaServerMetadata {
         }catch (e: Throwable) {
             throw e
         }
-    val version = GiteaVersion.fromString(dto.version)
+    val version = GiteaVersion.fromString(dto.version ?: "0")
     val metadata = GiteaServerMetadata(version)
     return metadata
 }
