@@ -23,11 +23,25 @@ kotlin {
 repositories {
     mavenCentral()
 
+    // Hosts com.intellij.remoterobot:remote-robot/remote-fixtures, used by the uiTest source set.
+    maven { url = uri("https://packages.jetbrains.team/maven/p/ij/intellij-dependencies") }
+
     // IntelliJ Platform Gradle Plugin Repositories Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-repositories-extension.html
     intellijPlatform {
         defaultRepositories()
     }
 }
+
+// A separate source set for UI tests driven via Remote Robot against a running
+// `runIdeForUiTests` sandbox (see the `robotServerPlugin()` registration below). Kept apart
+// from the fast unit `test` source set since these need a live IDE instance to run against.
+val uiTest = sourceSets.create("uiTest") {
+    compileClasspath += sourceSets.main.get().output + sourceSets.test.get().output
+    runtimeClasspath += sourceSets.main.get().output + sourceSets.test.get().output
+}
+
+configurations.named("uiTestImplementation") { extendsFrom(configurations.testImplementation.get()) }
+configurations.named("uiTestRuntimeOnly") { extendsFrom(configurations.testRuntimeOnly.get()) }
 
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/version_catalogs.html
 dependencies {
@@ -42,6 +56,13 @@ dependencies {
     }
     testImplementation(libs.junit)
     testImplementation(libs.opentest4j)
+
+    // main/test get the Kotlin stdlib transitively from the IntelliJ Platform dependency
+    // (see `kotlin.stdlib.default.dependency = false` in gradle.properties); uiTest doesn't
+    // depend on the platform at all, so it needs the stdlib added explicitly.
+    "uiTestImplementation"(kotlin("stdlib"))
+    "uiTestImplementation"(libs.remoteRobot)
+    "uiTestImplementation"(libs.remoteFixtures)
 
     // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
@@ -144,6 +165,20 @@ tasks {
 
     publishPlugin {
         dependsOn(patchChangelog)
+    }
+
+    // Drives a sandbox IDE via Remote Robot. Start `runIdeForUiTests` first and leave it
+    // running, then run this task against it (see README for the two-terminal workflow).
+    register<Test>("uiTest") {
+        description = "Runs UI tests against a running runIdeForUiTests sandbox."
+        group = "verification"
+        testClassesDirs = uiTest.output.classesDirs
+        classpath = uiTest.runtimeClasspath
+        useJUnit()
+        outputs.upToDateWhen { false } // always talks to a live external process, never cache
+        // remote-robot's bundled Gson reflects into java.lang/java.util internals, which the
+        // JDK's default strict module encapsulation blocks (InaccessibleObjectException).
+        jvmArgs("--add-opens=java.base/java.lang=ALL-UNNAMED", "--add-opens=java.base/java.util=ALL-UNNAMED")
     }
 }
 

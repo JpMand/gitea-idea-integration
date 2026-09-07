@@ -87,7 +87,17 @@ Restore each file via `git show HEAD:<path>` into its original location, then ad
 
 **B5. `plugin.xml`** — no edits needed; it already references `pullrequest.diff.GiteaPRDiffExtension` and `pullrequest.ui.toolwindow.GiteaPRToolWindowFactory`, which resolve automatically once B3 restores those files at their original package paths.
 
-## Phase C — UI Robot test infrastructure
+## Phase C — UI Robot test infrastructure — DONE, verified against a live sandbox
+
+Implemented and validated end-to-end (not just written blind): launched the actual `runIdeForUiTests` sandbox, ran `./gradlew uiTest` against it, and iterated on real failures until both tests passed. Notable things found only by actually running it:
+- `remote-robot`/`remote-fixtures` (0.11.23) are hosted on `https://packages.jetbrains.team/maven/p/ij/intellij-dependencies`, not Maven Central — added that repo.
+- The `uiTest` source set needs the Kotlin stdlib added explicitly (`kotlin("stdlib")`) since `kotlin.stdlib.default.dependency = false` only gets satisfied for main/test via the IntelliJ Platform dependency.
+- Gradle Kotlin DSL type-safe accessors (`uiTestImplementation(...)`) aren't available for a source set created in the same script — used the `"uiTestImplementation"(...)` string-invoke form instead.
+- remote-robot's bundled Gson hits `InaccessibleObjectException` on modern JDKs without `--add-opens=java.base/java.lang=ALL-UNNAMED` and `.../java.util=ALL-UNNAMED` on the `uiTest` task.
+- `com.intellij.projectConfigurable` is a **project-scoped** extension point — it doesn't exist in the Application container at all without an open project (confirmed via a real `IdeaSideException`, not assumed), so `GiteaSettingsConfigurable`'s registration isn't checked by the automated UI test; it's covered by the manual verification pass instead. `com.intellij.toolWindow` and `com.intellij.diff.DiffExtension` are Application-scoped and are checked automatically.
+- `com.intellij.toolWindow` extensions are `ToolWindowEP` beans with a `factoryClass` string field (lazy), not instantiated factory objects — checked that field directly rather than the extension object's own class.
+
+Final result: `GiteaUiTest` (2 tests) passes against a live sandbox; `./gradlew compileKotlin`/`test` still green (52/52) afterward. Documented the two-terminal workflow in `AGENTS.md`.
 
 `build.gradle.kts` already scaffolds the *server* side (`intellijPlatformTesting.runIde.register("runIdeForUiTests")` launches a sandbox IDE with `robotServerPlugin()` listening on `robot-server.port=8082`), but there is no *client* side anywhere in the repo (confirmed: no `remote-robot` dependency, no `uiTest` source set, no test files under any UI-test naming pattern). This phase adds that missing half so `runIdeForUiTests` is actually exercised by real tests, not just launchable.
 

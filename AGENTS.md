@@ -129,6 +129,14 @@ Docs: [Plugin Services](https://plugins.jetbrains.com/docs/intellij/plugin-servi
 - Test data fixtures (JSON payloads) live in `src/test/testData/` (e.g., `pull_request_list.json`). Use real Gitea API responses from the [Swagger spec](https://gitea.com/swagger.v1.json) as fixtures.
 - See: [Tests and Fixtures](https://plugins.jetbrains.com/docs/intellij/tests-and-fixtures.html), [Light and Heavy Tests](https://plugins.jetbrains.com/docs/intellij/light-and-heavy-tests.html), [Test Project and Testdata Directories](https://plugins.jetbrains.com/docs/intellij/test-project-and-testdata-directories.html), [Testing FAQ](https://plugins.jetbrains.com/docs/intellij/testing-faq.html).
 
+### UI tests (Remote Robot)
+
+`src/uiTest/kotlin` holds smoke-level UI tests driven via [Remote Robot](https://github.com/JetBrains/intellij-ui-test-robot) against a real running sandbox IDE — a separate source set/task from the fast unit `test` suite since these need a live IDE process. Two-terminal workflow:
+1. `./gradlew runIdeForUiTests` — launches a sandbox IDE with the robot-server plugin listening on port 8082. Leave it running.
+2. `./gradlew uiTest` — runs `GiteaUiTest` against that sandbox.
+
+Scope is deliberately narrow (no live Gitea server or open project needed): confirms the plugin loads with no fatal error, and that its Application-scoped extension points (tool window, diff extension) are registered and resolvable. This catches exactly the "dangling class reference in plugin.xml" class of bug. Fuller flows (login, PR list, diff view against real data) are manual verification steps — see `PR_REVIEW_MIGRATION_PLAN.md`.
+
 ---
 
 ## Dependency Notes
