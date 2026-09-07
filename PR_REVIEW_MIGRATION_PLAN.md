@@ -1,5 +1,20 @@
 # Fix DTO migration & rebuild read-only PR review UI
 
+## PAUSED mid-verification (session interrupted) — resume here
+
+Live UI verification (Remote Robot, real Robot input against the running Docker Gitea instance —
+`gitea-plugin-test` container, still running, data at `T:\LOCALDATA\PERSONAL\gitea-plugin\gitea`)
+confirmed the login flow, list rendering, mergeable-icon heuristic, and Draft badge all work
+correctly via real screenshots. It also found a **real, confirmed bug**: double-click/Enter don't
+open the PR details editor tab, because `GiteaPRListPanel.kt` discards the wrapper `JComponent`
+that `UiDataProvider.wrapComponent(component, provider)` returns (bytecode-confirmed: that call
+builds and returns a *new* wrapper, it doesn't attach the provider to the original component) —
+so the list never actually exposes `SELECTED_PULL_REQUEST` to the action system, and the open
+action's `update()` always sees nothing selected. Full details, the fix needed, and environment
+notes (two-monitor screenshot targeting, keeping the session unlocked, credentials) are in the
+local Claude Code plan file — ask the resuming session to check there, or re-derive from this
+summary if that file isn't available.
+
 ## Follow-up pass: GitHub-plugin visual/interaction parity (done, commit 5e4a8af)
 
 A later pass aligned the PR tool window with the official GitHub plugin: real avatars, a
