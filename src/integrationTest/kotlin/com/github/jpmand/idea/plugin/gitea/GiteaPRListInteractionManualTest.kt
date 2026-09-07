@@ -1,6 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea
 
 import com.intellij.driver.sdk.openToolWindow
+import com.intellij.driver.sdk.waitForProjectOpen
 import com.intellij.driver.sdk.ui.components.common.ideFrame
 import com.intellij.driver.sdk.ui.components.elements.jBlist
 import com.intellij.driver.sdk.ui.components.elements.textField
@@ -52,10 +53,12 @@ class GiteaPRListInteractionManualTest {
     @Test
     fun `double-click on a PR row opens its details as an editor tab`() {
         val projectDir = Path.of("T:/LOCALDATA/PERSONAL/gitea-plugin/sample-repo")
-        // See the comment on the equivalent lookup in GiteaSmokeIntegrationTest.
-        val ideaCommunity: IdeInfo = di.direct.instance(tag = IdeInfoType.IDEA_COMMUNITY)
+        // IDEA_ULTIMATE, not IDEA_COMMUNITY — see the comment on the equivalent lookup in
+        // GiteaSmokeIntegrationTest for why (Community stopped shipping as its own product line
+        // as of 2025.3).
+        val ideaUltimate: IdeInfo = di.direct.instance(tag = IdeInfoType.IDEA_ULTIMATE)
         // See the equivalent note in GiteaSmokeIntegrationTest on why this is pinned.
-        val testCase = TestCase(ideaCommunity, LocalProjectInfo(projectDir)).withBuildNumber(PLATFORM_BUILD_NUMBER)
+        val testCase = TestCase(ideaUltimate, LocalProjectInfo(projectDir)).withBuildNumber(PLATFORM_BUILD_NUMBER)
 
         val run = Starter.newContext("gitea-pr-list-interaction-test", testCase)
             .apply { PluginConfigurator(this).installPluginFromPath(pluginArchive) }
@@ -68,6 +71,9 @@ class GiteaPRListInteractionManualTest {
         // / `IdeaFrameUI.() -> Unit`), so everything below runs with that type as implicit `this`
         // — see the equivalent note in GiteaSmokeIntegrationTest.
         run.useDriver<Unit> {
+            // See the equivalent note in GiteaSmokeIntegrationTest — avoids a "No projects are
+            // opened" race right after the IDE process becomes responsive.
+            waitForProjectOpen()
             openToolWindow(TOOL_WINDOW_ID)
 
             ideFrame {

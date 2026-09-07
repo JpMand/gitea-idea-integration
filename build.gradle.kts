@@ -175,7 +175,7 @@ tasks {
 // (https://plugins.jetbrains.com/docs/intellij/integration-tests.html) — a single command
 // launches, exercises, and tears down the IDE itself; no separate "leave a sandbox running"
 // terminal needed (unlike the old Remote Robot setup this replaced).
-val integrationTest by intellijPlatformTesting.testIdeUi.registering {
+val integrationTest by intellijPlatformTesting.testIdeUi.register("integrationTest") {
     task {
         outputs.upToDateWhen { false } // always talks to a live external process, never cache
         val integrationTestSourceSet = sourceSets.getByName("integrationTest")

@@ -4,6 +4,7 @@ import com.intellij.driver.sdk.getToolWindow
 import com.intellij.driver.sdk.isPluginDisabled
 import com.intellij.driver.sdk.isPluginLoaded
 import com.intellij.driver.sdk.openToolWindow
+import com.intellij.driver.sdk.waitForProjectOpen
 import com.intellij.ide.starter.di.di
 import com.intellij.ide.starter.driver.engine.runIdeWithDriver
 import com.intellij.ide.starter.models.IdeInfo
@@ -50,33 +51,31 @@ class GiteaSmokeIntegrationTest {
 
     @Test
     fun `plugin loads with no fatal error and its tool window opens`() {
-        // IdeInfo.Companion.ideaCommunity/defaultIdeaCommunity (from the ide-starter-product-*
+        // IdeInfo.Companion.ideaUltimate/defaultIdeaUltimate (from the ide-starter-product-*
         // artifacts) are internal to their own Gradle module and unresolvable from here, so this
         // replicates their lookup directly against the same public Kodein DI container they
         // wrap (each ide-starter-product-* artifact registers its IdeInfo under this tag via a
         // META-INF/services/com.intellij.ide.starter.models.IdeProductInit entry).
-        val ideaCommunity: IdeInfo = di.direct.instance(tag = IdeInfoType.IDEA_COMMUNITY)
+        //
+        // IDEA_ULTIMATE, not IDEA_COMMUNITY: per JetBrains' unified-distribution plan
+        // (https://blog.jetbrains.com/idea/2025/07/intellij-idea-unified-distribution-plan/),
+        // Community stopped being published as its own product line as of 2025.3 — every build
+        // from 2025.3 onward, including this plugin's 2026.2.x floor, only exists under the "IU"
+        // product code now. Confirmed directly against the real release feed
+        // (data.services.jetbrains.com/products/releases?code=IU): build 262.9437.185 (2026.2.1,
+        // released 2026-08-10) is really there. Querying `code=IC` for it 404s — that was this
+        // test's original bug, not a genuine absence of a public 2026.2.x build.
+        val ideaUltimate: IdeInfo = di.direct.instance(tag = IdeInfoType.IDEA_ULTIMATE)
         // Pin the exact build the plugin targets (gradle.properties' `platformTestBuildNumber`)
         // — Starter's default product lookup otherwise downloads whatever build its own catalog
         // considers current for the product, which can be well below this plugin's `sinceBuild`
-        // floor (observed: IC-253.x, a 2025.3 build, against our `sinceBuild=262`/2026.2.x floor)
-        // and makes the plugin correctly refuse to load, failing this test for a reason that has
-        // nothing to do with the plugin itself. `useRelease(...)` (a marketing version like
-        // "2026.2.1") isn't usable here since Starter only recognizes versions already in
-        // JetBrains' public release catalog, which this EAP-only platformVersion isn't in yet —
-        // `withBuildNumber(...)` pins the literal build instead. NOTE (verified, not assumed):
-        // as of this writing there is no real, publicly downloadable 262.x/2026.2.x build at
-        // all — `withBuildNumber` correctly fails with "Build not found" against the real
-        // JetBrains release feed (data.services.jetbrains.com), and temporarily pointing this at
-        // an actually-available build (253.28294.334 / 2025.3, by loosening pluginSinceBuild
-        // locally) got further but then hit a real platform-side assertion failure in
-        // `StartupManagerImpl.initProject` during project open — consistent with this plugin's
-        // JVM 25 toolchain / 262.x-only API surface genuinely being incompatible with a 2025.3
-        // runtime, not a bug in this test or the migration. This test is correct and will pass
-        // once a real 2026.2.x build exists publicly; until then it's expected to fail in CI/here
-        // with a "Build not found" error rather than a false green.
+        // floor and makes the plugin correctly refuse to load, failing this test for a reason
+        // that has nothing to do with the plugin itself. `withBuildNumber(...)` (rather than
+        // `useRelease("2026.2.1")`) pins the literal build number directly — either should work
+        // once the product code above is right; this just avoids relying on how `useRelease`
+        // maps a marketing version string to a build.
         val scratchProjectDir = Files.createTempDirectory("gitea-smoke-project")
-        val testCase = TestCase(ideaCommunity, LocalProjectInfo(scratchProjectDir)).withBuildNumber(PLATFORM_BUILD_NUMBER)
+        val testCase = TestCase(ideaUltimate, LocalProjectInfo(scratchProjectDir)).withBuildNumber(PLATFORM_BUILD_NUMBER)
 
         val run = Starter.newContext("gitea-smoke-test", testCase)
             .apply { PluginConfigurator(this).installPluginFromPath(pluginArchive) }
@@ -93,6 +92,10 @@ class GiteaSmokeIntegrationTest {
             assertTrue(isPluginLoaded(PLUGIN_ID)) { "$PLUGIN_ID did not load" }
             assertFalse(isPluginDisabled(PLUGIN_ID)) { "$PLUGIN_ID is disabled after startup" }
 
+            // useDriver hands over control as soon as the IDE process is responsive, which can
+            // be before the scratch project has actually finished opening — querying a
+            // project-scoped tool window before that races and throws "No projects are opened".
+            waitForProjectOpen()
             openToolWindow(TOOL_WINDOW_ID)
             val toolWindow = getToolWindow(TOOL_WINDOW_ID)
             assertTrue(toolWindow.isVisible()) { "'$TOOL_WINDOW_ID' tool window did not open" }

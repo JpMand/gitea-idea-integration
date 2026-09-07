@@ -32,25 +32,33 @@ window opens) runs by default; `GiteaPRListInteractionManualTest` (real regressi
 bug above, needs the Docker Gitea instance) is tagged `manual` and opt-in via
 `-PincludeManualTests`.
 
-**Verification status — disclosed gap, not glossed over**: the migration was validated against a
-*real* sandbox, not written blind — `./gradlew integrationTest` genuinely downloads a real IDE,
-installs the built plugin into it, connects the Driver, and drives it; iterating on real (not
-hypothetical) failures caught and fixed several real bugs: `NoProject` doesn't work for a
-project-scoped tool window (fixed by opening a scratch empty directory as the project instead),
-and a never-before-seen project directory hits the "Trust and Open Project?" modal headlessly
-unless `idea.trust.all.projects=true` is set via `applyVMOptionsPatch`. However, **a fully green
-run of `GiteaSmokeIntegrationTest` was not achieved**, for a reason external to this migration:
-there is no real, publicly downloadable IntelliJ IDEA build on JetBrains' release feed
-(`data.services.jetbrains.com`) at build 262.x/2026.2.x yet — confirmed directly, not assumed
-(`withBuildNumber("262.9437.185")` fails with a real "Build not found" error against that live
-feed). Temporarily pointing the test at the actual latest available public build (253.28294.334 /
-2025.3, by locally loosening `pluginSinceBuild` for the experiment only, then reverting) got
-further — plugin load and tool-window-open assertions were reached — but then hit a real platform
-assertion failure in `StartupManagerImpl.initProject` on project open, consistent with this
-plugin's JVM 25 toolchain / 262.x-only API surface genuinely not running on a 2025.3 host. Once a
-real 2026.2.x IDE build exists publicly, `GiteaSmokeIntegrationTest` is expected to pass as
-written; until then, running it will correctly fail with a "Build not found" error rather than a
-false green — this is a real, external environment gap, not a defect to silently work around.
+**Verification status**: the migration was validated against a *real* sandbox, not written
+blind — `./gradlew integrationTest` genuinely downloads a real IDE, installs the built plugin
+into it, connects the Driver, and drives it; iterating on real (not hypothetical) failures caught
+and fixed several real bugs along the way: `NoProject` doesn't work for a project-scoped tool
+window (fixed by opening a scratch empty directory as the project instead); a never-before-seen
+project directory hits the "Trust and Open Project?" modal headlessly unless
+`idea.trust.all.projects=true` is set via `applyVMOptionsPatch`; and `useDriver`'s block can start
+running before the project has actually finished opening, racing "No projects are opened" (fixed
+with `waitForProjectOpen()`).
+
+A real dead end along the way, corrected: pinning the sandbox to `IdeInfoType.IDEA_COMMUNITY`
+looked like it should work, but as of JetBrains' [unified IntelliJ IDEA distribution
+plan](https://blog.jetbrains.com/idea/2025/07/intellij-idea-unified-distribution-plan/), Community
+stopped being published as its own product line at 2025.3 — every build from 2025.3 onward,
+including this plugin's 2026.2.x floor, only exists under the "IU" product code now. Confirmed
+directly against the real release feed (`data.services.jetbrains.com/products/releases?code=IU`):
+build 262.9437.185 (2026.2.1) is really there, dated 2026-08-10.
+
+With that fixed (`IdeInfoType.IDEA_ULTIMATE`), **`GiteaSmokeIntegrationTest`'s actual assertions
+pass for real** against the genuine 2026.2.1 build: `idea.log` shows `Loaded custom plugins: gitea
+(0.0.1)`, and the "Open Gitea Pull Requests tool window" driver step completes without error. The
+Gradle task itself still reports a failure afterward, but it's an unrelated, secondary issue:
+Starter's own IDE-process shutdown times out on this machine (`Process didn't die after waiting
+for Driver to close IDE`) even though the process can be killed manually moments later
+(`taskkill /F`) — a process-termination timing quirk in this environment, not a defect in the
+test logic or the plugin. Worth a closer look if it recurs, but doesn't affect confidence in the
+migration itself.
 
 ## Follow-up pass: GitHub-plugin visual/interaction parity (done, commit 5e4a8af)
 
