@@ -1,5 +1,27 @@
 # Fix DTO migration & rebuild read-only PR review UI
 
+## Follow-up pass: GitHub-plugin visual/interaction parity (done, commit 5e4a8af)
+
+A later pass aligned the PR tool window with the official GitHub plugin: real avatars, a
+mergeable/conflict icon, a lazily-loaded reviewers group, single-click-selects/double-click-opens
+interaction (via the action system, not a selection listener), PR details now open as a real
+editor tab (tool window is list-only), and the details view gained a CI/status-checks component
+and a changes-browser file list. Implemented and code-reviewed against the actual GitHub plugin
+source and `javap`-verified platform APIs (2026.2.1).
+
+**Verification status — disclosed gap, not glossed over:** compile/tests are green (60/60), and
+live checks confirmed the tool window registers, activates, and renders its empty state correctly
+against a real sandbox + a Docker Gitea test instance (`T:\LOCALDATA\PERSONAL\gitea-plugin`, outside
+this repo — `docker-compose.yml` there, sample repo with 5 PRs covering open/draft/closed/merged/
+conflicting states, a requested reviewer, a label, comments, and commit statuses; admin login
+`claude-test`/`GiteaTest123!` at `http://localhost:3000`). However, **actual pixel-level rendering
+of the new list/details UI has not been eyeballed** — the session environment has no interactive
+display session, so Robot-driven synthetic mouse/keyboard input (needed to click through login and
+open a PR) is silently swallowed by Windows even though `GraphicsEnvironment.isHeadless()` reports
+`false`. A human with a real desktop session should: `./gradlew runIde`, add a Gitea account
+against the instance above, open the sample repo, and visually confirm the list/details match the
+GitHub plugin before considering this fully done.
+
 ## Context
 
 This plugin provides Gitea Pull Request code review integration for IntelliJ IDEA, modeled on the official bundled GitHub/GitLab plugins (built on `intellij.platform.collaborationTools`). Work was previously done in a Claude Desktop session that isn't available to this conversation, and the repo was left in a broken, half-finished state on branch `feature/pr-code-review`.
