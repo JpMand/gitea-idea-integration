@@ -6,3 +6,5 @@
 .qodana
 build
 .claude
+# Starter/Driver framework cache + downloaded IDE builds/test artifacts (integrationTest task)
+out

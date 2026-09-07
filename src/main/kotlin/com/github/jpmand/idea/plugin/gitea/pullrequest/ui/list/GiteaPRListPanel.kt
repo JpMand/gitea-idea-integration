@@ -46,20 +46,26 @@ class GiteaPRListPanel(
             createPresentation(pr)
         }
 
-        UiDataProvider.wrapComponent(l) { sink: DataSink ->
-            l.selectedValue?.let { pr -> sink[GiteaPRActionKeys.SELECTED_PULL_REQUEST] = pr }
-        }
-
         val openAction = GiteaPROpenPullRequestAction(onPROpenRequested)
         val openShortcuts = CompositeShortcutSet(CommonShortcuts.ENTER, CommonShortcuts.DOUBLE_CLICK_1)
         ActionUtil.wrap(openAction).registerCustomShortcutSet(openShortcuts, l)
 
         val searchPanel = GiteaPRListSearchPanelFactory(vm.searchVm).create(cs)
+        // wrapWithLazyVerticalScroll requires the raw JList<?> (it hooks scroll listeners onto
+        // it directly), so the list can't itself be replaced by wrapComponent's wrapper here.
+        // wrapComponent returns a NEW JComponent wrapping its argument rather than mutating it
+        // in place, so the data-provider capability has to be attached to the scroll pane
+        // (still an ancestor of `l` once added below) instead — DataContext resolution walks up
+        // from whichever component receives the click/Enter, so this is equivalent for the
+        // action system while satisfying wrapWithLazyVerticalScroll's type requirement.
         val scrollPane = ReviewListUtil.wrapWithLazyVerticalScroll(cs, l) { /* pagination deferred */ }
+        val scrollPaneWithData = UiDataProvider.wrapComponent(scrollPane) { sink: DataSink ->
+            l.selectedValue?.let { pr -> sink[GiteaPRActionKeys.SELECTED_PULL_REQUEST] = pr }
+        }
 
         return JPanel(BorderLayout()).apply {
             add(searchPanel, BorderLayout.NORTH)
-            add(scrollPane, BorderLayout.CENTER)
+            add(scrollPaneWithData, BorderLayout.CENTER)
         }
     }
 

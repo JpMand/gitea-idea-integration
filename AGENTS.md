@@ -21,7 +21,7 @@ Always open the spec before adding a new REST call or a new DTO field.
 ./gradlew buildPlugin        # Builds the plugin and prepares ZIP archive for testing and deployment
 ./gradlew check              # Runs all checks and tests (used by 'Run Tests' run configuration)
 ./gradlew runIde             # IDE sandbox (used by 'Run Plugin' run configuration)
-./gradlew runIdeForUiTests   # sandbox with robot-server on port 8082
+./gradlew integrationTest    # Starter/Driver UI integration tests (launches/tears down its own sandbox)
 ```
 All version/platform coordinates live in `gradle.properties` (not `build.gradle.kts`).
 
@@ -39,7 +39,7 @@ This project was bootstrapped from the [IntelliJ Platform Plugin Template](https
 | Changelog | `CHANGELOG.md` drives `changeNotes` via the Gradle Changelog Plugin ([Keep a Changelog](https://keepachangelog.com) format) |
 | CI – build | `.github/workflows/build.yml` – validate, test, Qodana scan, `buildPlugin`, `runPluginVerifier`, draft GitHub release |
 | CI – release | `.github/workflows/release.yml` – publishes to JetBrains Marketplace when a version tag is pushed (requires `PUBLISH_TOKEN` secret) |
-| CI – UI tests | `.github/workflows/run-ui-tests.yml` – robot-server UI tests |
+| CI – UI tests | `.github/workflows/run-ui-tests.yml` – Starter/Driver UI integration tests |
 | Signing | Controlled via `CERTIFICATE_CHAIN`, `PRIVATE_KEY`, `PRIVATE_KEY_PASSWORD` GitHub secrets |
 | Dependency updates | `.github/dependabot.yml` keeps Gradle plugins and GitHub Actions current |
 
@@ -131,20 +131,21 @@ Docs: [Plugin Services](https://plugins.jetbrains.com/docs/intellij/plugin-servi
 - Test data fixtures (JSON payloads) live in `src/test/testData/` (e.g., `pull_request_list.json`). Use real Gitea API responses from the [Swagger spec](https://gitea.com/swagger.v1.json) as fixtures.
 - See: [Tests and Fixtures](https://plugins.jetbrains.com/docs/intellij/tests-and-fixtures.html), [Light and Heavy Tests](https://plugins.jetbrains.com/docs/intellij/light-and-heavy-tests.html), [Test Project and Testdata Directories](https://plugins.jetbrains.com/docs/intellij/test-project-and-testdata-directories.html), [Testing FAQ](https://plugins.jetbrains.com/docs/intellij/testing-faq.html).
 
-### UI tests (Remote Robot)
+### UI integration tests (Starter/Driver)
 
-`src/uiTest/kotlin` holds smoke-level UI tests driven via [Remote Robot](https://github.com/JetBrains/intellij-ui-test-robot) against a real running sandbox IDE — a separate source set/task from the fast unit `test` suite since these need a live IDE process. Two-terminal workflow:
-1. `./gradlew runIdeForUiTests` — launches a sandbox IDE with the robot-server plugin listening on port 8082. Leave it running.
-2. `./gradlew uiTest` — runs `GiteaUiTest` against that sandbox.
+`src/integrationTest/kotlin` holds UI integration tests driven via the IntelliJ [Starter/Driver framework](https://plugins.jetbrains.com/docs/intellij/integration-tests.html) — a separate source set/task from the fast unit `test` suite since these need a live IDE process. Unlike the Remote Robot setup this replaced, there's no two-terminal workflow: `./gradlew integrationTest` launches a sandbox IDE, installs the built plugin into it, drives it, and tears it down again, all from one command.
 
-Scope is deliberately narrow (no live Gitea server or open project needed): confirms the plugin loads with no fatal error, and that its Application-scoped extension points (tool window, diff extension) are registered and resolvable. This catches exactly the "dangling class reference in plugin.xml" class of bug. Fuller flows (login, PR list, diff view against real data) are manual verification steps — see `PR_REVIEW_MIGRATION_PLAN.md`.
+- `GiteaSmokeIntegrationTest` — no live Gitea server or open project needed (`NoProject`): confirms the plugin loads with no fatal error and that the "Gitea Pull Requests" tool window registers and opens. This catches exactly the "dangling class reference in plugin.xml" class of bug. Runs by default.
+- `GiteaPRListInteractionManualTest` — needs a live Gitea instance and a cloned repo (see `PR_REVIEW_MIGRATION_PLAN.md` for the Docker setup); regresses the click/double-click-to-open-PR-details flow end to end. Tagged `@Tag("manual")` and excluded from the default `integrationTest` run (`useJUnitPlatform { excludeTags("manual") }` in `build.gradle.kts`) — run explicitly with `./gradlew integrationTest -PincludeManualTests`.
+
+Key API surface (`com.intellij.driver.sdk.ui.components.*`): `ideFrame { ... }` / `useDriver { ... }` bodies are **extension lambdas** (`Driver.() -> R` / `IdeaFrameUI.() -> Unit`) — call members unqualified via the implicit receiver rather than naming a lambda parameter, or the compiler misreads the block's arity in confusing ways. Component finders (`textField`, `jBlist`, `button`, `x`) take an `xQuery { byXxx(...) }` locator; `JTextFieldUI.text` is a settable property (not a `setText(...)` call) that sets the value directly via JMX rather than simulating keystrokes — this is why the old Remote Robot clipboard-paste workaround for punctuation (`:` under a non-US keyboard layout) is no longer needed. `IdeInfo.Companion.ideaCommunity`/`ideaUltimate` (from the `ide-starter-product-idea-*` artifacts) are `internal` to their own module and unresolvable from plugin code; look the `IdeInfo` up directly from the same public Kodein DI container those extensions wrap instead: `di.direct.instance<IdeInfo>(tag = IdeInfoType.IDEA_COMMUNITY)` (see either integration test class for the full pattern). The Kotlin Gradle plugin version must be at or above the metadata version these `com.jetbrains.intellij.driver`/`ide-starter-*` artifacts were compiled with (bumped to 2.4.20 for this reason) — an older Kotlin compiler silently misreads their generic/default-parameter/extension-lambda shape and produces bizarre, hard-to-diagnose type-inference errors instead of a clean version-mismatch message.
 
 ---
 
 ## Dependency Notes
 - `Git4Idea` is a **bundled** plugin dependency (not external); declared in `platformBundledPlugins` in `gradle.properties`. See: [Plugin Dependencies](https://plugins.jetbrains.com/docs/intellij/plugin-dependencies.html).
 - `intellij.platform.collaborationTools` is a **bundled module**; declared in `platformBundledModules`.
-- Plugin targets IntelliJ IDEA `2025.3.1` (`platformVersion`), `sinceBuild = 253`.
+- Plugin targets IntelliJ IDEA `2026.2.1` (`platformVersion`), `sinceBuild = 262`, `untilBuild = 262.*` (deliberately bounded — see the version-floor rationale in `PR_REVIEW_MIGRATION_PLAN.md`).
 - Kotlin stdlib is **not** bundled (`kotlin.stdlib.default.dependency = false`); the platform provides it.
 
 ---

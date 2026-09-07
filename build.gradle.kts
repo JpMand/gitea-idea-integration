@@ -23,25 +23,23 @@ kotlin {
 repositories {
     mavenCentral()
 
-    // Hosts com.intellij.remoterobot:remote-robot/remote-fixtures, used by the uiTest source set.
-    maven { url = uri("https://packages.jetbrains.team/maven/p/ij/intellij-dependencies") }
-
     // IntelliJ Platform Gradle Plugin Repositories Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-repositories-extension.html
     intellijPlatform {
         defaultRepositories()
     }
 }
 
-// A separate source set for UI tests driven via Remote Robot against a running
-// `runIdeForUiTests` sandbox (see the `robotServerPlugin()` registration below). Kept apart
-// from the fast unit `test` source set since these need a live IDE instance to run against.
-val uiTest = sourceSets.create("uiTest") {
-    compileClasspath += sourceSets.main.get().output + sourceSets.test.get().output
-    runtimeClasspath += sourceSets.main.get().output + sourceSets.test.get().output
+// A separate source set for UI integration tests driven via the IntelliJ Starter/Driver
+// framework (https://plugins.jetbrains.com/docs/intellij/integration-tests.html) against a
+// sandbox IDE that the `integrationTest` task launches and tears down itself — unlike the old
+// Remote Robot setup, there's no separate "leave a sandbox running in another terminal" step.
+// Kept apart from the fast unit `test` source set since these need a live IDE instance to run.
+sourceSets {
+    create("integrationTest") {
+        compileClasspath += sourceSets.main.get().output
+        runtimeClasspath += sourceSets.main.get().output
+    }
 }
-
-configurations.named("uiTestImplementation") { extendsFrom(configurations.testImplementation.get()) }
-configurations.named("uiTestRuntimeOnly") { extendsFrom(configurations.testRuntimeOnly.get()) }
 
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/version_catalogs.html
 dependencies {
@@ -58,11 +56,13 @@ dependencies {
     testImplementation(libs.opentest4j)
 
     // main/test get the Kotlin stdlib transitively from the IntelliJ Platform dependency
-    // (see `kotlin.stdlib.default.dependency = false` in gradle.properties); uiTest doesn't
-    // depend on the platform at all, so it needs the stdlib added explicitly.
-    "uiTestImplementation"(kotlin("stdlib"))
-    "uiTestImplementation"(libs.remoteRobot)
-    "uiTestImplementation"(libs.remoteFixtures)
+    // (see `kotlin.stdlib.default.dependency = false` in gradle.properties); integrationTest
+    // doesn't depend on the platform at all (it drives a separate IDE process over JMX, see
+    // AGENTS.md), so it needs the stdlib and its own test-runner stack added explicitly.
+    "integrationTestImplementation"(kotlin("stdlib"))
+    "integrationTestImplementation"(libs.junitJupiter)
+    "integrationTestImplementation"(libs.kodeinDi)
+    "integrationTestImplementation"(libs.kotlinxCoroutinesCore)
 
     // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
@@ -78,6 +78,9 @@ dependencies {
         bundledModules(providers.gradleProperty("platformBundledModules").map { it.split(',') })
 
         testFramework(TestFrameworkType.Platform)
+        // Pulls ide-starter-{squashed,junit5,driver} and driver-{client,sdk,model} — the
+        // Starter/Driver integration-test stack (see integrationTest task below).
+        testFramework(TestFrameworkType.Starter, configurationName = "integrationTestImplementation")
     }
 }
 
@@ -166,39 +169,33 @@ tasks {
     publishPlugin {
         dependsOn(patchChangelog)
     }
-
-    // Drives a sandbox IDE via Remote Robot. Start `runIdeForUiTests` first and leave it
-    // running, then run this task against it (see README for the two-terminal workflow).
-    register<Test>("uiTest") {
-        description = "Runs UI tests against a running runIdeForUiTests sandbox."
-        group = "verification"
-        testClassesDirs = uiTest.output.classesDirs
-        classpath = uiTest.runtimeClasspath
-        useJUnit()
-        outputs.upToDateWhen { false } // always talks to a live external process, never cache
-        // remote-robot's bundled Gson reflects into java.lang/java.util internals, which the
-        // JDK's default strict module encapsulation blocks (InaccessibleObjectException).
-        jvmArgs("--add-opens=java.base/java.lang=ALL-UNNAMED", "--add-opens=java.base/java.util=ALL-UNNAMED")
-    }
 }
 
-intellijPlatformTesting {
-    runIde {
-        register("runIdeForUiTests") {
-            task {
-                jvmArgumentProviders += CommandLineArgumentProvider {
-                    listOf(
-                        "-Drobot-server.port=8082",
-                        "-Dide.mac.message.dialogs.as.sheets=false",
-                        "-Djb.privacy.policy.text=<!--999.999-->",
-                        "-Djb.consents.confirmation.enabled=false",
-                        "-Didea.trust.all.projects=true",
-                    )
-                }
-            }
-
-            plugins {
-                robotServerPlugin()
+// Drives a sandbox IDE via the Starter/Driver framework
+// (https://plugins.jetbrains.com/docs/intellij/integration-tests.html) — a single command
+// launches, exercises, and tears down the IDE itself; no separate "leave a sandbox running"
+// terminal needed (unlike the old Remote Robot setup this replaced).
+val integrationTest by intellijPlatformTesting.testIdeUi.registering {
+    task {
+        outputs.upToDateWhen { false } // always talks to a live external process, never cache
+        val integrationTestSourceSet = sourceSets.getByName("integrationTest")
+        testClassesDirs = integrationTestSourceSet.output.classesDirs
+        classpath = integrationTestSourceSet.runtimeClasspath
+        // Lets the tests pin the Starter-downloaded IDE to the same build the plugin actually
+        // targets, rather than whatever Starter's own product catalog considers current for the
+        // product (which can be well below this plugin's sinceBuild floor).
+        systemProperty("gitea.test.platformBuildNumber", providers.gradleProperty("platformTestBuildNumber").get())
+        useJUnitPlatform {
+            // The ide-starter/driver dependencies transitively pull in junit-vintage-engine,
+            // which then fails test discovery outright since this source set has no JUnit 4 on
+            // its classpath (nor any JUnit 4-style tests to run) — exclude it rather than add a
+            // JUnit 4 dependency purely to satisfy an engine we never use.
+            excludeEngines("junit-vintage")
+            // GiteaPRListInteractionManualTest needs a local Docker Gitea instance + cloned
+            // sample repo (see PR_REVIEW_MIGRATION_PLAN.md) that CI doesn't provision, so it's
+            // excluded by default. Run it explicitly with `-PincludeManualTests`.
+            if (!project.hasProperty("includeManualTests")) {
+                excludeTags("manual")
             }
         }
     }
