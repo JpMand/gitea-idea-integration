@@ -104,21 +104,15 @@ Restore each file via `git show HEAD:<path>` into its original location, then ad
 
 **C3. Document how to run them** (in `README.md` or `AGENTS.md`, wherever build/test instructions already live): `./gradlew runIdeForUiTests` in one terminal, `./gradlew uiTest` in another (or however C1's task wiring ends up working) — keep this consistent with whatever the IntelliJ Platform Gradle Plugin version in use actually supports out of the box.
 
-## Known issue to fix on resume (found end of session, not yet fixed)
+## RESOLVED: Jackson version conflict (was blocking MyPluginTest)
 
-After Phase B restored the PR review UI files, `./gradlew test` shows **1 failing test**: `MyPluginTest.testProjectService` (the leftover IntelliJ Plugin Template scaffold test — unrelated to the Gitea feature itself, it just instantiates the empty stub `GiteaService`). Failure:
+Root cause confirmed via `mcp__intellij__get_project_dependencies`: two different `jackson-annotations` jars were on the classpath at once (`jackson-annotations-2.19.0.jar` from our `jackson-datatype-jsr310:2.19.0` dependency's own transitive Jackson, and `jackson-annotations-2.21.jar` from the platform's own bundled Jackson used by `com.jetbrains.remoteDevelopment` and friends). Fixed by excluding the jsr310 artifact's transitive `com.fasterxml.jackson.core` group in `build.gradle.kts`, so it binds purely to the platform's own already-present Jackson classes at runtime:
+```kotlin
+implementation(libs.jacksonDatatypeJsr310) {
+    exclude(group = "com.fasterxml.jackson.core")
+}
 ```
-com.intellij.diagnostic.PluginException: Class com.fasterxml.jackson.annotation.JsonFormat$Shape does not have member field 'com.fasterxml.jackson.annotation.JsonFormat$Shape POJO' [Plugin: com.jetbrains.remoteDevelopment]
-```
-This is a **Jackson version conflict**: adding `implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.19.0")` in Phase A (needed for `OffsetDateTime` support in `GiteaJsonDeSerializer`) pulls in its own transitive `jackson-databind`/`jackson-annotations` (2.19.0), which now clashes with whatever Jackson version the platform's bundled `com.jetbrains.remoteDevelopment` plugin expects, when the full light-IDE test fixture (`MyPluginTest`) boots and loads all bundled plugins. All other 51 tests (the actual Gitea JSON/account/server-path tests) pass fine — this conflict only manifests when the full plugin descriptor loads every bundled plugin in the sandbox, which `MyPluginTest` does and the targeted JSON tests don't.
-
-**Two known-bad attempted fixes** (tried and reverted at end of session, don't retry blindly):
-- `compileOnly` + `testImplementation` for the jsr310 dependency — same failure.
-- `compileOnly` + `testCompileOnly` with `exclude(group = "com.fasterxml.jackson.core")` — untested at runtime, reverted without verifying because of time pressure; risks breaking real `OffsetDateTime` parsing since the excluded transitive `jackson-databind` might be needed by the jsr310 module internally.
-
-**Reverted to** plain `implementation(libs.jacksonDatatypeJsr310)` (the original Phase A choice) — this keeps all 51 real Gitea tests passing; only the irrelevant `MyPluginTest` fails. This is an acceptable but not ideal state to resume from.
-
-**Likely correct fix to try next**: find out what Jackson version the IntelliJ Platform 2026.2.1 SDK actually bundles internally (search `~/.gradle/caches/*/transforms/*/transformed/idea-2026.2.1-win/lib/*.jar` for `jackson-databind`/`jackson-annotations` classes, similar to how the `LoginException` and platform-module investigations in this session were done), then either: (a) pin `jacksonDatatypeJsr310` in `libs.versions.toml` to the exact matching Jackson major.minor the platform bundles instead of `2.19.0`, or (b) if the platform already bundles its own `jackson-datatype-jsr310` module, add that as a `platformBundledModules`/`platformBundledPlugins` entry instead of pulling in the external Maven artifact at all. Also worth just deleting the unrelated `MyPluginTest.kt` template leftover entirely (it tests nothing about this plugin's actual functionality) if it keeps being a source of noise unrelated to real regressions — confirm with the user first since deleting tests wasn't explicitly requested.
+Verified: all 52/52 tests pass now, including `MyPluginTest`.
 
 ## Verification
 

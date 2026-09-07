@@ -31,7 +31,15 @@ repositories {
 
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/version_catalogs.html
 dependencies {
-    implementation(libs.jacksonDatatypeJsr310)
+    // Only the jsr310 module classes are needed here — jackson-core/-databind/-annotations
+    // are already provided by the IntelliJ Platform itself. Pulling in this artifact's own
+    // transitive Jackson jars puts a second, differently-versioned copy on the runtime
+    // classpath alongside the platform's, which breaks other bundled plugins that expect
+    // their own bundled Jackson classes (observed as a JsonFormat.Shape.POJO NoSuchFieldError
+    // when the full plugin set loads, e.g. in MyPluginTest's light IDE fixture).
+    implementation(libs.jacksonDatatypeJsr310) {
+        exclude(group = "com.fasterxml.jackson.core")
+    }
     testImplementation(libs.junit)
     testImplementation(libs.opentest4j)
 
