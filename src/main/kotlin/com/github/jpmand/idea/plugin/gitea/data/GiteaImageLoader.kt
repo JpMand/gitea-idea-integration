@@ -1,8 +1,8 @@
 package com.github.jpmand.idea.plugin.gitea.data
 
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApi
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.api.rest.loadImage
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.User
 import com.intellij.collaboration.ui.html.AsyncHtmlImageLoader
 import com.intellij.collaboration.ui.icon.AsyncImageIconsProvider
 import com.intellij.collaboration.util.resolveRelative
@@ -24,8 +24,8 @@ private const val LOADED_GRAVATAR_SIZE: Int = 80
 @Suppress("UnstableApiUsage")
 class GiteaImageLoader(
     private val api: GiteaApi
-) : AsyncImageIconsProvider.AsyncImageLoader<User>, AsyncHtmlImageLoader {
-    override suspend fun load(key: User): Image? =
+) : AsyncImageIconsProvider.AsyncImageLoader<GiteaUser>, AsyncHtmlImageLoader {
+    override suspend fun load(key: GiteaUser): Image? =
         key.avatarUrl?.let { avatarUrl ->
             val actualUri = when {
                 avatarUrl.startsWith(URLUtil.HTTP_PROTOCOL) -> avatarUrl
@@ -46,7 +46,7 @@ class GiteaImageLoader(
             throw e
         }
 
-    override fun createBaseIcon(key: User?, iconSize: Int): Icon =
+    override fun createBaseIcon(key: GiteaUser?, iconSize: Int): Icon =
         IconUtil.resizeSquared(CollaborationToolsIcons.Review.DefaultAvatar, iconSize)
 
     override suspend fun postProcess(image: Image): Image =

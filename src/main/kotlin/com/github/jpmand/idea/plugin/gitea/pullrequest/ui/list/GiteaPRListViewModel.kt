@@ -1,6 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReview
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.filters.GiteaPRListSearchPanelViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.filters.GiteaPRListSearchValue
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 import javax.swing.DefaultListModel
 
 @Suppress("UnstableApiUsage")
@@ -74,5 +76,42 @@ class GiteaPRListViewModel(
 
     override fun refresh() {
         _refreshTrigger.value = System.currentTimeMillis()
+    }
+
+    // ── Reviewers (lazy, cached per PR) ──────────────────────────────────────
+    // Loaded on demand by the list's cell renderer rather than eagerly for the whole page,
+    // to avoid an N+1 REST call storm on every list load/refresh/filter change.
+
+    private val reviewsCache = ConcurrentHashMap<Long, List<GiteaReview>>()
+    private val reviewsLoading = ConcurrentHashMap.newKeySet<Long>()
+
+    /**
+     * Returns cached reviews for [prNumber] if already loaded; otherwise kicks off a
+     * background load (deduped per PR number) and returns null. Once the load completes,
+     * the corresponding row is refreshed in place so its presentation is rebuilt.
+     */
+    fun reviewsFor(prNumber: Long): List<GiteaReview>? {
+        reviewsCache[prNumber]?.let { return it }
+        if (reviewsLoading.add(prNumber)) {
+            cs.launch(Dispatchers.IO) {
+                val reviews = try {
+                    repository.loadReviews(prNumber.toInt())
+                } catch (e: CancellationException) {
+                    reviewsLoading.remove(prNumber)
+                    throw e
+                } catch (_: Exception) {
+                    emptyList()
+                }
+                reviewsCache[prNumber] = reviews
+                reviewsLoading.remove(prNumber)
+                withContext(Dispatchers.Main) {
+                    val idx = (0 until _listModel.size()).firstOrNull { _listModel[it].number == prNumber }
+                    if (idx != null) {
+                        _listModel[idx] = _listModel[idx] // re-fires contentsChanged for this row only
+                    }
+                }
+            }
+        }
+        return null
     }
 }

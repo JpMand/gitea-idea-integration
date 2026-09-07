@@ -24,6 +24,7 @@
         <applicationService serviceInterface="com.github.jpmand.idea.plugin.gitea.GiteaServersManager"
                             serviceImplementation="com.github.jpmand.idea.plugin.gitea.CachingGiteaServersManager"/>
         <diff.DiffExtension implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffExtension"/>
+        <fileEditorProvider implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPRDetailsEditorProvider"/>
         <toolWindow id="Gitea Pull Requests"
                     anchor="left"
                     secondary="true"

@@ -1,17 +1,17 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow
 
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
+import com.github.jpmand.idea.plugin.gitea.data.GiteaImageLoader
+import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPRDetailsVirtualFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContext
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContextHolder
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
-import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffViewModel
-import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
-import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffVirtualFile
-import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.GiteaPRDetailsPanel
-import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.GiteaPRDetailsViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListPanel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListViewModel
 import com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.intellij.collaboration.ui.icon.AsyncImageIconsProvider
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileEditorManager
@@ -20,7 +20,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.ui.HyperlinkLabel
 import com.intellij.ui.components.JBLabel
-import com.intellij.ui.components.panels.Wrapper
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.CoroutineScope
@@ -40,8 +39,10 @@ import javax.swing.event.HyperlinkEvent
 /**
  * Manages tool window contents in reaction to the [GiteaPRDataContextHolder] state.
  *
- * Shows an empty-state panel when no Gitea account/repo is resolved, and a PR panel
- * (populated in Phase 4) when a full context is available.
+ * Shows an empty-state panel when no Gitea account/repo is resolved, and the PR list otherwise —
+ * matching the GitHub plugin, the tool window shows *only* the list. Opening a PR (double-click
+ * or Enter, see [GiteaPRListPanel]) opens its details as a separate editor tab
+ * (`GiteaPRDetailsFileEditor`/`GiteaPRDetailsVirtualFile`), not an in-tool-window swap.
  */
 @Suppress("UnstableApiUsage")
 class GiteaPRToolWindowController(
@@ -71,7 +72,7 @@ class GiteaPRToolWindowController(
             val panelJob = SupervisorJob(cs.coroutineContext[Job])
             currentPanelJob = panelJob
             val panelCs = CoroutineScope(cs.coroutineContext + panelJob)
-            createPRPanel(ctx, panelCs)
+            createListPanel(ctx, panelCs)
         }
         cm.addContent(cm.factory.createContent(panel, null, false))
     }
@@ -97,60 +98,19 @@ class GiteaPRToolWindowController(
         }
     }
 
-    private fun createPRPanel(ctx: GiteaPRDataContext, panelCs: CoroutineScope): JComponent {
+    private fun createListPanel(ctx: GiteaPRDataContext, panelCs: CoroutineScope): JComponent {
         val repository = GiteaPRRepository(ctx)
         val listVm = GiteaPRListViewModel(panelCs, repository)
-        val navigationWrapper = Wrapper()
-        var currentDetailsJob: Job? = null
+        val avatarIconsProvider = AsyncImageIconsProvider<GiteaUser>(panelCs, GiteaImageLoader(ctx.api))
+        val listPanel = GiteaPRListPanel(panelCs, listVm, avatarIconsProvider, onPROpenRequested = { pr ->
+            openPRDetailsTab(repository, pr)
+        })
+        return listPanel.create()
+    }
 
-        lateinit var listPanel: GiteaPRListPanel
-        lateinit var listContent: JComponent
-        var currentDiffJob: Job? = null
-
-        fun showList() {
-            currentDetailsJob?.cancel()
-            currentDetailsJob = null
-            listPanel.clearSelection()
-            navigationWrapper.setContent(listContent)
-            navigationWrapper.repaint()
-        }
-
-        fun showDetails(pr: com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest) {
-            val detailsJob = SupervisorJob(panelCs.coroutineContext[Job])
-            currentDetailsJob = detailsJob
-            val detailsCs = CoroutineScope(panelCs.coroutineContext + detailsJob)
-
-            // Diff scope: scoped to panelCs so it outlives the details panel (back navigation),
-            // cancelled here when a new PR is opened.
-            currentDiffJob?.cancel()
-            val diffJob = SupervisorJob(panelCs.coroutineContext[Job])
-            currentDiffJob = diffJob
-            val diffCs = CoroutineScope(panelCs.coroutineContext + diffJob)
-
-            val detailsVm = GiteaPRDetailsViewModel(detailsCs, pr, repository)
-            val diffVm = GiteaPRDiffViewModel(diffCs, project, pr, repository)
-            val discussionsVm = GiteaPRDiscussionsViewModels(diffCs, pr.number.toInt(), repository)
-            val diffFile = GiteaPRDiffVirtualFile(pr.number.toInt(), diffCs, project, diffVm, discussionsVm)
-
-            val detailsPanel = GiteaPRDetailsPanel(
-                detailsCs, detailsVm,
-                onBack = ::showList,
-                onViewChanges = {
-                    FileEditorManager.getInstance(project).openFile(diffFile, true)
-                },
-                onRefresh = {
-                    detailsVm.refresh()
-                    discussionsVm.reload()
-                },
-            ).create()
-            navigationWrapper.setContent(detailsPanel)
-            navigationWrapper.repaint()
-        }
-
-        listPanel = GiteaPRListPanel(panelCs, listVm, onPRSelected = ::showDetails)
-        listContent = listPanel.create()
-        navigationWrapper.setContent(listContent)
-        return navigationWrapper
+    private fun openPRDetailsTab(repository: GiteaPRRepository, pr: GiteaPullRequest) {
+        val file = GiteaPRDetailsVirtualFile(pr.number.toInt(), pr, repository, project)
+        FileEditorManager.getInstance(project).openFile(file, true)
     }
 
     override fun dispose() {

@@ -1,22 +1,12 @@
 package com.github.jpmand.idea.plugin.gitea
 
-import com.github.jpmand.idea.plugin.gitea.api.GiteaApi
-import com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager
-import com.github.jpmand.idea.plugin.gitea.api.GiteaServerMetadata
-import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
-import com.github.jpmand.idea.plugin.gitea.api.GiteaVersion
+import com.github.jpmand.idea.plugin.gitea.api.*
 import com.github.jpmand.idea.plugin.gitea.api.rest.checkIsGiteaServer
 import com.github.jpmand.idea.plugin.gitea.api.rest.getServerVersion
 import com.intellij.openapi.components.serviceAsync
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
+import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 
 interface GiteaServersManager {
@@ -34,7 +24,7 @@ internal class CachingGiteaServersManager(private val serviceCs: CoroutineScope)
     private val metadataCache = ConcurrentHashMap<GiteaServerPath, GiteaServerMetadata>()
     private val metadataCacheGuard = Mutex()
 
-    override val earliestSupportedVersion: GiteaVersion = GiteaVersion(1, 27, 1)
+    override val earliestSupportedVersion: GiteaVersion = GiteaVersion(1, 27)
 
     override suspend fun checkIsGiteaServer(server: GiteaServerPath): Boolean =
         testCache.getOrPut(server) {

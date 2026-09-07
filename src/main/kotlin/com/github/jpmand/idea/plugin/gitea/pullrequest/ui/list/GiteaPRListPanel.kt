@@ -1,14 +1,24 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.GiteaPRActionKeys
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.GiteaPROpenPullRequestAction
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.filters.GiteaPRListSearchPanelFactory
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.intellij.collaboration.ui.codereview.avatar.Avatar
 import com.intellij.collaboration.ui.codereview.list.NamedCollection
 import com.intellij.collaboration.ui.codereview.list.ReviewListComponentFactory
 import com.intellij.collaboration.ui.codereview.list.ReviewListItemPresentation
 import com.intellij.collaboration.ui.codereview.list.ReviewListUtil
 import com.intellij.collaboration.ui.codereview.list.TagPresentation
 import com.intellij.collaboration.ui.codereview.list.UserPresentation
+import com.intellij.collaboration.ui.icon.IconsProvider
+import com.intellij.openapi.actionSystem.CommonShortcuts
+import com.intellij.openapi.actionSystem.CompositeShortcutSet
+import com.intellij.openapi.actionSystem.DataSink
+import com.intellij.openapi.actionSystem.UiDataProvider
+import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.ui.ColorHexUtil
 import icons.CollaborationToolsIcons
 import kotlinx.coroutines.CoroutineScope
@@ -17,30 +27,32 @@ import java.awt.Color
 import javax.swing.JComponent
 import javax.swing.JPanel
 
+/**
+ * Renders the PR list only — no in-place details view (that's now a separate editor tab, see
+ * `GiteaPRDetailsFileEditor`). A row is only ever *selected* by a single click or arrow-key
+ * navigation; opening a PR requires double-click or Enter, matching the GitHub plugin's
+ * action-system-based interaction (not a plain `ListSelectionListener`).
+ */
 @Suppress("UnstableApiUsage")
 class GiteaPRListPanel(
     private val cs: CoroutineScope,
     private val vm: GiteaPRListViewModel,
-    private val onPRSelected: ((GiteaPullRequest) -> Unit)? = null,
+    private val avatarIconsProvider: IconsProvider<GiteaUser>,
+    private val onPROpenRequested: (GiteaPullRequest) -> Unit,
 ) {
-
-    private var list: javax.swing.JList<GiteaPullRequest>? = null
-
-    fun clearSelection() {
-        list?.clearSelection()
-    }
 
     fun create(): JComponent {
         val l = ReviewListComponentFactory(vm.listModel).create { pr ->
             createPresentation(pr)
         }
-        list = l
 
-        l.addListSelectionListener { e ->
-            if (!e.valueIsAdjusting) {
-                l.selectedValue?.let { pr -> onPRSelected?.invoke(pr) }
-            }
+        UiDataProvider.wrapComponent(l) { sink: DataSink ->
+            l.selectedValue?.let { pr -> sink[GiteaPRActionKeys.SELECTED_PULL_REQUEST] = pr }
         }
+
+        val openAction = GiteaPROpenPullRequestAction(onPROpenRequested)
+        val openShortcuts = CompositeShortcutSet(CommonShortcuts.ENTER, CommonShortcuts.DOUBLE_CLICK_1)
+        ActionUtil.wrap(openAction).registerCustomShortcutSet(openShortcuts, l)
 
         val searchPanel = GiteaPRListSearchPanelFactory(vm.searchVm).create(cs)
         val scrollPane = ReviewListUtil.wrapWithLazyVerticalScroll(cs, l) { /* pagination deferred */ }
@@ -54,6 +66,7 @@ class GiteaPRListPanel(
     private fun createPresentation(pr: GiteaPullRequest): ReviewListItemPresentation {
         val stateText: String? = when {
             pr.draft -> GiteaBundle.message("pull.request.state.draft")
+            pr.merged -> GiteaBundle.message("pull.request.state.merged")
             pr.state == "closed" -> GiteaBundle.message("pull.request.state.closed")
             else -> null
         }
@@ -61,7 +74,7 @@ class GiteaPRListPanel(
         val author = UserPresentation.Simple(
             username = pr.author.login,
             fullName = pr.author.fullName,
-            avatarIcon = CollaborationToolsIcons.Review.DefaultAvatar,
+            avatarIcon = avatarIconsProvider.getIcon(pr.author, Avatar.Sizes.BASE),
         )
 
         val tags = pr.labels.map { label ->
@@ -69,8 +82,27 @@ class GiteaPRListPanel(
         }
 
         val assignees = pr.assignees.map { user ->
-            UserPresentation.Simple(user.login, user.fullName, CollaborationToolsIcons.Review.DefaultAvatar)
+            UserPresentation.Simple(user.login, user.fullName, avatarIconsProvider.getIcon(user, Avatar.Sizes.BASE))
         }
+
+        // Loaded lazily, one REST call per PR the first time its row is rendered (not for the
+        // whole page eagerly) — returns null (no group shown yet) until the fetch resolves,
+        // at which point this row is re-rendered automatically. See GiteaPRListViewModel.
+        val reviewers = vm.reviewsFor(pr.number)?.let { reviews ->
+            sortedReviewerStates(computeReviewerStates(pr.requestedReviewers, reviews)).map { (user, _) ->
+                UserPresentation.Simple(user.login, user.fullName, avatarIconsProvider.getIcon(user, Avatar.Sizes.OUTLINED))
+            }
+        } ?: emptyList()
+
+        // Gitea only exposes a boolean "mergeable" flag (no GitHub-style tri-state); shown only
+        // for plain open, non-draft PRs to avoid false positives (Gitea often reports
+        // mergeable=false on drafts before it has computed anything meaningful).
+        val mergeableStatus = if (!pr.mergeable && pr.state == "open" && !pr.merged && !pr.draft) {
+            ReviewListItemPresentation.Status(
+                CollaborationToolsIcons.Review.NonMergeable,
+                GiteaBundle.message("pull.request.not.mergeable.tooltip"),
+            )
+        } else null
 
         val commentsCounter = if (pr.reviewComments > 0) {
             ReviewListItemPresentation.CommentsCounter(
@@ -87,9 +119,13 @@ class GiteaPRListPanel(
             tagGroup = NamedCollection.create(
                 GiteaBundle.message("pull.request.labels.popup", tags.size), tags
             ),
+            mergeableStatus = mergeableStatus,
             state = stateText,
             userGroup1 = NamedCollection.create(
                 GiteaBundle.message("pull.request.assignees.popup", assignees.size), assignees
+            ),
+            userGroup2 = NamedCollection.create(
+                GiteaBundle.message("pull.request.reviewers.popup", reviewers.size), reviewers
             ),
             commentsCounter = commentsCounter,
         )

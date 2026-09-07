@@ -1,11 +1,13 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details
 
+import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffViewModel
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.SimpleHtmlPane
 import com.intellij.collaboration.ui.VerticalListPanel
 import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsBranchComponentFactory
 import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsCommitsComponentFactory
 import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsDescriptionComponentFactory
+import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsStatusComponentFactory
 import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsTitleComponentFactory
 import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsActionsComponentFactory
 import com.intellij.collaboration.ui.codereview.details.CommitPresentation
@@ -35,21 +37,21 @@ import javax.swing.ScrollPaneConstants
 /**
  * Milestone-1 (read-only) details panel: title/description/branches/commits/status.
  * No merge/close/reopen/comment/submit-review controls — Milestone 2.
+ *
+ * Hosted as an editor tab (see `GiteaPRDetailsFileEditor`) rather than swapped in place inside
+ * the tool window — closing the tab is "back", so there's no back-link here anymore.
  */
 @Suppress("UnstableApiUsage")
 class GiteaPRDetailsPanel(
     private val cs: CoroutineScope,
     private val vm: GiteaPRDetailsViewModel,
-    private val onBack: () -> Unit,
+    private val statusVm: GiteaPRStatusViewModel,
+    private val diffVm: GiteaPRDiffViewModel,
     private val onViewChanges: (() -> Unit)? = null,
     private val onRefresh: (() -> Unit)? = null,
 ) {
 
     fun create(): JComponent {
-        val backLink = ActionLink(GiteaBundle.message("pull.request.details.back")) { onBack() }.apply {
-            border = JBUI.Borders.empty(4, 8)
-        }
-
         val viewChangesLink = onViewChanges?.let {
             ActionLink(GiteaBundle.message("pull.request.action.view.changes")) { it() }.apply {
                 border = JBUI.Borders.empty(4, 8)
@@ -90,6 +92,16 @@ class GiteaPRDetailsPanel(
 
         val actionsComponent = createActionsComponent()
 
+        val statusComponent = VerticalListPanel(4).apply {
+            add(CodeReviewDetailsStatusComponentFactory.createCiComponent(cs, statusVm))
+            add(CodeReviewDetailsStatusComponentFactory.createNeedReviewerComponent(cs, statusVm.reviewerStates))
+            add(CodeReviewDetailsStatusComponentFactory.createConflictsComponent(cs, statusVm.hasConflicts))
+        }
+
+        val changesBrowser = GiteaPRChangesBrowserComponentFactory.create(cs, diffVm) {
+            onViewChanges?.invoke()
+        }
+
         val content = VerticalListPanel(8).apply {
             add(titleComponent)
             vm.description?.let {
@@ -102,7 +114,9 @@ class GiteaPRDetailsPanel(
                 add(descriptionComponent)
             }
             add(branchesAndCommits)
+            add(statusComponent)
             add(actionsComponent)
+            add(changesBrowser)
         }
 
         val scrollPane = ScrollPaneFactory.createScrollPane(content, true).apply {
@@ -113,11 +127,12 @@ class GiteaPRDetailsPanel(
             isOpaque = false
             val navBar = JPanel(MigLayout(LC().emptyBorders().fill().noGrid(), AC().gap("push"))).apply {
                 isOpaque = false
-                add(backLink)
                 viewChangesLink?.let { add(it) }
                 refreshLink?.let { add(it) }
             }
-            add(navBar, CC().growX())
+            if (viewChangesLink != null || refreshLink != null) {
+                add(navBar, CC().growX())
+            }
             add(scrollPane, CC().grow().push())
         }
     }
