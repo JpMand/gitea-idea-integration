@@ -28,12 +28,14 @@ class GiteaPRTimelineFileEditor(
 
     private val cs = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    private val vm = GiteaPRTimelineViewModel(cs, file.pr, file.repository)
+    private val vm = GiteaPRTimelineViewModel(cs, project, file.pr, file.repository)
     private val avatarIconsProvider =
         CachingIconsProvider(AsyncImageIconsProvider<GiteaUser>(cs, GiteaImageLoader(file.ctx.api)))
+    private val itemFactory =
+        com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineItemComponentFactory(project, avatarIconsProvider)
 
     private val component: JComponent =
-        GiteaPRTimelineComponentFactory.create(cs, vm, avatarIconsProvider) { vm.reload() }
+        GiteaPRTimelineComponentFactory.create(cs, vm, itemFactory, avatarIconsProvider) { vm.reload() }
 
     override fun getComponent(): JComponent = component
     override fun getPreferredFocusedComponent(): JComponent? = null

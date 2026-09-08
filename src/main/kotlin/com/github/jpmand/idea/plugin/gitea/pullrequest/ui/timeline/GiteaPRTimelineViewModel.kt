@@ -1,9 +1,11 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaTimelineItem
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRSubmittableTextViewModel
+import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.util.ComputedResult
+import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -18,6 +20,7 @@ import java.util.Date
 /** Read-only view model for a PR's activity timeline (Conversation). */
 class GiteaPRTimelineViewModel(
     parentCs: CoroutineScope,
+    project: Project,
     val pr: GiteaPullRequest,
     private val repository: GiteaPRRepository,
 ) {
@@ -30,8 +33,11 @@ class GiteaPRTimelineViewModel(
     val author = pr.author
     val createdAt: Date = pr.createdAt
 
-    private val _items = MutableStateFlow<ComputedResult<List<GiteaTimelineItem>>?>(null)
-    val items: StateFlow<ComputedResult<List<GiteaTimelineItem>>?> = _items.asStateFlow()
+    /** Milestone-2 stub — the editor renders, submit pops "not implemented yet". */
+    val newCommentVm = GiteaPRSubmittableTextViewModel(project, cs, GiteaBundle.message("pull.request.action.comment"))
+
+    private val _items = MutableStateFlow<ComputedResult<List<GiteaPRTimelineItemViewModel>>?>(null)
+    val items: StateFlow<ComputedResult<List<GiteaPRTimelineItemViewModel>>?> = _items.asStateFlow()
 
     private var loadJob: Job? = null
 
@@ -44,7 +50,8 @@ class GiteaPRTimelineViewModel(
         loadJob = cs.launch(Dispatchers.IO) {
             _items.value = ComputedResult.loading()
             try {
-                _items.value = ComputedResult.success(repository.loadTimeline(pr.number.toInt()))
+                val items = repository.loadTimeline(pr.number.toInt()).toItemViewModels()
+                _items.value = ComputedResult.success(items)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
