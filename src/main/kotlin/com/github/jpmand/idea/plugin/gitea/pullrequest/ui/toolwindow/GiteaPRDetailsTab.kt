@@ -21,7 +21,7 @@ import javax.swing.JComponent
  */
 @Suppress("UnstableApiUsage")
 class GiteaPRDetailsTab(
-    project: Project,
+    private val project: Project,
     cs: CoroutineScope,
     repository: GiteaPRRepository,
     pr: GiteaPullRequest,
@@ -43,7 +43,7 @@ class GiteaPRDetailsTab(
     )
 
     val component: JComponent = GiteaPRDetailsPanel(
-        cs, detailsVm, statusVm, changesComponent,
+        project, cs, detailsVm, statusVm, changesComponent,
         onShowTimeline = onShowTimeline,
         onRefresh = {
             detailsVm.refresh()
