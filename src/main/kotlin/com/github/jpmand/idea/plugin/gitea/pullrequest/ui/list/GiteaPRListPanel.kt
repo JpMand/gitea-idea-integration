@@ -3,7 +3,10 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.GiteaPRActionKeys
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.GiteaPRCopyLinkAction
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.GiteaPROpenInBrowserAction
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.GiteaPROpenPullRequestAction
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.GiteaPROpenRepositoryAction
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.filters.GiteaPRListSearchPanelFactory
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.codereview.avatar.Avatar
@@ -14,30 +17,38 @@ import com.intellij.collaboration.ui.codereview.list.ReviewListUtil
 import com.intellij.collaboration.ui.codereview.list.TagPresentation
 import com.intellij.collaboration.ui.codereview.list.UserPresentation
 import com.intellij.collaboration.ui.icon.IconsProvider
+import com.intellij.openapi.actionSystem.ActionUpdateThread
+import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonShortcuts
 import com.intellij.openapi.actionSystem.CompositeShortcutSet
 import com.intellij.openapi.actionSystem.DataSink
+import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.UiDataProvider
 import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.ui.ColorHexUtil
+import com.intellij.ui.PopupHandler
 import icons.CollaborationToolsIcons
 import kotlinx.coroutines.CoroutineScope
 import java.awt.BorderLayout
 import java.awt.Color
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import javax.swing.JComponent
 import javax.swing.JPanel
 
 /**
- * Renders the PR list only — no in-place details view (that's now a separate editor tab, see
- * `GiteaPRDetailsFileEditor`). A row is only ever *selected* by a single click or arrow-key
- * navigation; opening a PR requires double-click or Enter, matching the GitHub plugin's
- * action-system-based interaction (not a plain `ListSelectionListener`).
+ * Renders the PR list only — details open as a closeable tool-window tab (see
+ * `GiteaPRDetailsTab`). A row is only ever *selected* by a single click or arrow-key navigation;
+ * opening a PR requires double-click or Enter, matching the GitHub plugin's action-system-based
+ * interaction (not a plain `ListSelectionListener`). Right-click opens a small navigational menu.
  */
 @Suppress("UnstableApiUsage")
 class GiteaPRListPanel(
     private val cs: CoroutineScope,
     private val vm: GiteaPRListViewModel,
     private val avatarIconsProvider: IconsProvider<GiteaUser>,
+    private val repositoryWebUrl: String,
     private val onPROpenRequested: (GiteaPullRequest) -> Unit,
 ) {
 
@@ -49,6 +60,37 @@ class GiteaPRListPanel(
         val openAction = GiteaPROpenPullRequestAction(onPROpenRequested)
         val openShortcuts = CompositeShortcutSet(CommonShortcuts.ENTER, CommonShortcuts.DOUBLE_CLICK_1)
         ActionUtil.wrap(openAction).registerCustomShortcutSet(openShortcuts, l)
+
+        // Right-click: select the row under the cursor first, then show the navigational menu.
+        l.addMouseListener(object : MouseAdapter() {
+            override fun mousePressed(e: MouseEvent) = maybeSelect(e)
+            override fun mouseReleased(e: MouseEvent) = maybeSelect(e)
+            private fun maybeSelect(e: MouseEvent) {
+                if (!e.isPopupTrigger) return
+                val index = l.locationToIndex(e.point)
+                if (index >= 0 && index !in l.selectedIndices) l.selectedIndex = index
+            }
+        })
+        val popupGroup = DefaultActionGroup().apply {
+            add(object : AnAction(GiteaBundle.message("pull.request.action.open")) {
+                override fun getActionUpdateThread() = ActionUpdateThread.BGT
+                override fun update(e: AnActionEvent) {
+                    e.presentation.isEnabledAndVisible = e.getData(GiteaPRActionKeys.SELECTED_PULL_REQUEST) != null
+                }
+                override fun actionPerformed(e: AnActionEvent) {
+                    e.getData(GiteaPRActionKeys.SELECTED_PULL_REQUEST)?.let(onPROpenRequested)
+                }
+            })
+            add(GiteaPROpenInBrowserAction())
+            add(GiteaPRCopyLinkAction())
+            addSeparator()
+            add(GiteaPROpenRepositoryAction(repositoryWebUrl))
+            add(object : AnAction(GiteaBundle.message("pull.request.action.refresh")) {
+                override fun getActionUpdateThread() = ActionUpdateThread.BGT
+                override fun actionPerformed(e: AnActionEvent) = vm.refresh()
+            })
+        }
+        PopupHandler.installPopupMenu(l, popupGroup, "GiteaPRListPopup")
 
         val searchPanel = GiteaPRListSearchPanelFactory(vm.searchVm).create(cs)
         // wrapWithLazyVerticalScroll requires the raw JList<?> (it hooks scroll listeners onto

@@ -117,9 +117,11 @@ class GiteaPRToolWindowController(
         val listVm = GiteaPRListViewModel(panelCs, repository)
         val avatarIconsProvider =
             CachingIconsProvider(AsyncImageIconsProvider<GiteaUser>(panelCs, GiteaImageLoader(ctx.api)))
-        val listPanel = GiteaPRListPanel(panelCs, listVm, avatarIconsProvider, onPROpenRequested = { pr ->
-            openOrFocusDetailTab(ctx, repository, pr)
-        }).create()
+        val listPanel = GiteaPRListPanel(
+            panelCs, listVm, avatarIconsProvider,
+            repositoryWebUrl = ctx.repo.getWebURI().toString(),
+            onPROpenRequested = { pr -> openOrFocusDetailTab(ctx, repository, pr) },
+        ).create()
 
         val content = cm.factory.createContent(
             listPanel,

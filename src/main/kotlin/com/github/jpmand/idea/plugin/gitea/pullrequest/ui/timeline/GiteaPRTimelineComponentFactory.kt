@@ -8,10 +8,17 @@ import com.intellij.collaboration.ui.SimpleHtmlPane
 import com.intellij.collaboration.ui.codereview.avatar.Avatar
 import com.intellij.collaboration.ui.icon.IconsProvider
 import com.intellij.ide.BrowserUtil
+import com.intellij.openapi.actionSystem.ActionUpdateThread
+import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.util.text.StringUtil
+import com.intellij.ui.PopupHandler
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
+import java.awt.datatransfer.StringSelection
 import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
@@ -49,9 +56,14 @@ object GiteaPRTimelineComponentFactory {
             border = JBUI.Borders.empty(12, 16)
         }
 
+        val headerActions = listOf(
+            browserAction("pull.request.action.open.pr.in.browser", vm.pr.htmlUrl),
+            copyAction("pull.request.action.copy.pr.link", vm.pr.htmlUrl),
+        )
+
         fun rebuild(rows: List<JComponent>) {
             list.removeAll()
-            list.add(header(vm, avatars))
+            list.add(header(vm, avatars).withPopup(headerActions))
             list.add(strut(12))
             rows.forEachIndexed { i, row ->
                 if (i > 0) list.add(strut(10))
@@ -105,10 +117,44 @@ object GiteaPRTimelineComponentFactory {
     // ── rows ───────────────────────────────────────────────────────────────
 
     private fun row(item: GiteaTimelineItem, avatars: IconsProvider<GiteaUser>): JComponent = when (item) {
-        is GiteaTimelineItem.Comment -> commentRow(item, avatars)
-        is GiteaTimelineItem.Review -> reviewRow(item, avatars)
-        is GiteaTimelineItem.Commit -> commitRow(item, avatars)
+        is GiteaTimelineItem.Comment -> commentRow(item, avatars).withPopup(
+            listOfNotNull(
+                item.htmlUrl?.let { browserAction("pull.request.action.open.comment.in.browser", it) },
+                item.htmlUrl?.let { copyAction("pull.request.action.copy.comment.link", it) },
+            ),
+        )
+        is GiteaTimelineItem.Review -> reviewRow(item, avatars).withPopup(
+            listOfNotNull(
+                item.htmlUrl?.let { browserAction("pull.request.action.open.comment.in.browser", it) },
+                item.htmlUrl?.let { copyAction("pull.request.action.copy.comment.link", it) },
+            ),
+        )
+        is GiteaTimelineItem.Commit -> commitRow(item, avatars).withPopup(
+            listOfNotNull(
+                item.htmlUrl?.let { browserAction("pull.request.action.open.commit.in.browser", it) },
+                copyAction("pull.request.action.copy.commit.hash", item.sha),
+            ),
+        )
         is GiteaTimelineItem.Event -> eventRow(item, avatars)
+    }
+
+    private fun browserAction(bundleKey: String, url: String): AnAction =
+        object : AnAction(GiteaBundle.message(bundleKey)) {
+            override fun getActionUpdateThread() = ActionUpdateThread.BGT
+            override fun actionPerformed(e: AnActionEvent) = BrowserUtil.browse(url)
+        }
+
+    private fun copyAction(bundleKey: String, value: String): AnAction =
+        object : AnAction(GiteaBundle.message(bundleKey)) {
+            override fun getActionUpdateThread() = ActionUpdateThread.BGT
+            override fun actionPerformed(e: AnActionEvent) =
+                CopyPasteManager.getInstance().setContents(StringSelection(value))
+        }
+
+    private fun <T : JComponent> T.withPopup(actions: List<AnAction>): T = apply {
+        if (actions.isEmpty()) return@apply
+        val group = DefaultActionGroup(actions)
+        PopupHandler.installPopupMenu(this, group, "GiteaPRTimelinePopup")
     }
 
     private fun commentRow(item: GiteaTimelineItem.Comment, avatars: IconsProvider<GiteaUser>): JComponent =
