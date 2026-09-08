@@ -24,11 +24,11 @@
         <applicationService serviceInterface="com.github.jpmand.idea.plugin.gitea.GiteaServersManager"
                             serviceImplementation="com.github.jpmand.idea.plugin.gitea.CachingGiteaServersManager"/>
         <diff.DiffExtension implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffExtension"/>
-        <fileEditorProvider implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPRDetailsEditorProvider"/>
+        <fileEditorProvider implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPRTimelineEditorProvider"/>
         <toolWindow id="Gitea Pull Requests"
                     anchor="left"
                     secondary="true"
-                    canCloseContents="false"
+                    canCloseContents="true"
                     factoryClass="com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow.GiteaPRToolWindowFactory"
                     icon="/images/giteaLogo.svg"/>
         <!--suppress PluginXmlI18n Name Gitea should not be translated-->

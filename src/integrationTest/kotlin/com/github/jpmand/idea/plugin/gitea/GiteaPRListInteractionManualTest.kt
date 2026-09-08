@@ -51,7 +51,7 @@ class GiteaPRListInteractionManualTest {
         )
 
     @Test
-    fun `double-click on a PR row opens its details as an editor tab`() {
+    fun `double-click on a PR row opens its details as a tool-window tab`() {
         val projectDir = Path.of("T:/LOCALDATA/PERSONAL/gitea-plugin/sample-repo")
         // IDEA_ULTIMATE, not IDEA_COMMUNITY — see the comment on the equivalent lookup in
         // GiteaSmokeIntegrationTest for why (Community stopped shipping as its own product line
@@ -94,12 +94,15 @@ class GiteaPRListInteractionManualTest {
                 // Population happens after a real REST round trip to the Gitea instance.
                 list.should { rawItems.isNotEmpty() }
 
-                val tabsBefore = editorTabsManager.getAllEditorTabs().size
+                // PR details now open as a closeable tab *inside* the tool window (named "#<n>"),
+                // not as an editor tab. Double-clicking must open the details content — assert the
+                // details title (which repeats the PR row text) becomes visible a second time.
                 list.doubleClickItem(PR_ROW_TEXT, false)
 
-                waitUntil { editorTabsManager.getAllEditorTabs().size > tabsBefore }
-                assertTrue(editorTabsManager.getAllEditorTabs().size > tabsBefore) {
-                    "Double-clicking '$PR_ROW_TEXT' did not open a new editor tab"
+                val detailsTitle = x(xQuery { byVisibleText(PR_ROW_TEXT) })
+                waitUntil { detailsTitle.present() }
+                assertTrue(detailsTitle.present()) {
+                    "Double-clicking '$PR_ROW_TEXT' did not open its details tab in the tool window"
                 }
             }
         }
@@ -119,6 +122,7 @@ class GiteaPRListInteractionManualTest {
         const val GITEA_SERVER_URL = "http://localhost:3000"
         const val GITEA_TOKEN = "6f1135d4711de59f36c9d271743fcb17246f3dfb"
         const val PR_ROW_TEXT = "Fix a bug in README"
+        const val PR_TAB_TEXT = "#1"
         val PLATFORM_BUILD_NUMBER: String = System.getProperty("gitea.test.platformBuildNumber") ?: "262.9437.185"
     }
 }

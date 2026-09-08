@@ -14,6 +14,7 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.dto.MergePullRequestOption
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.PullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.PullReview
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.PullReviewComment
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.TimelineComment
 import com.intellij.collaboration.api.httpclient.HttpClientUtil
 import com.intellij.collaboration.api.json.loadJsonList
 import com.intellij.collaboration.api.json.loadJsonValue
@@ -164,6 +165,31 @@ suspend fun GiteaApi.repoListPullRequestComments(
     .build(server.restApiUri().resolveRelative("repos/$owner/$repo/issues/$index/comments"))
   val request = request(uri).GET().build()
   return rest.loadJsonList<Comment>(request).body()
+}
+
+/**
+ * List every comment AND event on a PR/issue in chronological order.
+ *
+ * `GET /repos/{owner}/{repo}/issues/{index}/timeline` (`issueGetCommentsAndTimeline`).
+ */
+@Suppress("UnstableApiUsage")
+suspend fun GiteaApi.issueListTimeline(
+  owner: String,
+  repo: String,
+  index: Int,
+  since: String? = null,
+  before: String? = null,
+  page: Int? = null,
+  limit: Int? = null,
+): List<TimelineComment> {
+  val uri = GiteaUriUtil.QueryBuilder()
+    .addParam("since", since)
+    .addParam("before", before)
+    .addParam("page", page)
+    .addParam("limit", limit)
+    .build(server.restApiUri().resolveRelative("repos/$owner/$repo/issues/$index/timeline"))
+  val request = request(uri).GET().build()
+  return rest.loadJsonList<TimelineComment>(request).body()
 }
 
 @Suppress("UnstableApiUsage")

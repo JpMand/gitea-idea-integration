@@ -1,69 +1,41 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details
 
-import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffViewModel
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.SimpleHtmlPane
 import com.intellij.collaboration.ui.VerticalListPanel
-import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsBranchComponentFactory
-import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsCommitsComponentFactory
-import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsDescriptionComponentFactory
 import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsStatusComponentFactory
 import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsTitleComponentFactory
-import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsActionsComponentFactory
-import com.intellij.collaboration.ui.codereview.details.CommitPresentation
 import com.intellij.collaboration.ui.util.emptyBorders
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
-import com.intellij.openapi.util.NlsSafe
-import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.components.ActionLink
 import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.CoroutineScope
-import net.miginfocom.layout.AC
-import net.miginfocom.layout.CC
 import net.miginfocom.layout.LC
 import net.miginfocom.swing.MigLayout
-import java.awt.event.ActionEvent
-import java.util.Date
-import javax.swing.AbstractAction
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.ScrollPaneConstants
 
 /**
- * Milestone-1 (read-only) details panel: title/description/branches/commits/status.
- * No merge/close/reopen/comment/submit-review controls — Milestone 2.
- *
- * Hosted as an editor tab (see `GiteaPRDetailsFileEditor`) rather than swapped in place inside
- * the tool window — closing the tab is "back", so there's no back-link here anymore.
+ * Read-only PR-details tool-window tab: title + `#number` + status, plus the changed-files tree.
+ * Branches/commits/description moved to the activity-timeline editor (opened via [onShowTimeline]).
  */
 @Suppress("UnstableApiUsage")
 class GiteaPRDetailsPanel(
     private val cs: CoroutineScope,
     private val vm: GiteaPRDetailsViewModel,
     private val statusVm: GiteaPRStatusViewModel,
-    private val diffVm: GiteaPRDiffViewModel,
-    private val onViewChanges: (() -> Unit)? = null,
-    private val onRefresh: (() -> Unit)? = null,
+    private val changesComponent: JComponent,
+    private val onShowTimeline: () -> Unit,
+    private val onRefresh: () -> Unit,
 ) {
 
     fun create(): JComponent {
-        val viewChangesLink = onViewChanges?.let {
-            ActionLink(GiteaBundle.message("pull.request.action.view.changes")) { it() }.apply {
-                border = JBUI.Borders.empty(4, 8)
-            }
-        }
-
-        val refreshLink = onRefresh?.let {
-            ActionLink(GiteaBundle.message("pull.request.action.refresh")) { it() }.apply {
-                border = JBUI.Borders.empty(4, 8)
-            }
-        }
-
         val actionGroup = createActionGroup()
 
         val titleComponent = CodeReviewDetailsTitleComponentFactory.create(
@@ -73,24 +45,13 @@ class GiteaPRDetailsPanel(
             htmlPaneFactory = { SimpleHtmlPane() },
         )
 
-        val branchesAndCommits = JPanel(MigLayout(LC().emptyBorders().fill(), AC().gap("push"))).apply {
+        val navBar = JPanel(MigLayout(LC().emptyBorders().fillX().noGrid())).apply {
             isOpaque = false
-            add(CodeReviewDetailsCommitsComponentFactory.create(cs, vm.changesVm) { commit ->
-                @NlsSafe val title = StringUtil.escapeXmlEntities(
-                    commit.commit?.message?.lines()?.firstOrNull()?.trim()
-                        ?: commit.sha.orEmpty().take(7)
-                )
-                CommitPresentation(
-                    titleHtml = title,
-                    descriptionHtml = "",
-                    author = commit.commit?.author?.name ?: commit.author?.login.orEmpty(),
-                    committedDate = commit.created?.let { Date.from(it.toInstant()) } ?: Date(),
-                )
-            })
-            add(CodeReviewDetailsBranchComponentFactory.create(cs, vm.branchesVm))
+            add(ActionLink(GiteaBundle.message("pull.request.action.show.timeline")) { onShowTimeline() }
+                .apply { border = JBUI.Borders.empty(4, 8) })
+            add(ActionLink(GiteaBundle.message("pull.request.action.refresh")) { onRefresh() }
+                .apply { border = JBUI.Borders.empty(4, 8) })
         }
-
-        val actionsComponent = createActionsComponent()
 
         val statusComponent = VerticalListPanel(4).apply {
             add(CodeReviewDetailsStatusComponentFactory.createCiComponent(cs, statusVm))
@@ -98,42 +59,20 @@ class GiteaPRDetailsPanel(
             add(CodeReviewDetailsStatusComponentFactory.createConflictsComponent(cs, statusVm.hasConflicts))
         }
 
-        val changesBrowser = GiteaPRChangesBrowserComponentFactory.create(cs, diffVm) {
-            onViewChanges?.invoke()
-        }
-
-        val content = VerticalListPanel(8).apply {
+        val header = VerticalListPanel(8).apply {
+            border = JBUI.Borders.empty(8)
             add(titleComponent)
-            vm.description?.let {
-                val descriptionComponent = CodeReviewDetailsDescriptionComponentFactory.create(
-                    cs, vm,
-                    actionGroup = actionGroup,
-                    showTimelineAction = { /* Milestone 2: open timeline */ },
-                    htmlPaneFactory = { SimpleHtmlPane() },
-                )
-                add(descriptionComponent)
-            }
-            add(branchesAndCommits)
             add(statusComponent)
-            add(actionsComponent)
-            add(changesBrowser)
         }
-
-        val scrollPane = ScrollPaneFactory.createScrollPane(content, true).apply {
+        val headerScroll = ScrollPaneFactory.createScrollPane(header, true).apply {
             horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
         }
 
-        return JPanel(MigLayout(LC().emptyBorders().fill().flowY().noGrid())).apply {
+        return JPanel(MigLayout(LC().emptyBorders().fill().flowY().noGrid().gridGap("0", "0"))).apply {
             isOpaque = false
-            val navBar = JPanel(MigLayout(LC().emptyBorders().fill().noGrid(), AC().gap("push"))).apply {
-                isOpaque = false
-                viewChangesLink?.let { add(it) }
-                refreshLink?.let { add(it) }
-            }
-            if (viewChangesLink != null || refreshLink != null) {
-                add(navBar, CC().growX())
-            }
-            add(scrollPane, CC().grow().push())
+            add(navBar, net.miginfocom.layout.CC().growX())
+            add(headerScroll, net.miginfocom.layout.CC().growX())
+            add(changesComponent, net.miginfocom.layout.CC().grow().push())
         }
     }
 
@@ -143,21 +82,5 @@ class GiteaPRDetailsPanel(
                 BrowserUtil.browse(vm.url)
             }
         })
-    }
-
-    private fun createActionsComponent(): JComponent {
-        // Merge/close/reopen are mutations — Milestone 2. Only a non-mutating
-        // "open in browser" action is offered for the closed/draft states.
-        val openInBrowserAction = object : AbstractAction(GiteaBundle.message("pull.request.action.open.in.browser")) {
-            override fun actionPerformed(e: ActionEvent?) { BrowserUtil.browse(vm.url) }
-        }
-
-        return CodeReviewDetailsActionsComponentFactory.createActionsComponent(
-            cs, vm.reviewRequestState,
-            openedStatePanel = JPanel().apply { isOpaque = false },
-            mergedStatePanel = CodeReviewDetailsActionsComponentFactory.createActionsForMergedReview(),
-            closedStatePanel = CodeReviewDetailsActionsComponentFactory.createActionsForClosedReview(openInBrowserAction),
-            draftedStatePanel = CodeReviewDetailsActionsComponentFactory.createActionsForDraftReview(openInBrowserAction),
-        )
     }
 }

@@ -3,7 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.data.GiteaImageLoader
-import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPRDetailsVirtualFile
+import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPRTimelineVirtualFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContext
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContextHolder
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
@@ -21,6 +21,9 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.ui.HyperlinkLabel
 import com.intellij.ui.components.JBLabel
+import com.intellij.ui.content.Content
+import com.intellij.ui.content.ContentManagerEvent
+import com.intellij.ui.content.ContentManagerListener
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.CoroutineScope
@@ -38,12 +41,12 @@ import javax.swing.SwingConstants
 import javax.swing.event.HyperlinkEvent
 
 /**
- * Manages tool window contents in reaction to the [GiteaPRDataContextHolder] state.
+ * Manages the "Gitea Pull Requests" tool window as a tab container:
+ *  - a fixed, non-closeable first tab (named after the repository) holding the PR list;
+ *  - one closeable tab per opened PR (`#<number>`), holding the read-only details view.
  *
- * Shows an empty-state panel when no Gitea account/repo is resolved, and the PR list otherwise —
- * matching the GitHub plugin, the tool window shows *only* the list. Opening a PR (double-click
- * or Enter, see [GiteaPRListPanel]) opens its details as a separate editor tab
- * (`GiteaPRDetailsFileEditor`/`GiteaPRDetailsVirtualFile`), not an in-tool-window swap.
+ * The activity timeline is still an editor tab (see [GiteaPRTimelineVirtualFile]), opened from the
+ * "Show Conversation" link inside a details tab.
  */
 @Suppress("UnstableApiUsage")
 class GiteaPRToolWindowController(
@@ -52,30 +55,123 @@ class GiteaPRToolWindowController(
 ) : Disposable {
 
     private val cs = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val cm get() = toolWindow.contentManager
+
+    private var currentCtx: GiteaPRDataContext? = null
+    private var listContent: Content? = null
+    private var listPanelJob: Job? = null
+
+    private class DetailTab(val content: Content, val scope: CoroutineScope)
+
+    private val detailTabs = LinkedHashMap<Int, DetailTab>()
 
     init {
+        cm.addContentManagerListener(object : ContentManagerListener {
+            override fun contentRemoveQuery(event: ContentManagerEvent) {
+                if (event.content === listContent) event.consume()
+            }
+
+            override fun contentRemoved(event: ContentManagerEvent) {
+                val entry = detailTabs.entries.firstOrNull { it.value.content === event.content } ?: return
+                detailTabs.remove(entry.key)
+                entry.value.scope.cancel()
+            }
+        })
         cs.launch {
-            project.service<GiteaPRDataContextHolder>().context
-                .collect { ctx -> updateContent(ctx) }
+            project.service<GiteaPRDataContextHolder>().context.collect { ctx -> updateContent(ctx) }
         }
     }
 
-    private var currentPanelJob: Job? = null
-
     private fun updateContent(ctx: GiteaPRDataContext?) {
-        currentPanelJob?.cancel()
-        currentPanelJob = null
-        val cm = toolWindow.contentManager
-        cm.removeAllContents(true)
-        val panel = if (ctx == null) {
-            createEmptyStatePanel()
-        } else {
-            val panelJob = SupervisorJob(cs.coroutineContext[Job])
-            currentPanelJob = panelJob
-            val panelCs = CoroutineScope(cs.coroutineContext + panelJob)
-            createListPanel(ctx, panelCs)
+        when {
+            ctx == null -> {
+                closeAllDetailTabs()
+                showEmptyState()
+            }
+            ctx.repo == currentCtx?.repo && ctx.account == currentCtx?.account -> {
+                // Same repo/account (e.g. token refresh) — keep the open tabs as they are.
+                currentCtx = ctx
+            }
+            else -> {
+                closeAllDetailTabs()
+                rebuildListTab(ctx)
+            }
         }
-        cm.addContent(cm.factory.createContent(panel, null, false))
+    }
+
+    private fun showEmptyState() {
+        currentCtx = null
+        listPanelJob?.cancel()
+        listPanelJob = null
+        val empty = cm.factory.createContent(createEmptyStatePanel(), null, false).apply { isCloseable = false }
+        replaceListContent(empty)
+    }
+
+    private fun rebuildListTab(ctx: GiteaPRDataContext) {
+        listPanelJob?.cancel()
+        val job = SupervisorJob(cs.coroutineContext[Job])
+        listPanelJob = job
+        val panelCs = CoroutineScope(cs.coroutineContext + job)
+
+        val repository = GiteaPRRepository(ctx)
+        val listVm = GiteaPRListViewModel(panelCs, repository)
+        val avatarIconsProvider =
+            CachingIconsProvider(AsyncImageIconsProvider<GiteaUser>(panelCs, GiteaImageLoader(ctx.api)))
+        val listPanel = GiteaPRListPanel(panelCs, listVm, avatarIconsProvider, onPROpenRequested = { pr ->
+            openOrFocusDetailTab(ctx, repository, pr)
+        }).create()
+
+        val content = cm.factory.createContent(
+            listPanel,
+            ctx.repo.repositoryPath.repository,
+            false,
+        ).apply {
+            isCloseable = false
+            isPinned = true
+        }
+        replaceListContent(content)
+        currentCtx = ctx
+    }
+
+    private fun replaceListContent(content: Content) {
+        val old = listContent
+        listContent = content
+        cm.addContent(content, 0)
+        if (old != null) cm.removeContent(old, true)
+        cm.setSelectedContent(content)
+    }
+
+    private fun openOrFocusDetailTab(ctx: GiteaPRDataContext, repository: GiteaPRRepository, pr: GiteaPullRequest) {
+        val number = pr.number.toInt()
+        detailTabs[number]?.let {
+            cm.setSelectedContent(it.content, true)
+            return
+        }
+
+        val tabJob = SupervisorJob(cs.coroutineContext[Job])
+        val tabScope = CoroutineScope(cs.coroutineContext + tabJob)
+        val tab = GiteaPRDetailsTab(
+            project, tabScope, repository, pr,
+            onShowTimeline = { openTimelineEditor(repository, pr, ctx) },
+        )
+        val content = cm.factory.createContent(tab.component, "#${pr.number}", false).apply {
+            isCloseable = true
+            isPinnable = false
+            setDisposer(Disposable { tabJob.cancel() })
+        }
+        detailTabs[number] = DetailTab(content, tabScope)
+        cm.addContent(content)
+        cm.setSelectedContent(content, true)
+    }
+
+    private fun openTimelineEditor(repository: GiteaPRRepository, pr: GiteaPullRequest, ctx: GiteaPRDataContext) {
+        val file = GiteaPRTimelineVirtualFile(pr.number.toInt(), pr, repository, ctx, project)
+        FileEditorManager.getInstance(project).openFile(file, true)
+    }
+
+    private fun closeAllDetailTabs() {
+        detailTabs.values.toList().forEach { cm.removeContent(it.content, true) }
+        detailTabs.clear()
     }
 
     private fun createEmptyStatePanel(): JComponent {
@@ -97,25 +193,6 @@ class GiteaPRToolWindowController(
             c.gridy = 1; c.insets = JBUI.emptyInsets()
             add(settingsLink, c)
         }
-    }
-
-    private fun createListPanel(ctx: GiteaPRDataContext, panelCs: CoroutineScope): JComponent {
-        val repository = GiteaPRRepository(ctx)
-        val listVm = GiteaPRListViewModel(panelCs, repository)
-        // Must be cached: the platform ReviewListCellRenderer is a rubber-stamp renderer that calls
-        // getIcon on every repaint. Without CachingIconsProvider each call builds a fresh
-        // AsyncImageIcon → a new avatar HTTP request per paint, and only a hovered row's
-        // materialised component lives long enough to show the result (avatars appear on hover only).
-        val avatarIconsProvider = CachingIconsProvider(AsyncImageIconsProvider<GiteaUser>(panelCs, GiteaImageLoader(ctx.api)))
-        val listPanel = GiteaPRListPanel(panelCs, listVm, avatarIconsProvider, onPROpenRequested = { pr ->
-            openPRDetailsTab(repository, pr)
-        })
-        return listPanel.create()
-    }
-
-    private fun openPRDetailsTab(repository: GiteaPRRepository, pr: GiteaPullRequest) {
-        val file = GiteaPRDetailsVirtualFile(pr.number.toInt(), pr, repository, project)
-        FileEditorManager.getInstance(project).openFile(file, true)
     }
 
     override fun dispose() {
