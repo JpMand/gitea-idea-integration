@@ -1,5 +1,55 @@
 # Fix DTO migration & rebuild read-only PR review UI
 
+## Iteration: tool-window tabs, fixed list filters, details tab + activity timeline
+
+Reshaped the tool window to match the GitHub plugin and added several fixes. Landed in three
+commits on `feature/pr-code-review` (`a7410ab`, `cc745f6`, `890a20e`).
+
+- **PR list row fixes**: `GiteaUser.fromDto` now collapses Gitea's empty-string `full_name` to
+  null (was rendering "created … by " blank); the issue-level comment count (`dto.comments`) is
+  mapped into `GiteaPullRequest.commentsCount` and the list always shows the comments counter
+  (incl. 0); the avatar `IconsProvider` is wrapped in `CachingIconsProvider` (was re-fetching
+  avatars every repaint / only showing them on hover). The platform `ReviewListCellRenderer`
+  already lays the right-hand cluster out as Comments · Reviewers · Assignees · Mergeable · State,
+  so no custom renderer was needed.
+- **Fixed list filters** (alongside the existing quick filters): State / Author / Label / Sort
+  dropdowns via `DropDownComponentFactory` (+ async chooser popups for author/label).
+  `GiteaPRListSearchValue` gained `label`/`author`/`sort`; the panel VM exposes them as
+  `partialState` two-way views. New `repoListLabels` / `repoListCollaborators` API calls;
+  `loadPullRequests` forwards `sort`/`labels`/`poster`. Not persisted across restarts (per user).
+- **Tool window is now a tab container**: fixed non-closeable first tab named after the repo
+  (the PR list); one closeable `#<n>` tab per opened PR holding the read-only details view
+  (title + status + an `AsyncChangesTree` built with the platform
+  `CodeReviewChangeListComponentFactory` — the tree is path-based so it needs no local checkout;
+  clicking a file still opens the existing REST diff). `GiteaPRToolWindowController` rewritten
+  around `ContentManager` + a `ContentManagerListener`.
+- **The former details editor tab is now the activity timeline** (Conversation): the
+  `GiteaPRDetails{VirtualFile,EditorProvider,FileEditor}` trio was renamed to `GiteaPRTimeline*`
+  and opened from a "Show Conversation" link in the details tab. New `issueListTimeline` API,
+  `GiteaTimelineItem`/`GiteaTimelineEvent` domain models, and `GiteaPRRepository.loadTimeline`
+  with a pure, unit-tested `mergeTimeline` folding the timeline endpoint together with the
+  reviews and commits endpoints. Hand-built `GiteaPRTimelineComponentFactory` renders
+  title/description then a chronological comment/commit/review/event stream (actor avatar + name
+  + timestamp each). Markdown bodies are shown as plain wrapped text for now.
+- **Right-click menus**: navigational only — list rows (open / open in browser / copy link /
+  open repo / refresh) and timeline items (open/copy for comments, reviews and commits).
+
+**Verification**: `./gradlew compileKotlin`, `test` (all suites green, incl. new
+`GiteaPRListSearchValueTest`, `GiteaJsonLabelTest`, `GiteaPRTimelineMergeTest` +
+`GiteaJsonPullRequestTest` domain-mapping cases), `verifyPluginStructure` and `buildPlugin` all
+pass. **Not run here** (needs a display / window focus): `./gradlew integrationTest` and
+`./gradlew runIde` against the Docker Gitea instance — the `GiteaPRListInteractionManualTest`
+assertion was updated for the tool-window-tab flow but not executed. A human should run those and
+eyeball the list rows, the four filter dropdowns, the `#<n>` detail tabs + changes tree, and the
+timeline editor.
+
+Known follow-ups: label add/remove in the timeline is inferred from the row body (`"1"` == added)
+— confirm against a real payload; timeline pagination is capped at ~100 items; markdown is not
+rendered.
+
+---
+
+
 ## RESOLVED: click-to-open-PR-details bug, and UI test framework migrated to Starter/Driver
 
 Live UI verification (originally via Remote Robot, real Robot input against the running Docker
