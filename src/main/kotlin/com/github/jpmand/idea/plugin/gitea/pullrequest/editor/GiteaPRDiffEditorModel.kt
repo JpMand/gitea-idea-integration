@@ -1,11 +1,14 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.editor
 
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.giteaWriteActionNotImplemented
+import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.codereview.diff.DiffLineLocation
 import com.intellij.collaboration.ui.codereview.diff.DiscussionsViewOption
 import com.intellij.collaboration.ui.codereview.editor.CodeReviewEditorGutterControlsModel
 import com.intellij.collaboration.ui.codereview.editor.CodeReviewEditorModel
 import com.intellij.diff.util.Side
+import com.intellij.openapi.project.Project
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +25,7 @@ import kotlinx.coroutines.flow.SharingStarted
 @Suppress("UnstableApiUsage")
 class GiteaPRDiffEditorModel(
     cs: CoroutineScope,
+    private val project: Project?,
     private val path: String,
     private val side: Side?,
     private val discussionsVm: GiteaPRDiscussionsViewModels,
@@ -53,7 +57,8 @@ class GiteaPRDiffEditorModel(
     override val inlays: StateFlow<Collection<GiteaPRInlayModel>> = threadInlays
 
     // ── Gutter controls state ─────────────────────────────────────────────
-    // Read-only: no commentable-line ("+") affordance in Milestone 1.
+    // Every line in the shown file is "commentable" so the gutter "+" appears; actually
+    // composing a comment is a Milestone-2 stub (see requestNewComment).
 
     override val gutterControlsState: StateFlow<CodeReviewEditorGutterControlsModel.ControlsState?> =
         threadInlays.let { flow ->
@@ -62,16 +67,17 @@ class GiteaPRDiffEditorModel(
                 object : CodeReviewEditorGutterControlsModel.ControlsState {
                     override val linesWithComments: Set<Int> = linesWithComments
                     override val linesWithNewComments: Set<Int> = emptySet()
-                    override fun isLineCommentable(lineIdx: Int): Boolean = false
+                    override fun isLineCommentable(lineIdx: Int): Boolean = true
                 }
             }
         }.stateIn(cs, SharingStarted.Eagerly, null)
 
     // ── Actions ───────────────────────────────────────────────────────────
-    // Comment composition is Milestone 2 — no-ops here.
+    // Comment composition is Milestone 2 — the affordance is present, the action is a stub.
 
     @RequiresEdt
-    override fun requestNewComment(lineIdx: Int) = Unit
+    override fun requestNewComment(lineIdx: Int) =
+        giteaWriteActionNotImplemented(project, GiteaBundle.message("pull.request.action.add.line.comment"))
 
     @RequiresEdt
     override fun cancelNewComment(lineIdx: Int) = Unit
