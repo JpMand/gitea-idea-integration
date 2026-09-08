@@ -65,14 +65,19 @@ class GiteaPRDetailsPanel(
             htmlPaneFactory = { SimpleHtmlPane() },
         )
 
-        val navBar = HorizontalListPanel(8).apply {
-            add(ActionLink(GiteaBundle.message("pull.request.action.show.timeline")) { onShowTimeline() })
-            add(ActionLink(GiteaBundle.message("pull.request.action.refresh")) { onRefresh() })
+        val navBar = JPanel(java.awt.BorderLayout()).apply {
+            isOpaque = false
+            add(ActionLink(GiteaBundle.message("pull.request.action.show.timeline")) { onShowTimeline() }, java.awt.BorderLayout.WEST)
+            add(ActionLink(GiteaBundle.message("pull.request.action.refresh")) { onRefresh() }, java.awt.BorderLayout.EAST)
         }
 
-        val commitsAndBranch = HorizontalListPanel(0).apply {
-            add(CodeReviewDetailsCommitsComponentFactory.create(cs, vm.changesVm) { commit -> commit.toPresentation() })
-            add(CodeReviewDetailsBranchComponentFactory.create(cs, vm.branchesVm))
+        val commitsAndBranch = JPanel(java.awt.BorderLayout()).apply {
+            isOpaque = false
+            add(
+                CodeReviewDetailsCommitsComponentFactory.create(cs, vm.changesVm) { commit -> commit.toPresentation() },
+                java.awt.BorderLayout.WEST,
+            )
+            add(CodeReviewDetailsBranchComponentFactory.create(cs, vm.branchesVm), java.awt.BorderLayout.EAST)
         }
 
         val commitInfo = CodeReviewDetailsCommitInfoComponentFactory.create(
@@ -90,11 +95,11 @@ class GiteaPRDetailsPanel(
         val actionsComponent = createActionsComponent()
 
         val content = VerticalListPanel(0).apply {
-            border = JBUI.Borders.empty(8)
+            border = JBUI.Borders.empty(8, 8, 0, 8)
             add(pad(titleComponent, ReviewDetailsUIUtil.TITLE_GAPS.top, ReviewDetailsUIUtil.TITLE_GAPS.bottom))
             add(pad(navBar, 0, 8))
-            add(pad(commitsAndBranch, 0, ReviewDetailsUIUtil.COMMIT_POPUP_BRANCHES_GAPS.bottom))
-            add(pad(commitInfo, 0, ReviewDetailsUIUtil.COMMIT_INFO_GAPS.bottom))
+            add(pad(commitsAndBranch, 0, 4))
+            add(pad(commitInfo, 0, 0))
         }
 
         return JPanel(MigLayout(LC().emptyBorders().fill().flowY().noGrid().gridGap("0", "0"))).apply {
