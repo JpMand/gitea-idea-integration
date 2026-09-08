@@ -1,5 +1,51 @@
 # Fix DTO migration & rebuild read-only PR review UI
 
+## Iteration: mirror the bundled GitLab plugin on platform base classes
+
+Reworked the PR UI to sit on `intellij.platform.collaborationTools` base classes the way the
+bundled **GitLab** merge-request plugin does (GitLab is REST-backed like Gitea; GitHub's
+timeline/changes VMs are GraphQL-coupled). Five commits on `feature/pr-code-review`
+(`33a51b7`, `b646e7d`, `90bf56d`, `2785cb7`, + this doc).
+
+- **Changes tree** (`GiteaPRChangesTreeViewModel` + reworked factory): now
+  `CodeReviewChangeListViewModelBase` + `CodeReviewChangeListViewModel.WithGrouping` +
+  `.WithViewedState`, fed to `CodeReviewChangeListComponentFactory.createIn` with a
+  `CodeReviewProgressTreeModelFromDetails`. Real directory tree (repo-root node, per-dir "N files"),
+  directory grouping bound to `GiteaPullRequestsSettings.changesGroupingState`, and a per-file
+  "viewed" checkbox persisted per PR in `GiteaPullRequestsSettings.viewedPrFiles` (workspace file,
+  survives restart). `RefComparisonChange` FilePaths are rooted at the project VCS root.
+- **Details tab** laid out like `GitLabMergeRequestDetailsComponentFactory`: title → nav bar
+  (Show Conversation / Refresh, now *below* the title) → "Changes from N commits ▾" + branch pill
+  (`CodeReviewDetailsCommits/BranchComponentFactory`) → selected-commit info
+  (`CodeReviewDetailsCommitInfoComponentFactory`) → changes tree → status → a write-action bar
+  (`CodeReviewDetailsActionsComponentFactory`) of Milestone-2 stub buttons (Merge / Close / Submit
+  Review / Reopen / Ready for review). Spacing via `ReviewDetailsUIUtil` gap constants.
+- **Timeline** onto a proper VM layer: sealed `GiteaPRTimelineItemViewModel`
+  (Comment / Commits / Review / Event), a pure `toItemViewModels()` that folds consecutive commits,
+  and `GiteaPRTimelineItemComponentFactory` rendering each item with the platform shell
+  (`CodeReviewChatItemUIUtil.build` + `CodeReviewTimelineUIUtil.createTitleTextPane`,
+  `StatusMessageComponentFactory` for events, `TimelineThreadCommentsPanel` for review threads).
+  `GiteaPRTimelineComponentFactory` follows the GitLab layout (title / description-as-item /
+  items / new-comment field).
+- **Write-interaction scaffolding** — one shared `giteaWriteActionNotImplemented` popup:
+  a real markdown comment editor (`CodeReviewSubmittableTextViewModelBase` +
+  `CodeReviewCommentTextFieldFactory`) with a stub submit at the bottom of the timeline; a
+  "Start a Review" link; the details write-action bar; and a commentable diff gutter
+  (`GiteaPRDiffEditorModel` reports lines commentable, `requestNewComment` pops the stub). **Only
+  mark-as-viewed is real.**
+
+**Verification**: `./gradlew compileKotlin`, `test` (all suites green, incl. new
+`GiteaPRTimelineItemViewModelTest`), `verifyPluginStructure`, `compileIntegrationTestKotlin` all
+pass. **Not run here** (needs a display / window focus): `./gradlew runIde` /
+`./gradlew integrationTest` — a human should open a multi-file PR and check the directory tree +
+viewed-checkbox persistence, the details layout order, the timeline item shells, and that every
+write control pops the "not implemented" message and touches nothing.
+
+Known follow-ups: markdown bodies still render as escaped plain text (no `POST /markdown`);
+timeline label add/remove still inferred from the row body; timeline paginates at ~100 items.
+
+---
+
 ## Iteration: tool-window tabs, fixed list filters, details tab + activity timeline
 
 Reshaped the tool window to match the GitHub plugin and added several fixes. Landed in three
