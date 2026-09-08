@@ -191,6 +191,24 @@ class GiteaJsonGiteaUserTest {
   }
 
   @Test
+  fun `fromDto collapses blank full_name to null`() {
+    // Gitea returns "" (not null) for users without a display name; the platform's
+    // UserPresentation falls back `fullName ?: login`, so "" would render an empty author.
+    val json = """
+      {
+        "id": 8,
+        "login": "noname",
+        "full_name": ""
+      }
+    """.trimIndent()
+
+    val user = GiteaUser.fromDto(deserialize(json, User::class.java)!!)
+
+    assertNull(user.fullName)
+    assertEquals("noname", user.login)
+  }
+
+  @Test
   fun `unknown fields are ignored`() {
     // FAIL_ON_UNKNOWN_PROPERTIES is false — unknown fields must be silently ignored
     val json = """

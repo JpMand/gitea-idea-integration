@@ -78,7 +78,7 @@ class GiteaPRListPanel(
         }
 
         val author = UserPresentation.Simple(
-            username = pr.author.login,
+            username = pr.author.login.ifBlank { GiteaBundle.message("pull.request.author.unknown") },
             fullName = pr.author.fullName,
             avatarIcon = avatarIconsProvider.getIcon(pr.author, Avatar.Sizes.BASE),
         )
@@ -110,12 +110,16 @@ class GiteaPRListPanel(
             )
         } else null
 
-        val commentsCounter = if (pr.reviewComments > 0) {
-            ReviewListItemPresentation.CommentsCounter(
-                pr.reviewComments,
-                GiteaBundle.message("pull.request.comments.tooltip", pr.reviewComments),
-            )
-        } else null
+        // Always shown (even at 0), per the required row layout. ReviewListItemPresentation.Simple
+        // feeds the platform ReviewListCellRenderer, whose right-hand cluster is laid out
+        // left-to-right as: state, non-mergeable, build-status, userGroup1, userGroup2, comments —
+        // i.e. right-to-left that is Comments, Reviewers (userGroup2), Assignees (userGroup1),
+        // Mergeable, Status, which is exactly the order we want. Do not "fix" this with a custom
+        // renderer.
+        val commentsCounter = ReviewListItemPresentation.CommentsCounter(
+            pr.commentsCount,
+            GiteaBundle.message("pull.request.comments.tooltip", pr.commentsCount),
+        )
 
         return ReviewListItemPresentation.Simple(
             title = pr.title,

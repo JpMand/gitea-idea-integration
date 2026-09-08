@@ -12,6 +12,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListViewMo
 import com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.icon.AsyncImageIconsProvider
+import com.intellij.collaboration.ui.icon.CachingIconsProvider
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileEditorManager
@@ -101,7 +102,11 @@ class GiteaPRToolWindowController(
     private fun createListPanel(ctx: GiteaPRDataContext, panelCs: CoroutineScope): JComponent {
         val repository = GiteaPRRepository(ctx)
         val listVm = GiteaPRListViewModel(panelCs, repository)
-        val avatarIconsProvider = AsyncImageIconsProvider<GiteaUser>(panelCs, GiteaImageLoader(ctx.api))
+        // Must be cached: the platform ReviewListCellRenderer is a rubber-stamp renderer that calls
+        // getIcon on every repaint. Without CachingIconsProvider each call builds a fresh
+        // AsyncImageIcon → a new avatar HTTP request per paint, and only a hovered row's
+        // materialised component lives long enough to show the result (avatars appear on hover only).
+        val avatarIconsProvider = CachingIconsProvider(AsyncImageIconsProvider<GiteaUser>(panelCs, GiteaImageLoader(ctx.api)))
         val listPanel = GiteaPRListPanel(panelCs, listVm, avatarIconsProvider, onPROpenRequested = { pr ->
             openPRDetailsTab(repository, pr)
         })

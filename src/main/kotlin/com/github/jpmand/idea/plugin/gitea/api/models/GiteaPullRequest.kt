@@ -26,6 +26,8 @@ class GiteaPullRequest(
     val mergedAt: Date?,
     val closedAt: Date?,
     val reviewComments: Int,
+    /** Issue-level (conversation) comment count — Gitea's `comments`, distinct from `review_comments`. */
+    val commentsCount: Int,
     val changedFiles: Int?,
     val additions: Int?,
     val deletions: Int?,
@@ -55,6 +57,7 @@ class GiteaPullRequest(
                 mergedAt = dto.mergedAt?.toDate(),
                 closedAt = dto.closedAt?.toDate(),
                 reviewComments = dto.reviewComments?.toInt() ?: 0,
+                commentsCount = dto.comments?.toInt() ?: 0,
                 changedFiles = dto.changedFiles?.toInt(),
                 additions = dto.additions?.toInt(),
                 deletions = dto.deletions?.toInt(),

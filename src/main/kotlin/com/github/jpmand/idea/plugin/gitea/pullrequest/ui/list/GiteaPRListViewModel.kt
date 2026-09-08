@@ -26,7 +26,7 @@ class GiteaPRListViewModel(
     private val repository: GiteaPRRepository,
 ) : ReviewListViewModel {
 
-    val searchVm = GiteaPRListSearchPanelViewModel(cs)
+    val searchVm = GiteaPRListSearchPanelViewModel(cs, repository)
 
     private val _listModel = DefaultListModel<GiteaPullRequest>()
     val listModel: DefaultListModel<GiteaPullRequest> = _listModel
@@ -52,12 +52,21 @@ class GiteaPRListViewModel(
         _isLoading.value = true
         _error.value = null
         try {
-            val prs = repository.loadPullRequests(filter.state.apiValue, page = null, limit = 50)
+            val prs = repository.loadPullRequests(
+                state = filter.state.apiValue,
+                sort = filter.sort?.api,
+                labels = filter.label?.let { listOf(it) },
+                poster = filter.author,
+                page = null,
+                limit = 50,
+            )
             val query = filter.searchQuery
-            val filtered = if (query.isNullOrBlank()) prs
-            else prs.filter { pr ->
-                pr.title.contains(query, ignoreCase = true) ||
-                        "#${pr.number}".contains(query, ignoreCase = true)
+            val filtered = prs.filter { pr ->
+                (query.isNullOrBlank() ||
+                        pr.title.contains(query, ignoreCase = true) ||
+                        "#${pr.number}".contains(query, ignoreCase = true)) &&
+                        // Belt-and-braces: some Gitea versions ignore an unknown `labels` value.
+                        (filter.label == null || pr.labels.any { it.name == filter.label })
             }
             withContext(Dispatchers.Main) {
                 _listModel.clear()

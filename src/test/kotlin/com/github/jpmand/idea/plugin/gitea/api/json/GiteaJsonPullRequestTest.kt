@@ -1,9 +1,11 @@
 package com.github.jpmand.idea.plugin.gitea.api.json
 
 import com.github.jpmand.idea.plugin.gitea.api.GiteaJsonDeSerializer
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.PullRequest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -38,5 +40,22 @@ class GiteaJsonPullRequestTest {
     assertEquals("pasture3992", first.user?.login)
     assertNotNull(first.base)
     assertEquals("95499115ec0208ff6728c92cd5ec4fe939197b69", first.base?.sha)
+  }
+
+  @Test
+  fun `fromDto maps conversation comment count and collapses blank author name`() {
+    val dtos = FileReader(fixture()).use { reader ->
+      GiteaJsonDeSerializer.fromJson(reader, Array<PullRequest>::class.java)
+    }!!
+    val prs = dtos.map { GiteaPullRequest.fromDto(it) }
+
+    val first = prs.first { it.number == 19L }
+    assertEquals(0, first.commentsCount)
+    // fixture user "pasture3992" has "full_name": "" — must collapse to null, not render blank
+    assertEquals("pasture3992", first.author.login)
+    assertNull(first.author.fullName)
+
+    val withName = prs.first { it.number == 18L }
+    assertEquals("Handika Aswara", withName.author.fullName)
   }
 }

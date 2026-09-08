@@ -1,7 +1,9 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.data
 
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaLabel
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReview
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewComment
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewThread
 import com.github.jpmand.idea.plugin.gitea.api.models.toThreads
@@ -26,7 +28,10 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoListPullRequests
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoMergePullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoResolvePullRequestReviewComment
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoUnresolvePullRequestReviewComment
+import com.github.jpmand.idea.plugin.gitea.api.rest.pr.GiteaPullRequestSortEnum
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoCombinedStatus
+import com.github.jpmand.idea.plugin.gitea.api.rest.repoListCollaborators
+import com.github.jpmand.idea.plugin.gitea.api.rest.repoListLabels
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -44,11 +49,31 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
 
     suspend fun loadPullRequests(
         state: String? = "open",
+        sort: GiteaPullRequestSortEnum? = null,
+        labels: List<String>? = null,
+        poster: String? = null,
         page: Int? = null,
         limit: Int? = null,
     ): List<GiteaPullRequest> =
-        ctx.api.repoListPullRequests(owner, repo, null, state, null, null, null, null, page, limit)
+        ctx.api.repoListPullRequests(owner, repo, null, state, sort, null, labels, poster, page, limit)
             .map { GiteaPullRequest.fromDto(it) }
+
+    /** Repository labels, for the PR-list "Label" filter. */
+    suspend fun loadLabels(): List<GiteaLabel> =
+        ctx.api.repoListLabels(owner, repo, page = null, limit = 100).map { GiteaLabel.fromDto(it) }
+
+    /**
+     * Candidate PR authors for the "Author" filter — the repo's collaborators. Returns an empty
+     * list (rather than throwing) when the token lacks permission to enumerate collaborators.
+     */
+    suspend fun loadPossibleAuthors(): List<GiteaUser> =
+        try {
+            ctx.api.repoListCollaborators(owner, repo, page = null, limit = 100).map { GiteaUser.fromDto(it) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            emptyList()
+        }
 
     suspend fun loadPullRequest(number: Int): GiteaPullRequest =
         GiteaPullRequest.fromDto(ctx.api.repoGetPullRequest(owner, repo, number))

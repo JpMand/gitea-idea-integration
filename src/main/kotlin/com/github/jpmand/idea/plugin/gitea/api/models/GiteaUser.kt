@@ -41,7 +41,9 @@ open class GiteaUser(
       login = dto.login ?: "",
       avatarUrl = dto.avatarUrl,
       email = dto.email,
-      fullName = dto.fullName,
+      // Gitea returns "" (not null) for users without a display name; collapse it so callers
+      // that fall back `fullName ?: login` (e.g. the platform's UserPresentation) don't render blank.
+      fullName = dto.fullName?.takeIf { it.isNotBlank() },
       htmlUrl = dto.htmlUrl,
     )
   }
