@@ -30,7 +30,7 @@ internal class GiteaRepositoriesManagerImpl(project: Project, cs: CoroutineScope
     val gitRemotesFlow = gitRemotesFlow(project).distinctUntilChanged()
 
     val accountsServersFlow = service<GiteaAccountManager>().accountsState.map { accounts ->
-      mutableSetOf(GiteaServerPath.DEFAULT_SERVER) + accounts.map { it.server }
+      mutableSetOf<GiteaServerPath>() + accounts.map { it.server }
     }.distinctUntilChanged()
 
     val discoveredServersFlow = gitRemotesFlow.discoverServers(accountsServersFlow) { remote ->

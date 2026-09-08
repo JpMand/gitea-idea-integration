@@ -35,7 +35,7 @@ Gitea integration plugin for IntelliJ Platform IDEs. This plugin provides seamle
 
 ## Requirements
 
-- IntelliJ IDEA 2025.3.1 or later
+- IntelliJ IDEA 2026.2.1 or later (2026.2.x)
 - Git plugin enabled
 - Gitea server access with a valid access token
 

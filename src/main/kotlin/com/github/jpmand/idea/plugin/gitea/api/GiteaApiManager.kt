@@ -1,6 +1,11 @@
 package com.github.jpmand.idea.plugin.gitea.api
 
+import com.github.jpmand.idea.plugin.gitea.GiteaServersManager
+import com.intellij.openapi.components.service
+import kotlin.getValue
+
 abstract class GiteaApiManager {
+  protected abstract val serversManager : GiteaServersManager
   fun getClient(server: GiteaServerPath, token: String): GiteaApi =
     getClient(server) { token }
 
@@ -12,5 +17,5 @@ abstract class GiteaApiManager {
 }
 
 class GiteaApiManagerImpl : GiteaApiManager() {
-
+  override val serversManager: GiteaServersManager by lazy { service<GiteaServersManager>() }
 }

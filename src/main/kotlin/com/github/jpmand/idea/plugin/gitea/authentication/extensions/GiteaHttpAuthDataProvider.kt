@@ -4,6 +4,7 @@ import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil
 import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil.LoginResult
+import com.github.jpmand.idea.plugin.gitea.authentication.GiteaLoginSource
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager
 import com.intellij.openapi.application.EDT
@@ -20,6 +21,7 @@ import git4idea.remote.hosting.GitHostingUrlUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+@Suppress("UnstableApiUsage")
 class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
 
   @RequiresBackgroundThread
@@ -74,7 +76,7 @@ class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
 
     return withContext(Dispatchers.EDT + ModalityState.any().asContextElement()) {
       GiteLoginUtil.logInViaToken(
-        project, null, server, login, "git", ::isAccountUnique
+        project, null, server, login, GiteaLoginSource.GIT, ::isAccountUnique
       )
     }
   }
@@ -85,7 +87,7 @@ class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
     login: String? = null
   ): LoginResult = withContext(Dispatchers.EDT + ModalityState.any().asContextElement()) {
     GiteLoginUtil.updateToken(
-      project, null, account, login, "git", ::isAccountUnique
+      project, null, account, login, GiteaLoginSource.GIT, ::isAccountUnique
     )
   }
 
@@ -100,7 +102,7 @@ class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
       ?: return@withContext LoginResult.Failure
     val token = accountsWithToken[account]
     if (token == null) {
-      GiteLoginUtil.updateToken(project, null, account, login, "git", ::isAccountUnique)
+      GiteLoginUtil.updateToken(project, null, account, login, GiteaLoginSource.GIT, ::isAccountUnique)
     } else {
       LoginResult.Success(account, token)
     }

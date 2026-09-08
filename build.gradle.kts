@@ -16,7 +16,7 @@ version = providers.gradleProperty("pluginVersion").get()
 
 // Set the JVM language level used to build the project.
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain(25)
 }
 
 // Configure project's dependencies
@@ -29,10 +29,40 @@ repositories {
     }
 }
 
+// A separate source set for UI integration tests driven via the IntelliJ Starter/Driver
+// framework (https://plugins.jetbrains.com/docs/intellij/integration-tests.html) against a
+// sandbox IDE that the `integrationTest` task launches and tears down itself — unlike the old
+// Remote Robot setup, there's no separate "leave a sandbox running in another terminal" step.
+// Kept apart from the fast unit `test` source set since these need a live IDE instance to run.
+sourceSets {
+    create("integrationTest") {
+        compileClasspath += sourceSets.main.get().output
+        runtimeClasspath += sourceSets.main.get().output
+    }
+}
+
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/version_catalogs.html
 dependencies {
+    // Only the jsr310 module classes are needed here — jackson-core/-databind/-annotations
+    // are already provided by the IntelliJ Platform itself. Pulling in this artifact's own
+    // transitive Jackson jars puts a second, differently-versioned copy on the runtime
+    // classpath alongside the platform's, which breaks other bundled plugins that expect
+    // their own bundled Jackson classes (observed as a JsonFormat.Shape.POJO NoSuchFieldError
+    // when the full plugin set loads, e.g. in MyPluginTest's light IDE fixture).
+    implementation(libs.jacksonDatatypeJsr310) {
+        exclude(group = "com.fasterxml.jackson.core")
+    }
     testImplementation(libs.junit)
     testImplementation(libs.opentest4j)
+
+    // main/test get the Kotlin stdlib transitively from the IntelliJ Platform dependency
+    // (see `kotlin.stdlib.default.dependency = false` in gradle.properties); integrationTest
+    // doesn't depend on the platform at all (it drives a separate IDE process over JMX, see
+    // AGENTS.md), so it needs the stdlib and its own test-runner stack added explicitly.
+    "integrationTestImplementation"(kotlin("stdlib"))
+    "integrationTestImplementation"(libs.junitJupiter)
+    "integrationTestImplementation"(libs.kodeinDi)
+    "integrationTestImplementation"(libs.kotlinxCoroutinesCore)
 
     // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
@@ -48,6 +78,9 @@ dependencies {
         bundledModules(providers.gradleProperty("platformBundledModules").map { it.split(',') })
 
         testFramework(TestFrameworkType.Platform)
+        // Pulls ide-starter-{squashed,junit5,driver} and driver-{client,sdk,model} — the
+        // Starter/Driver integration-test stack (see integrationTest task below).
+        testFramework(TestFrameworkType.Starter, configurationName = "integrationTestImplementation")
     }
 }
 
@@ -85,6 +118,7 @@ intellijPlatform {
 
         ideaVersion {
             sinceBuild = providers.gradleProperty("pluginSinceBuild")
+            untilBuild = providers.gradleProperty("pluginUntilBuild")
         }
     }
 
@@ -137,22 +171,31 @@ tasks {
     }
 }
 
-intellijPlatformTesting {
-    runIde {
-        register("runIdeForUiTests") {
-            task {
-                jvmArgumentProviders += CommandLineArgumentProvider {
-                    listOf(
-                        "-Drobot-server.port=8082",
-                        "-Dide.mac.message.dialogs.as.sheets=false",
-                        "-Djb.privacy.policy.text=<!--999.999-->",
-                        "-Djb.consents.confirmation.enabled=false",
-                    )
-                }
-            }
-
-            plugins {
-                robotServerPlugin()
+// Drives a sandbox IDE via the Starter/Driver framework
+// (https://plugins.jetbrains.com/docs/intellij/integration-tests.html) — a single command
+// launches, exercises, and tears down the IDE itself; no separate "leave a sandbox running"
+// terminal needed (unlike the old Remote Robot setup this replaced).
+val integrationTest by intellijPlatformTesting.testIdeUi.register("integrationTest") {
+    task {
+        outputs.upToDateWhen { false } // always talks to a live external process, never cache
+        val integrationTestSourceSet = sourceSets.getByName("integrationTest")
+        testClassesDirs = integrationTestSourceSet.output.classesDirs
+        classpath = integrationTestSourceSet.runtimeClasspath
+        // Lets the tests pin the Starter-downloaded IDE to the same build the plugin actually
+        // targets, rather than whatever Starter's own product catalog considers current for the
+        // product (which can be well below this plugin's sinceBuild floor).
+        systemProperty("gitea.test.platformBuildNumber", providers.gradleProperty("platformTestBuildNumber").get())
+        useJUnitPlatform {
+            // The ide-starter/driver dependencies transitively pull in junit-vintage-engine,
+            // which then fails test discovery outright since this source set has no JUnit 4 on
+            // its classpath (nor any JUnit 4-style tests to run) — exclude it rather than add a
+            // JUnit 4 dependency purely to satisfy an engine we never use.
+            excludeEngines("junit-vintage")
+            // GiteaPRListInteractionManualTest needs a local Docker Gitea instance + cloned
+            // sample repo (see PR_REVIEW_MIGRATION_PLAN.md) that CI doesn't provision, so it's
+            // excluded by default. Run it explicitly with `-PincludeManualTests`.
+            if (!project.hasProperty("includeManualTests")) {
+                excludeTags("manual")
             }
         }
     }

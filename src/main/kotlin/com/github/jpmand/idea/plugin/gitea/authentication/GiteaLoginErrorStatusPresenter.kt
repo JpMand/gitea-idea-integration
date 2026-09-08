@@ -16,6 +16,7 @@ import org.jetbrains.annotations.Nls
 import java.net.ConnectException
 import javax.swing.Action
 
+@Suppress("UnstableApiUsage")
 internal class GiteaLoginErrorStatusPresenter(
   private val cs: CoroutineScope,
   private val model: GiteaTokenLoginPanelModel

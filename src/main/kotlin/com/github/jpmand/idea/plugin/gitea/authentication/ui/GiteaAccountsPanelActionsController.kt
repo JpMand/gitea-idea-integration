@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.authentication.ui
 import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil
 import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil.LoginResult
+import com.github.jpmand.idea.plugin.gitea.authentication.GiteaLoginSource
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle.message
 import com.intellij.collaboration.auth.ui.AccountsPanelActionsController
@@ -11,6 +12,7 @@ import com.intellij.ui.awt.RelativePoint
 import com.intellij.util.asSafely
 import javax.swing.JComponent
 
+@Suppress("UnstableApiUsage")
 class GiteaAccountsPanelActionsController(
   private val project: Project,
   private val model: GiteaAccountsListModel
@@ -21,7 +23,7 @@ class GiteaAccountsPanelActionsController(
     val loginResult = GiteLoginUtil.logInViaToken(
       project,
       parentComponent,
-      loginSource = message( "gitea.login.source.settings"),
+      loginSource = GiteaLoginSource.SETTINGS,
       uniqueAccountPredicate = ::isAccountUnique
     )
       .asSafely<LoginResult.Success>() ?: return
@@ -33,7 +35,7 @@ class GiteaAccountsPanelActionsController(
       project,
       parentComponent,
       account,
-      loginSource = message( "gitea.login.source.settings"),
+      loginSource = GiteaLoginSource.SETTINGS,
       uniqueAccountPredicate = ::isAccountUnique
     )
       .asSafely<LoginResult.Success>() ?: return
