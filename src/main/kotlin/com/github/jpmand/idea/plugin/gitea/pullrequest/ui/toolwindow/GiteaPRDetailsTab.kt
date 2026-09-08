@@ -36,7 +36,6 @@ class GiteaPRDetailsTab(
 
     private val changesComponent = GiteaPRChangesTreeComponentFactory.create(
         cs, project, pr, repository,
-        localRepoRootPath = null,
         onOpenChange = { idx ->
             diffVm.showChange(idx, null)
             FileEditorManager.getInstance(project).openFile(diffFile, true)
