@@ -36,6 +36,7 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoResolvePullRequestRev
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoUnresolvePullRequestReviewComment
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.GiteaPullRequestSortEnum
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoCombinedStatus
+import com.github.jpmand.idea.plugin.gitea.api.rest.repoGetSingleCommit
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoListCollaborators
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoListLabels
 import kotlinx.coroutines.CancellationException
@@ -132,9 +133,13 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
 
     // ── Files & Commits ───────────────────────────────────────────────────
 
-    /** Returns domain models for files changed in the given PR. */
+    /** Returns domain models for files changed in the given PR (base..head). */
     suspend fun loadChangedFiles(prNumber: Int): List<GiteaPRChangedFile> =
         ctx.api.repoListPullRequestFiles(owner, repo, prNumber).map { it.toChangedFile() }
+
+    /** Returns domain models for files changed by a single commit. */
+    suspend fun loadCommitChangedFiles(sha: String): List<GiteaPRChangedFile> =
+        ctx.api.repoGetSingleCommit(owner, repo, sha).files.orEmpty().map { it.toChangedFile() }
 
     /**
      * Fetches the raw text content of a file at a specific ref (branch name, tag, or SHA).

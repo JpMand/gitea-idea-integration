@@ -69,6 +69,6 @@ class GiteaPRChangesViewModel(
         if (cur > -1) selectCommit(cur - 1)
     }
 
-    /** Returns the full SHA — displayed text should be shortened in [CommitPresentation]. */
-    override fun commitHash(commit: Commit): String = commit.sha.orEmpty()
+    /** Abbreviated SHA — this is what the commits dropdown / selector renders. */
+    override fun commitHash(commit: Commit): String = commit.sha.orEmpty().take(8)
 }

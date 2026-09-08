@@ -36,9 +36,14 @@ class GiteaPRDetailsTab(
 
     private val changesComponent = GiteaPRChangesTreeComponentFactory.create(
         cs, project, pr, repository,
-        onOpenChange = { idx ->
-            diffVm.showChange(idx, null)
-            FileEditorManager.getInstance(project).openFile(diffFile, true)
+        selectedCommitFlow = detailsVm.changesVm.selectedCommit,
+        onOpenChange = { relPath ->
+            val list = diffVm.changes.value?.result?.getOrNull()?.selectedChanges?.list.orEmpty()
+            val idx = list.indexOfFirst { it.file.filename == relPath }
+            if (idx >= 0) {
+                diffVm.showChange(idx, null)
+                FileEditorManager.getInstance(project).openFile(diffFile, true)
+            }
         },
     )
 

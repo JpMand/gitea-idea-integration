@@ -31,7 +31,7 @@ class GiteaPRChangesTreeViewModel(
     changeList: CodeReviewChangeList,
     /** repo-relative path per change — the stable persistence key for viewed state. */
     private val relPathByChange: Map<RefComparisonChange, String>,
-    private val onOpenChange: (Int) -> Unit,
+    private val onOpenChange: (String) -> Unit,
 ) : CodeReviewChangeListViewModelBase(parentCs, changeList),
     CodeReviewChangeListViewModel.WithGrouping,
     CodeReviewChangeListViewModel.WithViewedState {
@@ -61,12 +61,13 @@ class GiteaPRChangesTreeViewModel(
     }
 
     override fun showDiff() {
-        val idx = when (val selection = changesSelection.value) {
+        val selection = changesSelection.value ?: return
+        val idx = when (selection) {
             is ChangesSelection.Precise -> selection.selectedIdx
             is ChangesSelection.Fuzzy -> selection.selectedIdx
-            null -> -1
         }
-        if (idx >= 0) onOpenChange(idx)
+        val change = selection.changes.getOrNull(idx) ?: return
+        relPathByChange[change]?.let(onOpenChange)
     }
 
     override fun showDiffPreview() = showDiff()
