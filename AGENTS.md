@@ -21,7 +21,6 @@ Always open the spec before adding a new REST call or a new DTO field.
 ./gradlew buildPlugin        # Builds the plugin and prepares ZIP archive for testing and deployment
 ./gradlew check              # Runs all checks and tests (used by 'Run Tests' run configuration)
 ./gradlew runIde             # IDE sandbox (used by 'Run Plugin' run configuration)
-./gradlew integrationTest    # Starter/Driver UI integration tests (launches/tears down its own sandbox)
 ```
 All version/platform coordinates live in `gradle.properties` (not `build.gradle.kts`).
 
@@ -88,7 +87,6 @@ Docs: [Plugin Services](https://plugins.jetbrains.com/docs/intellij/plugin-servi
 ## Testing Patterns
 
 - Unit-test patterns (base classes, JSON deserialization, fixtures) → `src/test/kotlin/CLAUDE.md`.
-- Starter/Driver UI integration tests, and their many API gotchas → `src/integrationTest/kotlin/CLAUDE.md`.
 
 Both load automatically when working in those trees.
 

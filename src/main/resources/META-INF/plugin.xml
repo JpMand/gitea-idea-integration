@@ -27,7 +27,7 @@
         <fileEditorProvider implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPRTimelineEditorProvider"/>
         <toolWindow id="Gitea Pull Requests"
                     anchor="left"
-                    secondary="true"
+                    secondary="false"
                     canCloseContents="true"
                     factoryClass="com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow.GiteaPRToolWindowFactory"
                     icon="/images/giteaLogo.svg"/>
