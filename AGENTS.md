@@ -30,48 +30,20 @@ Gradle libs versions are managed by the Gradle Version Catalog (`gradle/libs.ver
 ---
 
 ## Plugin Template Scaffold
-This project was bootstrapped from the [IntelliJ Platform Plugin Template](https://github.com/JetBrains/intellij-platform-plugin-template/blob/main/README.md). The template provides preconfigured:
-
-| Concern | Detail |
-|---|---|
-| Build | `build.gradle.kts` with IntelliJ Platform Gradle Plugin; all version coordinates in `gradle.properties` |
-| Plugin description | Extracted automatically from the `<!-- Plugin description --> … <!-- Plugin description end -->` block in `README.md` |
-| Changelog | `CHANGELOG.md` drives `changeNotes` via the Gradle Changelog Plugin ([Keep a Changelog](https://keepachangelog.com) format) |
-| CI – build | `.github/workflows/build.yml` – validate, test, Qodana scan, `buildPlugin`, `runPluginVerifier`, draft GitHub release |
-| CI – release | `.github/workflows/release.yml` – publishes to JetBrains Marketplace when a version tag is pushed (requires `PUBLISH_TOKEN` secret) |
-| CI – UI tests | `.github/workflows/run-ui-tests.yml` – Starter/Driver UI integration tests |
-| Signing | Controlled via `CERTIFICATE_CHAIN`, `PRIVATE_KEY`, `PRIVATE_KEY_PASSWORD` GitHub secrets |
-| Dependency updates | `.github/dependabot.yml` keeps Gradle plugins and GitHub Actions current |
+Bootstrapped from the [IntelliJ Platform Plugin Template](https://github.com/JetBrains/intellij-platform-plugin-template). CI workflows (`.github/workflows/`), Marketplace signing secrets, `CHANGELOG.md`-driven `changeNotes`, and `.github/dependabot.yml` are all template-standard — read those files or the template README for specifics.
 
 ---
 
 ## Architecture
 
-```
-api/                         ← HTTP client + JSON layer
-  GiteaApi.kt                  Bearer-token auth via IntelliJ HttpApiHelper
-  GiteaApiManager.kt           Factory: getClient(server, token) / getUnauthenticatedClient()
-  GiteaJsonDeSerializer.kt     Jackson singleton (SNAKE_CASE, ANY field visibility)
-  GiteaServerPath.kt           Parses server URL; restApiUri() appends /api/v1/
-  rest/                        Thin suspend-fun API wrappers (GiteaUsersApi, etc.)
-  rest/models/                 DTOs deserialized from Gitea REST responses (may be grouped by role/context)
-  models/                      Domain model objects (converted from DTOs via .toUser() etc.)
+Top-level packages under `…/gitea/`:
+- `api/` — HTTP client + JSON. `GiteaApi` (Bearer auth via `HttpApiHelper`), `GiteaApiManager` (client factory), `GiteaJsonDeSerializer` (Jackson singleton, SNAKE_CASE), `GiteaServerPath` (URL parsing). `rest/` = suspend-fun wrappers, `rest/models/` = DTOs, `models/` = domain objects (`.toXxx()` from DTOs).
+- `authentication/` — `account/` (XML-serialized account state + PasswordSafe), `extensions/` (silent-then-interactive auth providers), `ui/` (login dialogs).
+- `pullrequest/` — the PR review feature.
+- `ui/` — `GiteaSettingsConfigurable` (Settings > VCS > Gitea) + clone UI.
+- `util/` — `GiteaBundle` i18n wrapper.
 
-authentication/
-  account/
-    GiteaAccount.kt            Data class (server + name + id); XML-serialized
-    GiteaAccountManager.kt     Interface + PersistentGiteaAccountManager (PasswordSafe)
-    GitePersistentAccounts.kt  Application-level XML state persistence
-  extensions/
-    GiteaSilentHttpAuthDataProvider  Tries token silently (no UI) – registered first
-    GiteaHttpAuthDataProvider        Falls back with interactive login dialog
-  ui/                          Account settings panel + login dialogs (TokenLoginDialog)
-ui/
-  GiteaSettingsConfigurable.kt  Settings > VCS > Gitea panel
-
-util/
-  GiteaBundle.kt               i18n wrapper; all UI strings via GiteaBundle.message("key")
-```
+Read the code for detail; the rules that matter are under "Critical Conventions".
 
 ---
 
@@ -95,18 +67,7 @@ util/
 
 ## Adding a New REST API Call
 
-1. Look up the endpoint in the [Gitea Swagger spec](https://gitea.com/swagger.v1.json) to confirm the path, method, and response schema.
-2. Create (or extend) the DTO in `api/rest/models/` matching the response schema fields (camelCase constructor params).
-3. Write a `suspend` extension function on `GiteaApi` in `api/rest/`:
-   ```kotlin
-   @Suppress("UnstableApiUsage")
-   suspend fun GiteaApi.listOrgRepos(org: String): List<GiteaRepositoryDTO> {
-       val uri = server.restApiUri().resolveRelative("orgs/$org/repos")
-       val request = request(uri).GET().build()
-       return rest.loadJsonValue<List<GiteaRepositoryDTO>>(request).body()
-   }
-   ```
-4. If callers outside `api/` need the data, add `.toXxx()` on the DTO and a domain class in `api/models/`.
+Procedure + code template live in `src/main/kotlin/com/github/jpmand/idea/plugin/gitea/api/CLAUDE.md` (loads automatically when working under `api/`).
 
 ## Platform Services
 
@@ -125,46 +86,19 @@ Docs: [Plugin Services](https://plugins.jetbrains.com/docs/intellij/plugin-servi
 ---
 
 ## Testing Patterns
-- Tests extend **no base class** for pure unit tests (`GiteaJsonGiteaUserTest`, `GiteaServerPathTest`).
-- JSON tests call `GiteaJsonDeSerializer.fromJson(StringReader(json), Dto::class.java)` directly.
-- Integration tests that need the platform use JUnit4 + IntelliJ `TestFrameworkType.Platform` (declared in `build.gradle.kts`).
-- Test data fixtures (JSON payloads) live in `src/test/testData/` (e.g., `pull_request_list.json`). Use real Gitea API responses from the [Swagger spec](https://gitea.com/swagger.v1.json) as fixtures.
-- See: [Tests and Fixtures](https://plugins.jetbrains.com/docs/intellij/tests-and-fixtures.html), [Light and Heavy Tests](https://plugins.jetbrains.com/docs/intellij/light-and-heavy-tests.html), [Test Project and Testdata Directories](https://plugins.jetbrains.com/docs/intellij/test-project-and-testdata-directories.html), [Testing FAQ](https://plugins.jetbrains.com/docs/intellij/testing-faq.html).
 
-### UI integration tests (Starter/Driver)
+- Unit-test patterns (base classes, JSON deserialization, fixtures) → `src/test/kotlin/CLAUDE.md`.
+- Starter/Driver UI integration tests, and their many API gotchas → `src/integrationTest/kotlin/CLAUDE.md`.
 
-`src/integrationTest/kotlin` holds UI integration tests driven via the IntelliJ [Starter/Driver framework](https://plugins.jetbrains.com/docs/intellij/integration-tests.html) — a separate source set/task from the fast unit `test` suite since these need a live IDE process. Unlike the Remote Robot setup this replaced, there's no two-terminal workflow: `./gradlew integrationTest` launches a sandbox IDE, installs the built plugin into it, drives it, and tears it down again, all from one command.
-
-- `GiteaSmokeIntegrationTest` — no live Gitea server or open project needed (`NoProject`): confirms the plugin loads with no fatal error and that the "Gitea Pull Requests" tool window registers and opens. This catches exactly the "dangling class reference in plugin.xml" class of bug. Runs by default.
-- `GiteaPRListInteractionManualTest` — needs a live Gitea instance and a cloned repo (see `PR_REVIEW_MIGRATION_PLAN.md` for the Docker setup); regresses the click/double-click-to-open-PR-details flow end to end. Tagged `@Tag("manual")` and excluded from the default `integrationTest` run (`useJUnitPlatform { excludeTags("manual") }` in `build.gradle.kts`) — run explicitly with `./gradlew integrationTest -PincludeManualTests`.
-
-Key API surface (`com.intellij.driver.sdk.ui.components.*`): `ideFrame { ... }` / `useDriver { ... }` bodies are **extension lambdas** (`Driver.() -> R` / `IdeaFrameUI.() -> Unit`) — call members unqualified via the implicit receiver rather than naming a lambda parameter, or the compiler misreads the block's arity in confusing ways. Component finders (`textField`, `jBlist`, `button`, `x`) take an `xQuery { byXxx(...) }` locator; `JTextFieldUI.text` is a settable property (not a `setText(...)` call) that sets the value directly via JMX rather than simulating keystrokes — this is why the old Remote Robot clipboard-paste workaround for punctuation (`:` under a non-US keyboard layout) is no longer needed. `IdeInfo.Companion.ideaCommunity`/`ideaUltimate` (from the `ide-starter-product-idea-*` artifacts) are `internal` to their own module and unresolvable from plugin code; look the `IdeInfo` up directly from the same public Kodein DI container those extensions wrap instead: `di.direct.instance<IdeInfo>(tag = IdeInfoType.IDEA_ULTIMATE)` (see either integration test class for the full pattern) — use `IDEA_ULTIMATE`, not `IDEA_COMMUNITY`: per JetBrains' [unified distribution plan](https://blog.jetbrains.com/idea/2025/07/intellij-idea-unified-distribution-plan/), Community stopped shipping as its own product line as of 2025.3, so every build from 2025.3 onward only exists under the "IU" product code. `TestCase(...).withBuildNumber(...)` pins the sandbox to this plugin's exact target build (`gradle.properties`' `platformTestBuildNumber`) rather than whatever Starter's default product lookup considers current. `useDriver`'s block can start running before the project has fully opened — call `waitForProjectOpen()` first or a project-scoped query like `openToolWindow(...)` throws "No projects are opened". The Kotlin Gradle plugin version must be at or above the metadata version these `com.jetbrains.intellij.driver`/`ide-starter-*` artifacts were compiled with (bumped to 2.4.20 for this reason) — an older Kotlin compiler silently misreads their generic/default-parameter/extension-lambda shape and produces bizarre, hard-to-diagnose type-inference errors instead of a clean version-mismatch message.
+Both load automatically when working in those trees.
 
 ---
 
 ## Dependency Notes
-- `Git4Idea` is a **bundled** plugin dependency (not external); declared in `platformBundledPlugins` in `gradle.properties`. See: [Plugin Dependencies](https://plugins.jetbrains.com/docs/intellij/plugin-dependencies.html).
-- `intellij.platform.collaborationTools` is a **bundled module**; declared in `platformBundledModules`.
-- Plugin targets IntelliJ IDEA `2026.2.1` (`platformVersion`), `sinceBuild = 262`, `untilBuild = 262.*` (deliberately bounded — see the version-floor rationale in `PR_REVIEW_MIGRATION_PLAN.md`).
-- Kotlin stdlib is **not** bundled (`kotlin.stdlib.default.dependency = false`); the platform provides it.
+Platform/dependency coordinates live in `gradle.properties` (`platformVersion`, `platformBundledPlugins` for `Git4Idea`, `platformBundledModules` for `intellij.platform.collaborationTools`, `kotlin.stdlib.default.dependency = false`). The `sinceBuild`/`untilBuild` bounds are deliberate — see the version-floor rationale in `PR_REVIEW_MIGRATION_PLAN.md`.
 
 ---
 
 ## Official Reference Documentation
 
-| Topic | Link |
-|---|---|
-| Plugin structure | <https://plugins.jetbrains.com/docs/intellij/plugin-structure.html> |
-| Plugin content | <https://plugins.jetbrains.com/docs/intellij/plugin-content.html> |
-| Plugin actions | <https://plugins.jetbrains.com/docs/intellij/plugin-actions.html> |
-| Plugin extensions | <https://plugins.jetbrains.com/docs/intellij/plugin-extensions.html> |
-| Plugin services | <https://plugins.jetbrains.com/docs/intellij/plugin-services.html> |
-| Plugin configuration file | <https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html> |
-| Plugin dependencies | <https://plugins.jetbrains.com/docs/intellij/plugin-dependencies.html> |
-| Plugin user experience | <https://plugins.jetbrains.com/docs/intellij/plugin-user-experience.html> |
-| Tests and fixtures | <https://plugins.jetbrains.com/docs/intellij/tests-and-fixtures.html> |
-| Light and heavy tests | <https://plugins.jetbrains.com/docs/intellij/light-and-heavy-tests.html> |
-| Test project & testdata dirs | <https://plugins.jetbrains.com/docs/intellij/test-project-and-testdata-directories.html> |
-| Testing FAQ | <https://plugins.jetbrains.com/docs/intellij/testing-faq.html> |
-| Gitea Swagger v1 spec | <https://gitea.com/swagger.v1.json> |
-| IntelliJ Platform Plugin Template | <https://github.com/JetBrains/intellij-platform-plugin-template> |
+IntelliJ Platform SDK docs: <https://plugins.jetbrains.com/docs/intellij/> — start at [Plugin Structure](https://plugins.jetbrains.com/docs/intellij/plugin-structure.html) and [Plugin Content](https://plugins.jetbrains.com/docs/intellij/plugin-content.html). Topic-specific links (services, extensions, actions, plugin.xml, tests) are inline where relevant above and in the nested `CLAUDE.md` files. Gitea API contract: <https://gitea.com/swagger.v1.json>.
