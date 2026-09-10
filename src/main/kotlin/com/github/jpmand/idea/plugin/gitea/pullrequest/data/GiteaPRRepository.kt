@@ -39,7 +39,7 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.repoCombinedStatus
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoGetSingleCommit
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoListCollaborators
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoListLabels
-import kotlinx.coroutines.CancellationException
+import com.intellij.collaboration.api.HttpStatusErrorException
 
 /**
  * Data-access layer for PR operations scoped to a single [GiteaPRDataContext].
@@ -71,15 +71,14 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
 
     /**
      * Candidate PR authors for the "Author" filter — the repo's collaborators. Returns an empty
-     * list (rather than throwing) when the token lacks permission to enumerate collaborators.
+     * list (rather than throwing) only on 403, i.e. when the token lacks permission to enumerate
+     * collaborators; any other failure propagates.
      */
     suspend fun loadPossibleAuthors(): List<GiteaUser> =
         try {
             ctx.api.repoListCollaborators(owner, repo, page = null, limit = 100).map { GiteaUser.fromDto(it) }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            emptyList()
+        } catch (e: HttpStatusErrorException) {
+            if (e.statusCode == 403) emptyList() else throw e
         }
 
     suspend fun loadPullRequest(number: Int): GiteaPullRequest =
@@ -143,18 +142,16 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
 
     /**
      * Fetches the raw text content of a file at a specific ref (branch name, tag, or SHA).
-     * Returns an empty string when the file does not exist at that ref (e.g. for added/deleted files).
+     * Returns an empty string only when the file genuinely does not exist at that ref (404 — the
+     * normal case for the base side of an added file or the head side of a deleted one). Any other
+     * failure propagates, so a transient error is not silently rendered as a whole-file add/delete.
      */
-    suspend fun loadFileContent(path: String, ref: String): String {
-        return try {
-            val dto = ctx.api.getFileContents(owner, repo, path, ref)
-            dto.decodeContent() ?: ""
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            ""
+    suspend fun loadFileContent(path: String, ref: String): String =
+        try {
+            ctx.api.getFileContents(owner, repo, path, ref).decodeContent() ?: ""
+        } catch (e: HttpStatusErrorException) {
+            if (e.statusCode == 404) "" else throw e
         }
-    }
 
     suspend fun loadCommits(prNumber: Int): List<Commit> =
         ctx.api.repoListPullRequestCommits(owner, repo, prNumber)

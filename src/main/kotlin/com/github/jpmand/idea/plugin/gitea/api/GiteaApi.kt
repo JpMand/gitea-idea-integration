@@ -57,7 +57,11 @@ private fun httpHelper(server: GiteaServerPath, tokenSupplier: () -> String): Ht
       }
     }
   }
-  val requestConfigurer = CompoundRequestConfigurer(RequestTimeoutConfigurer(), authConfigurer)
+  val requestConfigurer =
+    CompoundRequestConfigurer(RequestTimeoutConfigurer(), GiteaHeaderConfigurer(), authConfigurer)
+  // No explicit clientFactory: the collaboration-tools default routes through the IDE proxy
+  // settings and CertificateManager, so self-signed / internal-CA Gitea servers prompt the user
+  // to trust the certificate rather than failing with an opaque SSLHandshakeException.
   return HttpApiHelper(
     logger = logger<GiteaApi>(),
     requestConfigurer = requestConfigurer
