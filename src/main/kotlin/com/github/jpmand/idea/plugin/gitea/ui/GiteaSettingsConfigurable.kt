@@ -44,7 +44,7 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
     val accountManager = service<GiteaAccountManager>()
     val giteaSettings = GiteaSettings.getInstance()
 
-    val scope = scopeProvider.createDisposedScope(
+    val scope = scopeProvider.childScope(
       javaClass.name, disposable!!,
       Dispatchers.EDT + ModalityState.any().asContextElement()
     )

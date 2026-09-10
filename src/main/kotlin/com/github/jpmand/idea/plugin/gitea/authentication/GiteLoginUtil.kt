@@ -13,6 +13,7 @@ import com.intellij.collaboration.auth.ui.login.TokenLoginInputPanelFactory
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.NlsContexts
 import com.intellij.util.Urls.parseEncoded
 import com.intellij.util.asSafely
@@ -109,18 +110,20 @@ object GiteLoginUtil {
     title: @NlsContexts.DialogTitle String,
     serverFieldDisabled: Boolean
   ): Int {
-    val scopeProvider = project.service<GiteaPluginProjectScopeProvider>()
-    val dialog = scopeProvider.constructDialog("Gitea Token login dialog") {
-      TokenLoginDialog(project, this, parentComponent, model, title, model.tryGitAuthorizationSignal) {
-        val cs = this
-        TokenLoginInputPanelFactory(model).createIn(
-          cs,
-          serverFieldDisabled,
-          tokenNote = GiteaBundle.message("clone.dialog.insufficient.scopes"),
-          errorPresenter = GiteaLoginErrorStatusPresenter(cs, model)
-        )
-      }
+    val scopeDisposable = Disposer.newDisposable("Gitea Token login dialog")
+    val uiScope = project.service<GiteaPluginProjectScopeProvider>()
+      .childScope("Gitea Token login dialog", scopeDisposable)
+    val dialog = TokenLoginDialog(
+      project, uiScope, parentComponent, model, title, model.tryGitAuthorizationSignal,
+    ) {
+      TokenLoginInputPanelFactory(model).createIn(
+        this,
+        serverFieldDisabled,
+        tokenNote = GiteaBundle.message("clone.dialog.insufficient.scopes"),
+        errorPresenter = GiteaLoginErrorStatusPresenter(this, model),
+      )
     }
+    Disposer.register(dialog.disposable, scopeDisposable)
     dialog.showAndGet()
 
     return dialog.exitCode

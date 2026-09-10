@@ -13,7 +13,6 @@ import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsStatusC
 import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsTitleComponentFactory
 import com.intellij.collaboration.ui.codereview.details.CommitPresentation
 import com.intellij.collaboration.ui.codereview.details.ReviewDetailsUIUtil
-import com.intellij.collaboration.ui.util.emptyBorders
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.actionSystem.AnAction
@@ -102,7 +101,7 @@ class GiteaPRDetailsPanel(
             add(pad(commitInfo, 0, 0))
         }
 
-        return JPanel(MigLayout(LC().emptyBorders().fill().flowY().noGrid().gridGap("0", "0"))).apply {
+        return JPanel(MigLayout(LC().insets("0").fill().flowY().noGrid().gridGap("0", "0"))).apply {
             isOpaque = false
             add(ScrollPaneFactory.createScrollPane(content, true).apply {
                 horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
@@ -171,7 +170,7 @@ class GiteaPRDetailsPanel(
     private fun emptyPresentation() = CommitPresentation("", "", "", Date())
 
     private fun pad(c: JComponent, top: Int, bottom: Int): JComponent =
-        JPanel(MigLayout(LC().emptyBorders().fillX().insets("$top", "0", "$bottom", "0"))).apply {
+        JPanel(MigLayout(LC().fillX().insets("$top", "0", "$bottom", "0"))).apply {
             isOpaque = false
             add(c, CC().growX().pushX())
         }

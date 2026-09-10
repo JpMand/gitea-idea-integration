@@ -14,7 +14,6 @@ import com.intellij.collaboration.ui.CollaborationToolsUIUtil
 import com.intellij.collaboration.ui.VerticalListPanel
 import com.intellij.collaboration.ui.util.bindDisabledIn
 import com.intellij.collaboration.ui.util.bindVisibilityIn
-import com.intellij.ide.IdeBundle
 import com.intellij.openapi.components.service
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.labels.LinkLabel
@@ -48,7 +47,7 @@ internal object GiteaCloneLoginComponentFactory {
             bindDisabledIn(cs, loginModel.loginState.map { it is LoginModel.LoginState.Connecting })
         }
         val backLink =
-            LinkLabel<Unit>(IdeBundle.message("button.back"), null) { _, _ -> cloneVm.switchToRepositoryList() }.apply {
+            LinkLabel<Unit>(GiteaBundle.message("clone.dialog.back"), null) { _, _ -> cloneVm.switchToRepositoryList() }.apply {
                 bindVisibilityIn(cs, loginVm.accounts.map { it.isNotEmpty() })
             }
 

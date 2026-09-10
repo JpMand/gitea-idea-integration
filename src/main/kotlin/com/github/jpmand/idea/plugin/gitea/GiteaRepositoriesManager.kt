@@ -34,10 +34,10 @@ internal class GiteaRepositoriesManagerImpl(project: Project, cs: CoroutineScope
     }.distinctUntilChanged()
 
     val discoveredServersFlow = gitRemotesFlow.discoverServers(accountsServersFlow) { remote ->
-      @Suppress("UnstableApiUsage")
-      GitHostingUrlUtil.findServerAt(LOG, remote) {
-        GiteaServerPath.from(it.toString())
-      }
+      // Heuristic: treat the remote's host (over https) as a Gitea server. A server hosted on a
+      // sub-path is only discovered once the user configures an account for it (accountsServersFlow).
+      GitHostingUrlUtil.getUriFromRemoteUrl(remote.url)?.host
+        ?.let { host -> runCatching { GiteaServerPath.from("https://$host") }.getOrNull() }
     }.runningFold(emptySet<GiteaServerPath>()) { acc, value ->
       acc + value
     }.distinctUntilChanged()

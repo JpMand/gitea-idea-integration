@@ -57,7 +57,7 @@ class GiteaPRToolWindowController(
     // Child of the plugin's project scope, tied to this controller's disposable (itself registered
     // on toolWindow.disposable): cancelled when the tool window closes and on plugin unload.
     private val cs = project.service<GiteaPluginProjectScopeProvider>()
-        .createDisposedScope(javaClass.name, this, Dispatchers.Main.immediate)
+        .childScope(javaClass.name, this, Dispatchers.Main.immediate)
     private val cm get() = toolWindow.contentManager
 
     private var currentCtx: GiteaPRDataContext? = null
