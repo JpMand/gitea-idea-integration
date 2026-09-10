@@ -24,7 +24,12 @@ internal class CachingGiteaServersManager(private val serviceCs: CoroutineScope)
     private val metadataCache = ConcurrentHashMap<GiteaServerPath, GiteaServerMetadata>()
     private val metadataCacheGuard = Mutex()
 
-    override val earliestSupportedVersion: GiteaVersion = GiteaVersion(1, 27)
+    // 1.26 is the first release that exposes the PR review-comment resolve/unresolve endpoints
+    // (`POST /repos/{owner}/{repo}/pulls/comments/{id}/{,un}resolve`) that this plugin wires.
+    // Every other endpoint the plugin calls already exists in 1.25, and request/response schemas
+    // are identical from 1.26 through the dev spec the DTOs were generated against. Tested
+    // reference: 1.26.4.
+    override val earliestSupportedVersion: GiteaVersion = GiteaVersion(1, 26, 0)
 
     override suspend fun checkIsGiteaServer(server: GiteaServerPath): Boolean =
         testCache.getOrPut(server) {
@@ -47,13 +52,9 @@ internal class CachingGiteaServersManager(private val serviceCs: CoroutineScope)
         }
 }
 private suspend fun getServerMetadata(api: GiteaApi): GiteaServerMetadata {
-    val dto =
-        try {
-            api.getServerVersion()
-        }catch (e: Throwable) {
-            throw e
-        }
+    val dto = api.getServerVersion()
+    // fromString never throws for a non-blank string; an unrecognisable version parses as 0.0.0
+    // and fails the floor check rather than crashing the login flow.
     val version = GiteaVersion.fromString(dto.version ?: "0")
-    val metadata = GiteaServerMetadata(version)
-    return metadata
+    return GiteaServerMetadata(version)
 }

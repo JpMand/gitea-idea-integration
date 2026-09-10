@@ -30,6 +30,11 @@ object GiteaJsonDeSerializer : JsonDataSerializer, JsonDataDeserializer {
       .addModule(JavaTimeModule())
       .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
       .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE, true)
+      // Gitea is self-hosted and versioned: an instance may return an enum value this DTO set
+      // doesn't know. With a @JsonEnumDefaultValue present that default wins; otherwise the
+      // value deserialises to null (every enum-typed response field is nullable) instead of
+      // failing the whole response.
+      .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true)
       .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
       .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
       .configure(JsonParser.Feature.AUTO_CLOSE_SOURCE, false)

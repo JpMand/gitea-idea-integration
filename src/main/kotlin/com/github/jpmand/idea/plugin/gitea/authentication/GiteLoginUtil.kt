@@ -148,8 +148,13 @@ object GiteLoginUtil {
     } else null
   }
 
+  /**
+   * Same "same server" criterion as `GiteaAccountManager.isAccountUnique` — host + effective
+   * port + context path, protocol-insensitive — but checked against an explicit account list
+   * (the settings panel's in-progress model rather than the persisted state).
+   */
   fun isAccountUnique(accounts: Collection<GiteaAccount>, server: GiteaServerPath, username: String): Boolean =
-    accounts.none { it.server.toURI() == server.toURI() && it.name == username }
+    accounts.none { it.server.equals(server, ignoreProtocol = true) && it.name == username }
 
   sealed interface LoginResult {
     data class Success(val account: GiteaAccount, val token: String) : LoginResult

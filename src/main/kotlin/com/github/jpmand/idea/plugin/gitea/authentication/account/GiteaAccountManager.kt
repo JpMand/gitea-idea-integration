@@ -28,7 +28,7 @@ class PersistentGiteaAccountManager :
 
   override fun isAccountUnique(server: GiteaServerPath, accountName: String): Boolean {
     return accountsState.value.none { account: GiteaAccount ->
-      account.server.equals(server, false) && account.name == accountName
+      account.server.equals(server, ignoreProtocol = true) && account.name == accountName
     }
   }
 }

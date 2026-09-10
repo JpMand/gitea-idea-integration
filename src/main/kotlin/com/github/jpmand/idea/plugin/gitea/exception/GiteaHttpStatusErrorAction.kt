@@ -5,9 +5,13 @@ import com.github.jpmand.idea.plugin.gitea.authentication.GiteaLoginSource
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager
 import com.intellij.collaboration.messages.CollaborationToolsBundle
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.project.Project
 import com.intellij.util.asSafely
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.Nls
 import java.awt.event.ActionEvent
 import javax.swing.AbstractAction
@@ -24,13 +28,19 @@ internal sealed class GiteaHttpStatusErrorAction(@Nls name : String) : AbstractA
     ) : GiteaHttpStatusErrorAction(CollaborationToolsBundle.message("login.again.action.text")){
         override fun actionPerformed(event: ActionEvent) {
             val parentComponent = event.source as? JComponent ?: return
-            val loginResult = GiteLoginUtil.updateToken(
+            val result = GiteLoginUtil.updateToken(
                 project,
                 parentComponent,
                 account,
                 loginSource
-            ){_, _ -> true}
-                .asSafely<GiteLoginUtil.LoginResult.Success>()
+            ) { _, _ -> true }
+                .asSafely<GiteLoginUtil.LoginResult.Success>() ?: return
+
+            parentScope.launch {
+                // updateToken() only produces the new credentials; persisting them is the caller's job.
+                accountManager.updateAccount(result.account, result.token)
+                withContext(Dispatchers.EDT) { resetAction() }
+            }
         }
     }
 }
