@@ -9,10 +9,14 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.GiteaPRChanges
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.GiteaPRDetailsPanel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.GiteaPRDetailsViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.GiteaPRStatusViewModel
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.giteaReviewErrorPanel
+import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CoroutineScope
+import java.awt.BorderLayout
 import javax.swing.JComponent
+import javax.swing.JPanel
 
 /**
  * Builds the read-only PR-details content hosted as a closeable tool-window tab (`#<number>`).
@@ -47,12 +51,25 @@ class GiteaPRDetailsTab(
         },
     )
 
-    val component: JComponent = GiteaPRDetailsPanel(
-        project, cs, detailsVm, statusVm, changesComponent,
-        onShowTimeline = onShowTimeline,
-        onRefresh = {
-            detailsVm.refresh()
-            discussionsVm.reload()
-        },
-    ).create()
+    private val refresh: () -> Unit = {
+        detailsVm.refresh()
+        discussionsVm.reload()
+    }
+
+    val component: JComponent = JPanel(BorderLayout()).apply {
+        add(
+            giteaReviewErrorPanel(
+                cs, detailsVm.error, GiteaBundle.message("pull.request.details.load.error"), onRetry = refresh,
+            ),
+            BorderLayout.NORTH,
+        )
+        add(
+            GiteaPRDetailsPanel(
+                project, cs, detailsVm, statusVm, changesComponent,
+                onShowTimeline = onShowTimeline,
+                onRefresh = refresh,
+            ).create(),
+            BorderLayout.CENTER,
+        )
+    }
 }

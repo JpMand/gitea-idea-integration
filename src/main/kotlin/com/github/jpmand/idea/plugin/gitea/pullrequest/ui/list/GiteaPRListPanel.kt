@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.GiteaPRActionKeys
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.giteaReviewErrorPanel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.GiteaPRCopyLinkAction
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.GiteaPROpenInBrowserAction
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.GiteaPROpenPullRequestAction
@@ -105,9 +106,19 @@ class GiteaPRListPanel(
             l.selectedValue?.let { pr -> sink[GiteaPRActionKeys.SELECTED_PULL_REQUEST] = pr }
         }
 
+        val errorPanel = giteaReviewErrorPanel(
+            cs, vm.error, GiteaBundle.message("pull.request.list.load.error"), onRetry = vm::refresh,
+        )
+
         return JPanel(BorderLayout()).apply {
             add(searchPanel, BorderLayout.NORTH)
-            add(scrollPaneWithData, BorderLayout.CENTER)
+            add(
+                JPanel(BorderLayout()).apply {
+                    add(errorPanel, BorderLayout.NORTH)
+                    add(scrollPaneWithData, BorderLayout.CENTER)
+                },
+                BorderLayout.CENTER,
+            )
         }
     }
 

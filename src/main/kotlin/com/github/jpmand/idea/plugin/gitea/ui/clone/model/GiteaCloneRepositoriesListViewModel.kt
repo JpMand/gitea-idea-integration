@@ -1,6 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.ui.clone.model
 
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager
+import com.github.jpmand.idea.plugin.gitea.api.GiteaHttpError
 import com.github.jpmand.idea.plugin.gitea.api.rest.userCurrentListRepos
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager
@@ -73,14 +74,18 @@ private class GiteaCloneRepositoriesForAccountViewModelImpl(
                 throw e
             } catch (_: ConnectException) {
                 emit(listOf(GiteaCloneListItem.Error(account, GiteaCloneException.ConnectionError(account))))
-            } catch (e: Throwable) {
-                if (e is HttpStatusErrorException && e.statusCode == 401) {
+            } catch (e: HttpStatusErrorException) {
+                if (e.statusCode == 401) {
                     emit(listOf(GiteaCloneListItem.Error(account, GiteaCloneException.RevokedToken(account))))
                 } else {
-                    val message =
-                        e.localizedMessage ?: CollaborationToolsBundle.message("clone.dialog.error.load.repositories")
+                    val message = GiteaHttpError.from(e).message
+                        ?: CollaborationToolsBundle.message("clone.dialog.error.load.repositories")
                     emit(listOf(GiteaCloneListItem.Error(account, GiteaCloneException.Unknown(account, message))))
                 }
+            } catch (e: Throwable) {
+                val message =
+                    e.localizedMessage ?: CollaborationToolsBundle.message("clone.dialog.error.load.repositories")
+                emit(listOf(GiteaCloneListItem.Error(account, GiteaCloneException.Unknown(account, message))))
             } finally {
                 _isLoading.value = false
             }

@@ -38,6 +38,7 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.pr.GiteaPullRequestSortEnum
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoCombinedStatus
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoGetSingleCommit
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoListCollaborators
+import com.github.jpmand.idea.plugin.gitea.api.giteaApiCall
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoListLabels
 import com.intellij.collaboration.api.HttpStatusErrorException
 
@@ -61,9 +62,10 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         poster: String? = null,
         page: Int? = null,
         limit: Int? = null,
-    ): List<GiteaPullRequest> =
+    ): List<GiteaPullRequest> = giteaApiCall {
         ctx.api.repoListPullRequests(owner, repo, null, state, sort, null, labels, poster, page, limit)
             .map { GiteaPullRequest.fromDto(it) }
+    }
 
     /** Repository labels, for the PR-list "Label" filter. */
     suspend fun loadLabels(): List<GiteaLabel> =
@@ -81,8 +83,9 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
             if (e.statusCode == 403) emptyList() else throw e
         }
 
-    suspend fun loadPullRequest(number: Int): GiteaPullRequest =
+    suspend fun loadPullRequest(number: Int): GiteaPullRequest = giteaApiCall {
         GiteaPullRequest.fromDto(ctx.api.repoGetPullRequest(owner, repo, number))
+    }
 
     suspend fun editPullRequest(number: Int, body: EditPullRequestOption): GiteaPullRequest =
         GiteaPullRequest.fromDto(ctx.api.repoEditPullRequest(owner, repo, number, body))
