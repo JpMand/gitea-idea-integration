@@ -57,8 +57,9 @@ class GiteaPRDiffEditorModel(
     override val inlays: StateFlow<Collection<GiteaPRInlayModel>> = threadInlays
 
     // ── Gutter controls state ─────────────────────────────────────────────
-    // Every line in the shown file is "commentable" so the gutter "+" appears; actually
-    // composing a comment is a Milestone-2 stub (see requestNewComment).
+    // Read-only: the gutter shows existing thread bubbles but no "add comment" affordance —
+    // composing a line comment is a Milestone-2 feature. isLineCommentable is false everywhere
+    // so the platform does not render a "+" the plugin can't yet act on.
 
     override val gutterControlsState: StateFlow<CodeReviewEditorGutterControlsModel.ControlsState?> =
         threadInlays.let { flow ->
@@ -67,13 +68,14 @@ class GiteaPRDiffEditorModel(
                 object : CodeReviewEditorGutterControlsModel.ControlsState {
                     override val linesWithComments: Set<Int> = linesWithComments
                     override val linesWithNewComments: Set<Int> = emptySet()
-                    override fun isLineCommentable(lineIdx: Int): Boolean = true
+                    override fun isLineCommentable(lineIdx: Int): Boolean = false
                 }
             }
         }.stateIn(cs, SharingStarted.Eagerly, null)
 
     // ── Actions ───────────────────────────────────────────────────────────
-    // Comment composition is Milestone 2 — the affordance is present, the action is a stub.
+    // Comment composition is Milestone 2. Not reachable while isLineCommentable is false, but
+    // kept as a guard.
 
     @RequiresEdt
     override fun requestNewComment(lineIdx: Int) =

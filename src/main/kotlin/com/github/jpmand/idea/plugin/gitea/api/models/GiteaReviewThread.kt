@@ -23,17 +23,17 @@ data class GiteaReviewThread(
 /**
  * Groups a flat list of [GiteaReviewComment] into synthetic [GiteaReviewThread]s.
  *
- * Only inline diff comments (with a non-null [GiteaReviewComment.path]) are grouped.
- * Comments without a path (general PR discussion comments) are excluded; they are not
- * rendered in the diff view.
- *
  * Grouping key: `(path, newLine, oldLine)`. This is a heuristic — Gitea has no server-side
- * thread IDs, so independent conversations at the same line are merged into one thread.
- * Resolution state and outdated detection use the anchor comment (lowest id in the group).
+ * thread IDs and its `PullReviewComment` carries no reply linkage, so independent conversations
+ * at the same location are unavoidably merged into one thread. Resolution state uses the anchor
+ * comment (lowest id in the group).
+ *
+ * All comments are kept, including those with a null path or null lines (review comments not
+ * anchored to a diff line): the diff viewer filters those out by path, but the activity timeline
+ * still shows them under their review.
  */
 fun List<GiteaReviewComment>.toThreads(): List<GiteaReviewThread> =
-    filter { it.path != null }
-        .groupBy { Triple(it.path, it.newLine, it.oldLine) }
+    groupBy { Triple(it.path, it.newLine, it.oldLine) }
         .map { (_, comments) ->
             val sorted = comments.sortedBy { it.id }
             val anchor = sorted.first()
