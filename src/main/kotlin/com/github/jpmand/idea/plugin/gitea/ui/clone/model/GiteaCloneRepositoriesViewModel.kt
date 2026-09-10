@@ -7,12 +7,14 @@ import com.github.jpmand.idea.plugin.gitea.ui.GiteaSettings
 import com.github.jpmand.idea.plugin.gitea.ui.clone.GiteaCloneListItem
 import com.github.jpmand.idea.plugin.gitea.ui.clone.model.GiteaCloneRepositoriesViewModel.SearchModel
 import com.intellij.collaboration.async.mapState
+import com.intellij.dvcs.ui.CloneDvcsValidationUtils
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vcs.CheckoutProvider
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.platform.util.coroutines.childScope
-import git4idea.checkout.GitCloneUtils
-import git4idea.ui.GitShallowCloneViewModel
+import git4idea.checkout.GitCheckoutProvider
+import git4idea.commands.Git
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -22,6 +24,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import java.net.URI
 import java.net.URL
+import java.nio.file.Paths
 
 @Suppress("UnstableApiUsage")
 internal interface GiteaCloneRepositoriesViewModel : GiteaClonePanelViewModel {
@@ -32,7 +35,7 @@ internal interface GiteaCloneRepositoriesViewModel : GiteaClonePanelViewModel {
 
     val accountDetailsProvider: GiteaAccountsDetailsProvider
 
-    val shallowCloneVm: GitShallowCloneViewModel
+    val shallowCloneModel: GiteaShallowCloneModel
 
     fun selectItem(item: GiteaCloneListItem?)
 
@@ -103,7 +106,7 @@ internal class GiteaCloneRepositoriesViewModelImpl(
 
     private val directoryPath: MutableStateFlow<String> = MutableStateFlow("")
 
-    override val shallowCloneVm = GitShallowCloneViewModel()
+    override val shallowCloneModel = GiteaShallowCloneModel()
 
     override val accountDetailsProvider: GiteaAccountsDetailsProvider =
         GiteaAccountsDetailsProvider(cs, accountManager) { account ->
@@ -124,11 +127,20 @@ internal class GiteaCloneRepositoriesViewModelImpl(
     }
 
     override fun doClone(checkoutListener: CheckoutProvider.Listener) {
-        val selectedUrl = _selectedUrl.value ?: error("Clone: No repository is selected")
-        GitCloneUtils.clone(
-            project, selectedUrl, directoryPath.value, shallowCloneVm.getShallowCloneOptions(), checkoutListener,
-            "gitea.clone.unable.to.find.destination.directory",
-            "gitea.clone.unable.to.create.destination.directory"
+        val url = _selectedUrl.value ?: error("Clone: No repository is selected")
+        // Inlined from git4idea's internal GitCloneUtils.clone: resolve the parent directory, then
+        // hand off to the public GitCheckoutProvider.clone. The clone dialog has already validated
+        // the destination via CloneDvcsValidationUtils (doValidateAll), so a failure here is rare.
+        val destination = Paths.get(directoryPath.value).toAbsolutePath()
+        val parent = destination.parent ?: return
+        if (CloneDvcsValidationUtils.createDestination(parent.toString()) != null) return
+        val lfs = LocalFileSystem.getInstance()
+        val parentDir = lfs.findFileByNioFile(parent) ?: lfs.refreshAndFindFileByNioFile(parent) ?: return
+
+        GitCheckoutProvider.clone(
+            project, Git.getInstance(), checkoutListener, parentDir,
+            url, destination.fileName.toString(), parent.toString(),
+            shallowCloneModel.toOptions(),
         )
     }
 }

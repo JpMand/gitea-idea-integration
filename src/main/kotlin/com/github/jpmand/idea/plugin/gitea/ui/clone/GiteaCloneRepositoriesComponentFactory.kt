@@ -3,6 +3,8 @@ package com.github.jpmand.idea.plugin.gitea.ui.clone
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
 import com.github.jpmand.idea.plugin.gitea.ui.clone.model.GiteaCloneRepositoriesViewModel
 import com.github.jpmand.idea.plugin.gitea.ui.clone.model.GiteaCloneViewModel
+import com.github.jpmand.idea.plugin.gitea.ui.clone.model.GiteaShallowCloneModel
+import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.async.launchNow
 import com.intellij.collaboration.auth.ui.CompactAccountsPanelFactory
 import com.intellij.collaboration.messages.CollaborationToolsBundle
@@ -25,7 +27,12 @@ import com.intellij.ui.components.JBList
 import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.AlignY
+import com.intellij.ui.dsl.builder.Panel
+import com.intellij.ui.dsl.builder.bindIntText
+import com.intellij.ui.dsl.builder.bindSelected
+import com.intellij.ui.dsl.builder.columns
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.ui.dsl.builder.selected
 import com.intellij.util.ui.JBEmptyBorder
 import com.intellij.util.ui.StatusText
 import com.intellij.util.ui.UIUtil
@@ -33,7 +40,6 @@ import com.intellij.util.ui.cloneDialog.AccountMenuItem
 import com.intellij.util.ui.cloneDialog.VcsCloneDialogUiSpec
 import git4idea.GitUtil
 import git4idea.remote.GitRememberedInputs
-import git4idea.ui.GitShallowCloneComponentFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filterNotNull
@@ -93,10 +99,23 @@ internal object GiteaCloneRepositoriesComponentFactory {
                         CloneDvcsValidationUtils.checkDirectory(it.text, it.textField as JComponent)
                     }
             }
-            GitShallowCloneComponentFactory.appendShallowCloneRow(this, repositoriesVm.shallowCloneVm)
+            appendShallowCloneRow(repositoriesVm.shallowCloneModel)
         }.apply {
             border = JBEmptyBorder(UIUtil.getRegularPanelInsets())
         }
+    }
+
+    private fun Panel.appendShallowCloneRow(model: GiteaShallowCloneModel) {
+        lateinit var enabled: com.intellij.ui.dsl.builder.Cell<javax.swing.JCheckBox>
+        row {
+            enabled = checkBox(GiteaBundle.message("clone.dialog.shallow.clone"))
+                .bindSelected({ model.shallowClone.value }, { model.shallowClone.value = it })
+        }
+        row(GiteaBundle.message("clone.dialog.shallow.clone.depth")) {
+            intTextField(IntRange(1, Int.MAX_VALUE))
+                .bindIntText({ model.depth.value }, { model.depth.value = it })
+                .columns(6)
+        }.visibleIf(enabled.selected)
     }
 
     private fun createRepositoryList(
