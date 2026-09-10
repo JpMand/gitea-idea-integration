@@ -6,12 +6,16 @@ Generated from the [IntelliJ Platform Plugin Template](https://github.com/JetBra
 Modelled after the official [GitHub](https://github.com/JetBrains/intellij-community/tree/master/plugins/github) and [GitLab](https://github.com/JetBrains/intellij-community/tree/master/plugins/gitlab) plugins in [intellij-community](https://github.com/JetBrains/intellij-community) repository. When unsure how something should work, consult those reference implementations.
 
 ### Gitea API Contract
-The **Gitea Swagger v1 specification** at <https://gitea.com/swagger.v1.json> is the single source of truth for:
+The in-repo **`gitea-swagger-v2-spec.json`** (Gitea OpenAPI spec, `info.version` `1.27.0+dev`)
+is the source of truth for:
 - Every endpoint path and HTTP method when writing `suspend` extension functions in `api/rest/`
-- Every response JSON shape when creating or extending DTOs in `api/rest/models/`
+- Every response JSON shape when creating or extending DTOs in `api/rest/dto/`
 - Field names and their types (resolve snake_case names to camelCase DTO constructor parameters)
 
-Always open the spec before adding a new REST call or a new DTO field.
+Always open the spec before adding a new REST call or a new DTO field. When an endpoint's
+"Added in" version or its shape matters, cross-check the per-release specs at
+`https://docs.gitea.com/swagger-<NN>.json` — the plugin's minimum supported Gitea version is
+**1.26** (`GiteaServersManager.earliestSupportedVersion`).
 
 ---
 
@@ -36,7 +40,7 @@ Bootstrapped from the [IntelliJ Platform Plugin Template](https://github.com/Jet
 ## Architecture
 
 Top-level packages under `…/gitea/`:
-- `api/` — HTTP client + JSON. `GiteaApi` (Bearer auth via `HttpApiHelper`), `GiteaApiManager` (client factory), `GiteaJsonDeSerializer` (Jackson singleton, SNAKE_CASE), `GiteaServerPath` (URL parsing). `rest/` = suspend-fun wrappers, `rest/models/` = DTOs, `models/` = domain objects (`.toXxx()` from DTOs).
+- `api/` — HTTP client + JSON. `GiteaApi` (token auth via `HttpApiHelper`), `GiteaApiManager` (client factory), `GiteaJsonDeSerializer` (Jackson singleton, SNAKE_CASE), `GiteaServerPath` (URL parsing). `rest/` = suspend-fun wrappers, `rest/dto/` = generated DTOs, `models/` = domain objects (`.toXxx()` / `fromDto` from DTOs).
 - `authentication/` — `account/` (XML-serialized account state + PasswordSafe), `extensions/` (silent-then-interactive auth providers), `ui/` (login dialogs).
 - `pullrequest/` — the PR review feature.
 - `ui/` — `GiteaSettingsConfigurable` (Settings > VCS > Gitea) + clone UI.
@@ -52,7 +56,7 @@ Read the code for detail; the rules that matter are under "Critical Conventions"
 
 **Unstable API suppression**: The `intellij.platform.collaborationTools` module is internal API. Any file using `HttpApiHelper`, `AccountManagerBase`, `TokenLoginDialog`, etc. needs `@Suppress("UnstableApiUsage")`.
 
-**DTO ↔ Domain split**: REST responses land in `api/rest/models/` (e.g., `GiteaUserDTO`). Call `.toXxx()` to convert to a domain object in `api/models/`. Never pass raw DTOs outside the `api/` layer. Use the [Gitea Swagger spec](https://gitea.com/swagger.v1.json) to verify field names and types before creating a DTO.
+**DTO ↔ Domain split**: REST responses land in `api/rest/dto/` (e.g., `User`). Call `.toXxx()` / `fromDto` to convert to a domain object in `api/models/`. Never pass raw DTOs outside the `api/` layer. Use `gitea-swagger-v2-spec.json` to verify field names and types before creating a DTO.
 
 **JSON mapping**: `GiteaJsonDeSerializer` uses Jackson with `SNAKE_CASE` strategy and `ANY` field visibility (constructor params, not getters). DTO fields are named in camelCase; Jackson resolves `avatar_url` → `avatarUrl` automatically. Do **not** add `@JsonProperty` for standard snake_case fields.
 
@@ -86,17 +90,26 @@ Docs: [Plugin Services](https://plugins.jetbrains.com/docs/intellij/plugin-servi
 
 ## Testing Patterns
 
-- Unit-test patterns (base classes, JSON deserialization, fixtures) → `src/test/kotlin/CLAUDE.md`.
+- Unit-test patterns (base classes, JSON deserialization, fixtures) → `src/test/kotlin/CLAUDE.md`
+  (loads automatically when working in that tree).
 
-Both load automatically when working in those trees.
+There is no automated UI / integration test suite — verify UI changes manually via `runIde`
+against a Docker Gitea.
 
 ---
 
 ## Dependency Notes
-Platform/dependency coordinates live in `gradle.properties` (`platformVersion`, `platformBundledPlugins` for `Git4Idea`, `platformBundledModules` for `intellij.platform.collaborationTools`, `kotlin.stdlib.default.dependency = false`). The `sinceBuild`/`untilBuild` bounds are deliberate — see the version-floor rationale in `PR_REVIEW_MIGRATION_PLAN.md`.
+Platform/dependency coordinates live in `gradle.properties` (`platformVersion`, `platformBundledPlugins` for `Git4Idea`, `platformBundledModules` for `intellij.platform.collaborationTools` + the vcs modules, `kotlin.stdlib.default.dependency = false`). Bundled modules are also declared in `plugin.xml` `<dependencies><module>` so they reach the plugin classloader at runtime.
+
+`pluginUntilBuild` is **deliberately capped** at the tested platform branch (`262.*`). The plugin
+leans on `@Suppress("UnstableApiUsage")` `com.intellij.collaboration.*` APIs, which carry no
+cross-release compatibility guarantee; capping makes the plugin fail closed on an untested future
+platform rather than fail open with a possibly-broken unstable-API call. Widen it one platform
+version at a time, after verifying against that version. `verifyPlugin` is configured to fail on
+compatibility problems / missing dependencies but not on internal-API usage.
 
 ---
 
 ## Official Reference Documentation
 
-IntelliJ Platform SDK docs: <https://plugins.jetbrains.com/docs/intellij/> — start at [Plugin Structure](https://plugins.jetbrains.com/docs/intellij/plugin-structure.html) and [Plugin Content](https://plugins.jetbrains.com/docs/intellij/plugin-content.html). Topic-specific links (services, extensions, actions, plugin.xml, tests) are inline where relevant above and in the nested `CLAUDE.md` files. Gitea API contract: <https://gitea.com/swagger.v1.json>.
+IntelliJ Platform SDK docs: <https://plugins.jetbrains.com/docs/intellij/> — start at [Plugin Structure](https://plugins.jetbrains.com/docs/intellij/plugin-structure.html) and [Plugin Content](https://plugins.jetbrains.com/docs/intellij/plugin-content.html). Topic-specific links (services, extensions, actions, plugin.xml, tests) are inline where relevant above and in the nested `CLAUDE.md` files. A deeper platform knowledge base compiled for this project lives in `internal_docs/`. Gitea API contract: in-repo `gitea-swagger-v2-spec.json`.

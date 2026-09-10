@@ -4,6 +4,33 @@
 
 ## [Unreleased]
 
+### Added
+
+- Read-only pull request review: tool window with a PR list, per-PR detail tabs, an activity
+  timeline, a REST-based diff viewer and a path-based changes tree, and mark-as-viewed
+- "Gitea" tab in _Get from Version Control_ for cloning
+- Open-in-browser / copy-link actions and an annotation-gutter action
+- Declared notification group so Gitea notifications can be muted in Settings
+
+### Changed
+
+- Target platform is now IntelliJ IDEA 2026.2.1 (`since-build` 262, compiled against Java 25)
+- REST DTOs regenerated from the Gitea Swagger v2 spec; `java.time.OffsetDateTime` for dates
+- Minimum supported Gitea version is **1.26** (was an unreleased `1.27` snapshot that rejected
+  every real server); tolerant `/version` parsing that no longer fails login on RC / dev / Forgejo
+  version strings
+- Unknown enum values in API responses deserialise to null instead of failing the whole response
+- Account list storage no longer roams via Settings Sync (tokens never roamed; the list on its
+  own left a second machine with accounts but no credentials)
+- `plugin.xml` now declares its bundled platform module dependencies explicitly
+
+### Fixed
+
+- Account-chooser dialog rendered without its description text or "set as default" checkbox
+- HTTPS clone URLs ending in `.git` were parsed as a repository literally named `<name>.git`
+- Two inconsistent "account already exists" checks unified to one host + port + path,
+  protocol-insensitive criterion
+
 ## [0.0.1] - 2026-03-13
 
 ### Added

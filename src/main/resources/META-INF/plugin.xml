@@ -3,11 +3,20 @@
     <id>com.github.jpmand.idea.plugin.gitea</id>
     <name>Gitea</name>
     <vendor>JpMand</vendor>
-    <version>0.0.1</version>
-    <idea-version since-build="253"/>
+    <!-- version and idea-version are patched in from gradle.properties by the Gradle plugin. -->
 
     <depends>com.intellij.modules.platform</depends>
     <depends>Git4Idea</depends>
+
+    <!-- Bundled platform content modules used at runtime. Two-sided with `platformBundledModules`
+         in gradle.properties: Gradle puts them on the compile classpath, these entries wire them
+         onto the plugin classloader. Without them, classes such as
+         com.intellij.collaboration.auth.DefaultAccountHolder fail at load time. -->
+    <dependencies>
+        <module name="intellij.platform.collaborationTools"/>
+        <module name="intellij.platform.vcs.impl"/>
+        <module name="intellij.platform.vcs.dvcs.impl"/>
+    </dependencies>
 
     <resource-bundle>messages.GiteaBundle</resource-bundle>
 
@@ -32,7 +41,8 @@
                     factoryClass="com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow.GiteaPRToolWindowFactory"
                     icon="/images/giteaLogo.svg"/>
         <!--suppress PluginXmlI18n Name Gitea should not be translated-->
-        <projectConfigurable parentId="project.propVCSSupport.Mappings" groupWeight="-600"
+        <projectConfigurable id="settings.gitea"
+                             parentId="project.propVCSSupport.Mappings" groupWeight="-600"
                              instance="com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable"
                              displayName="Gitea"/>
         <vcsAnnotationGutterActionProvider
@@ -42,6 +52,8 @@
             id="com.github.jpmand.idea.plugin.gitea.ui.clone.GiteaCloneDialogExtension"
             implementation="com.github.jpmand.idea.plugin.gitea.ui.clone.GiteaCloneDialogExtension"
             order="last"/>
+
+        <notificationGroup id="Gitea" displayType="BALLOON"/>
     </extensions>
     <extensions defaultExtensionNs="Git4Idea">
         <GitHttpAuthDataProvider id="Gitea.Silent"
@@ -62,9 +74,6 @@
             <synonym key="action.Gitea.Add.Account.synonym"/>
         </action>
 
-        <group id="Gitea.PullRequest.ToolWindow"
-               class="com.intellij.openapi.actionSystem.DefaultActionGroup">
-        </group>
         <group id="Gitea.Open.In.Browser"
                class="com.github.jpmand.idea.plugin.gitea.ui.action.GiteaOpenInBrowserActionGroup">
             <override-text place="GoToAction"/>

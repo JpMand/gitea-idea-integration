@@ -1,6 +1,7 @@
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.changelog.markdownToHTML
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel
 
 plugins {
     id("java") // Java support
@@ -15,6 +16,8 @@ group = providers.gradleProperty("pluginGroup").get()
 version = providers.gradleProperty("pluginVersion").get()
 
 // Set the JVM language level used to build the project.
+// IntelliJ IDEA 2026.2.x bundles JBR 25, so the plugin is compiled and tested against Java 25.
+// CI (setup-java) and qodana.yml (projectJDK) are aligned to 25 to match.
 kotlin {
     jvmToolchain(25)
 }
@@ -115,9 +118,19 @@ intellijPlatform {
     }
 
     pluginVerification {
+        // untilBuild is capped at 262.*, so `recommended()` verifies against the 2026.2.x line only.
         ides {
             recommended()
         }
+        failureLevel = listOf(
+            FailureLevel.COMPATIBILITY_PROBLEMS,
+            FailureLevel.INVALID_PLUGIN,
+            FailureLevel.MISSING_DEPENDENCIES,
+            FailureLevel.PLUGIN_STRUCTURE_WARNINGS,
+            // Internal / experimental API usage is deliberately NOT failed: the plugin builds on
+            // com.intellij.collaboration.* by design, managed via the pinned since/until range and
+            // a branch-per-platform-version strategy. The verifier still reports these.
+        )
     }
 }
 

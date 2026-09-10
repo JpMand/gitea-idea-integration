@@ -32,19 +32,17 @@ object GiteLoginUtil {
   fun logInViaToken(
     project: Project,
     parentComponent: JComponent?,
-    loginSource: GiteaLoginSource? = null,
     uniqueAccountPredicate: (GiteaServerPath, String) -> Boolean
   ): LoginResult =
-    logInViaToken(project, parentComponent, GiteaServerPath.DEFAULT_SERVER, null, loginSource, uniqueAccountPredicate)
+    logInViaToken(project, parentComponent, GiteaServerPath.DEFAULT_SERVER, null, uniqueAccountPredicate)
 
   @RequiresEdt
   fun updateToken(
     project: Project,
     parentComponent: JComponent?,
     account: GiteaAccount,
-    loginSource: GiteaLoginSource? = null,
     uniqueAccountPredicate: (GiteaServerPath, String) -> Boolean
-  ): LoginResult = updateToken(project, parentComponent, account, null, loginSource, uniqueAccountPredicate)
+  ): LoginResult = updateToken(project, parentComponent, account, null, uniqueAccountPredicate)
 
   @RequiresEdt
   internal fun logInViaToken(
@@ -52,7 +50,6 @@ object GiteLoginUtil {
     parentComponent: JComponent?,
     serverPath: GiteaServerPath = GiteaServerPath.DEFAULT_SERVER,
     requiredUsername: String? = null,
-    loginSource: GiteaLoginSource? = null,
     uniqueAccountPredicate: (GiteaServerPath, String) -> Boolean
   ): LoginResult {
     val model = GiteaTokenLoginPanelModel(requiredUsername, uniqueAccountPredicate).apply {
@@ -81,7 +78,6 @@ object GiteLoginUtil {
     parentComponent: JComponent?,
     account: GiteaAccount,
     requiredUsername: String? = null,
-    loginSource: GiteaLoginSource? = null,
     uniqueAccountPredicate: (GiteaServerPath, String) -> Boolean
   ): LoginResult {
     val predicateWithoutCurrent: (GiteaServerPath, String) -> Boolean = { serverPath, username ->

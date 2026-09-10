@@ -11,6 +11,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListPanel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListViewModel
 import com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.github.jpmand.idea.plugin.gitea.util.GiteaPluginProjectScopeProvider
 import com.intellij.collaboration.ui.icon.AsyncImageIconsProvider
 import com.intellij.collaboration.ui.icon.CachingIconsProvider
 import com.intellij.openapi.Disposable
@@ -31,7 +32,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -54,7 +54,10 @@ class GiteaPRToolWindowController(
     private val toolWindow: ToolWindow,
 ) : Disposable {
 
-    private val cs = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    // Child of the plugin's project scope, tied to this controller's disposable (itself registered
+    // on toolWindow.disposable): cancelled when the tool window closes and on plugin unload.
+    private val cs = project.service<GiteaPluginProjectScopeProvider>()
+        .createDisposedScope(javaClass.name, this, Dispatchers.Main.immediate)
     private val cm get() = toolWindow.contentManager
 
     private var currentCtx: GiteaPRDataContext? = null
@@ -198,6 +201,6 @@ class GiteaPRToolWindowController(
     }
 
     override fun dispose() {
-        cs.cancel()
+        // cs is a disposed scope bound to this Disposable and is cancelled automatically.
     }
 }

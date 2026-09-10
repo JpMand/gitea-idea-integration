@@ -1,6 +1,5 @@
 package com.github.jpmand.idea.plugin.gitea.authentication.account
 
-import com.github.jpmand.idea.plugin.gitea.authentication.GiteaLoginSource
 import com.github.jpmand.idea.plugin.gitea.exception.GiteaHttpStatusErrorAction
 import com.intellij.collaboration.async.childScope
 import com.intellij.openapi.project.Project
@@ -10,7 +9,7 @@ import org.jetbrains.annotations.ApiStatus
 import javax.swing.Action
 
 interface GiteaAccountViewModel {
-    fun loginAction(loginSource: GiteaLoginSource) : Action
+    fun loginAction() : Action
 }
 
 @ApiStatus.Internal
@@ -23,7 +22,7 @@ internal class GiteaAccountViewModelImpl(
 ) : GiteaAccountViewModel {
     private val cs: CoroutineScope = parentCs.childScope("Gitea Account VM")
 
-    override fun loginAction(loginSource: GiteaLoginSource): Action {
-        return GiteaHttpStatusErrorAction.LogInAgain(project, cs, account, accountManager, loginSource)
+    override fun loginAction(): Action {
+        return GiteaHttpStatusErrorAction.LogInAgain(project, cs, account, accountManager)
     }
 }

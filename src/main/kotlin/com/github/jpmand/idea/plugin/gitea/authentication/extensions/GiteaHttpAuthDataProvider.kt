@@ -4,7 +4,6 @@ import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil
 import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil.LoginResult
-import com.github.jpmand.idea.plugin.gitea.authentication.GiteaLoginSource
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager
 import com.intellij.openapi.application.EDT
@@ -76,7 +75,7 @@ class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
 
     return withContext(Dispatchers.EDT + ModalityState.any().asContextElement()) {
       GiteLoginUtil.logInViaToken(
-        project, null, server, login, GiteaLoginSource.GIT, ::isAccountUnique
+        project, null, server, login, ::isAccountUnique
       )
     }
   }
@@ -87,7 +86,7 @@ class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
     login: String? = null
   ): LoginResult = withContext(Dispatchers.EDT + ModalityState.any().asContextElement()) {
     GiteLoginUtil.updateToken(
-      project, null, account, login, GiteaLoginSource.GIT, ::isAccountUnique
+      project, null, account, login, ::isAccountUnique
     )
   }
 
@@ -102,7 +101,7 @@ class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
       ?: return@withContext LoginResult.Failure
     val token = accountsWithToken[account]
     if (token == null) {
-      GiteLoginUtil.updateToken(project, null, account, login, GiteaLoginSource.GIT, ::isAccountUnique)
+      GiteLoginUtil.updateToken(project, null, account, login, ::isAccountUnique)
     } else {
       LoginResult.Success(account, token)
     }

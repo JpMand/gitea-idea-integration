@@ -1,10 +1,14 @@
+# Coverage is reported but does not gate PRs: much of the plugin is Swing / collaboration-tools
+# UI that is not meaningfully unit-testable. The codecov comment still surfaces the delta.
 coverage:
   status:
     project:
       default:
         informational: true
-        threshold: 0%
+        target: auto
+        threshold: 1%
         base: auto
     patch:
       default:
         informational: true
+        target: 60%

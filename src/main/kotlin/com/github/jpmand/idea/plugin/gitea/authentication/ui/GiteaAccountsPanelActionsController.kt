@@ -3,7 +3,6 @@ package com.github.jpmand.idea.plugin.gitea.authentication.ui
 import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil
 import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil.LoginResult
-import com.github.jpmand.idea.plugin.gitea.authentication.GiteaLoginSource
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle.message
 import com.intellij.collaboration.auth.ui.AccountsPanelActionsController
@@ -20,24 +19,13 @@ class GiteaAccountsPanelActionsController(
   override val isAddActionWithPopup: Boolean = false
 
   override fun addAccount(parentComponent: JComponent, point: RelativePoint?) {
-    val loginResult = GiteLoginUtil.logInViaToken(
-      project,
-      parentComponent,
-      loginSource = GiteaLoginSource.SETTINGS,
-      uniqueAccountPredicate = ::isAccountUnique
-    )
+    val loginResult = GiteLoginUtil.logInViaToken(project, parentComponent, ::isAccountUnique)
       .asSafely<LoginResult.Success>() ?: return
     model.add(loginResult.account, loginResult.token)
   }
 
   override fun editAccount(parentComponent: JComponent, account: GiteaAccount) {
-    val loginResult = GiteLoginUtil.updateToken(
-      project,
-      parentComponent,
-      account,
-      loginSource = GiteaLoginSource.SETTINGS,
-      uniqueAccountPredicate = ::isAccountUnique
-    )
+    val loginResult = GiteLoginUtil.updateToken(project, parentComponent, account, ::isAccountUnique)
       .asSafely<LoginResult.Success>() ?: return
     model.update(account, loginResult.token)
   }
