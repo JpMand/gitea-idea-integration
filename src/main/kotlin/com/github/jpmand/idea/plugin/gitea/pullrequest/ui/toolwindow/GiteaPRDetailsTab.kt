@@ -35,7 +35,7 @@ class GiteaPRDetailsTab(
     private val detailsVm = GiteaPRDetailsViewModel(cs, pr, repository)
     private val statusVm = GiteaPRStatusViewModel(cs, pr, repository)
     private val diffVm = GiteaPRDiffViewModel(cs, project, pr, repository)
-    private val discussionsVm = GiteaPRDiscussionsViewModels(cs, pr.number.toInt(), repository)
+    private val discussionsVm = GiteaPRDiscussionsViewModels(project, cs, pr.number.toInt(), repository)
     private val diffFile = GiteaPRDiffVirtualFile(pr.number.toInt(), cs, project, diffVm, discussionsVm)
 
     private val changesComponent = GiteaPRChangesTreeComponentFactory.create(

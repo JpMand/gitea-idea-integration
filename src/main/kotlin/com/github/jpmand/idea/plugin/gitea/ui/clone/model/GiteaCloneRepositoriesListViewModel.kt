@@ -1,7 +1,9 @@
 package com.github.jpmand.idea.plugin.gitea.ui.clone.model
 
+import com.github.jpmand.idea.plugin.gitea.api.GITEA_PAGE_SIZE
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager
 import com.github.jpmand.idea.plugin.gitea.api.GiteaHttpError
+import com.github.jpmand.idea.plugin.gitea.api.loadAllGiteaPages
 import com.github.jpmand.idea.plugin.gitea.api.rest.userCurrentListRepos
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager
@@ -67,7 +69,7 @@ private class GiteaCloneRepositoriesForAccountViewModelImpl(
                 }
                 val apiClient = apiManager.getClient(account.server, token)
 
-                apiClient.rest.userCurrentListRepos(1, 20)
+                loadAllGiteaPages { page -> apiClient.rest.userCurrentListRepos(page, GITEA_PAGE_SIZE) }
                     .map { l -> GiteaCloneListItem.Repository(account, l) }
                     .let { emit(it) }
             } catch (e: CancellationException) {

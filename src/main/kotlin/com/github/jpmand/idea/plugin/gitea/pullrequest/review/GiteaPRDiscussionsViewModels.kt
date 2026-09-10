@@ -1,10 +1,13 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.review
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewThread
+import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPullRequestsSettings
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.intellij.collaboration.ui.codereview.diff.DiscussionsViewOption
 import com.intellij.collaboration.ui.codereview.editor.CodeReviewInEditorViewModel
 import com.intellij.collaboration.util.ComputedResult
+import com.intellij.openapi.components.service
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -29,10 +32,13 @@ import kotlinx.coroutines.launch
  */
 @Suppress("UnstableApiUsage")
 class GiteaPRDiscussionsViewModels(
+    private val project: Project,
     parentCs: CoroutineScope,
     private val prNumber: Int,
     private val repository: GiteaPRRepository,
 ) : CodeReviewInEditorViewModel {
+
+    private val settings: GiteaPullRequestsSettings get() = project.service()
     companion object {
         val CONTEXT_KEY: Key<GiteaPRDiscussionsViewModels> = Key.create("gitea.pr.discussions.vm")
     }
@@ -70,9 +76,12 @@ class GiteaPRDiscussionsViewModels(
 
     // ── CodeReviewInEditorViewModel ───────────────────────────────────────
 
-    private val _discussionsViewOption = MutableStateFlow(DiscussionsViewOption.ALL)
+    private val _discussionsViewOption = MutableStateFlow(settings.diffReviewViewOption)
     override val discussionsViewOption: StateFlow<DiscussionsViewOption> = _discussionsViewOption.asStateFlow()
-    override fun setDiscussionsViewOption(viewOption: DiscussionsViewOption) { _discussionsViewOption.value = viewOption }
+    override fun setDiscussionsViewOption(viewOption: DiscussionsViewOption) {
+        _discussionsViewOption.value = viewOption
+        settings.diffReviewViewOption = viewOption
+    }
 
     /** Always false — Gitea plugin does not track local-branch sync state. */
     override val updateRequired: StateFlow<Boolean> = MutableStateFlow(false)

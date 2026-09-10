@@ -38,7 +38,9 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.pr.GiteaPullRequestSortEnum
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoCombinedStatus
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoGetSingleCommit
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoListCollaborators
+import com.github.jpmand.idea.plugin.gitea.api.GITEA_PAGE_SIZE
 import com.github.jpmand.idea.plugin.gitea.api.giteaApiCall
+import com.github.jpmand.idea.plugin.gitea.api.loadAllGiteaPages
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoListLabels
 import com.intellij.collaboration.api.HttpStatusErrorException
 
@@ -69,7 +71,8 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
 
     /** Repository labels, for the PR-list "Label" filter. */
     suspend fun loadLabels(): List<GiteaLabel> =
-        ctx.api.repoListLabels(owner, repo, page = null, limit = 100).map { GiteaLabel.fromDto(it) }
+        loadAllGiteaPages { page -> ctx.api.repoListLabels(owner, repo, page = page, limit = GITEA_PAGE_SIZE) }
+            .map { GiteaLabel.fromDto(it) }
 
     /**
      * Candidate PR authors for the "Author" filter — the repo's collaborators. Returns an empty
@@ -115,7 +118,9 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
      * their inline threads), and metadata events, in chronological order.
      */
     suspend fun loadTimeline(prNumber: Int): List<GiteaTimelineItem> {
-        val timeline = ctx.api.issueListTimeline(owner, repo, prNumber, limit = 100)
+        val timeline = loadAllGiteaPages { page ->
+            ctx.api.issueListTimeline(owner, repo, prNumber, page = page, limit = GITEA_PAGE_SIZE)
+        }
         val reviewsById = loadReviews(prNumber).associateBy { it.id }
         val threadsByReviewId = loadAllReviewComments(prNumber)
             .groupBy { it.reviewId ?: 0L }
@@ -137,7 +142,8 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
 
     /** Returns domain models for files changed in the given PR (base..head). */
     suspend fun loadChangedFiles(prNumber: Int): List<GiteaPRChangedFile> =
-        ctx.api.repoListPullRequestFiles(owner, repo, prNumber).map { it.toChangedFile() }
+        loadAllGiteaPages { page -> ctx.api.repoListPullRequestFiles(owner, repo, prNumber, page = page, limit = GITEA_PAGE_SIZE) }
+            .map { it.toChangedFile() }
 
     /** Returns domain models for files changed by a single commit. */
     suspend fun loadCommitChangedFiles(sha: String): List<GiteaPRChangedFile> =
@@ -157,7 +163,7 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         }
 
     suspend fun loadCommits(prNumber: Int): List<Commit> =
-        ctx.api.repoListPullRequestCommits(owner, repo, prNumber)
+        loadAllGiteaPages { page -> ctx.api.repoListPullRequestCommits(owner, repo, prNumber, page = page, limit = GITEA_PAGE_SIZE) }
 
     // ── CI Status ─────────────────────────────────────────────────────────
 
