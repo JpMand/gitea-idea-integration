@@ -89,6 +89,7 @@ class GiteaPRToolWindowController(
         when {
             ctx == null -> {
                 closeAllDetailTabs()
+                closeAllTimelineEditors()
                 showEmptyState()
             }
             ctx.repo == currentCtx?.repo && ctx.account == currentCtx?.account -> {
@@ -97,6 +98,7 @@ class GiteaPRToolWindowController(
             }
             else -> {
                 closeAllDetailTabs()
+                closeAllTimelineEditors()
                 rebuildListTab(ctx)
             }
         }
@@ -172,9 +174,10 @@ class GiteaPRToolWindowController(
     private fun openTimelineEditor(repository: GiteaPRRepository, pr: GiteaPullRequest, ctx: GiteaPRDataContext) {
         val file = GiteaPRTimelineVirtualFile(pr.number.toInt(), pr, repository, ctx, project)
         val fileEditorManager = FileEditorManager.getInstance(project)
-        // GiteaPRTimelineVirtualFile.equals() folds in the context (account/repo), so a tab left
-        // open from before a context change (e.g. switching the active account) never equals the
-        // fresh `file` above — close it explicitly instead of leaving a stale duplicate tab.
+        // Same-PR safety net for the (rare) case a stale tab survives outside a tracked context
+        // change — the actual sweep on every account/repo switch is closeAllTimelineEditors(),
+        // called from updateContent(). GiteaPRTimelineVirtualFile.equals() folds in the context
+        // (account/repo), so a stale tab never equals the fresh `file` above.
         fileEditorManager.openFiles
             .filterIsInstance<GiteaPRTimelineVirtualFile>()
             .filter { it.prNumber == file.prNumber && it != file }
@@ -185,6 +188,21 @@ class GiteaPRToolWindowController(
     private fun closeAllDetailTabs() {
         detailTabs.values.toList().forEach { cm.removeContent(it.content, true) }
         detailTabs.clear()
+    }
+
+    /**
+     * Closes every open Conversation editor tab for this project, regardless of which PR it's
+     * for — called whenever the account/repo context changes (or is lost). Mirrors the bundled
+     * GitHub plugin's `GHPRFilesManagerImpl.closeAllFiles()` on disconnect: a tab left open from
+     * before the switch is built against the old context (including its avatar loader,
+     * constructed once from the old `ctx.api`), and would otherwise only get closed lazily, if
+     * and when that same PR's timeline happens to be reopened.
+     */
+    private fun closeAllTimelineEditors() {
+        val fileEditorManager = FileEditorManager.getInstance(project)
+        fileEditorManager.openFiles
+            .filterIsInstance<GiteaPRTimelineVirtualFile>()
+            .forEach { fileEditorManager.closeFile(it) }
     }
 
     private fun createEmptyStatePanel(): JComponent {

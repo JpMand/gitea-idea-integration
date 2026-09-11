@@ -17,13 +17,15 @@ import com.intellij.testFramework.LightVirtualFile
  * repo, so a *new* [GiteaPRTimelineVirtualFile] built under a different context is never
  * considered "the same file" as a stale one. That, combined with
  * [GiteaPRToolWindowController][com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow.GiteaPRToolWindowController]
- * proactively closing any other open tab for the same [prNumber] before opening a new one, is what
- * fixes "switching the active account doesn't update avatars in the conversation" — previously,
- * [FileEditorManager][com.intellij.openapi.fileEditor.FileEditorManager], which tracks/reuses open
- * editors by [VirtualFile][com.intellij.openapi.vfs.VirtualFile] identity, could resolve "open the
- * conversation for PR #N" to an editor built against the old context (including the avatar loader
- * in [GiteaPRTimelineFileEditor], constructed once from `file.ctx.api`) because identity ignored
- * the context entirely.
+ * proactively closing *every* open Conversation tab as soon as the context changes
+ * (`closeAllTimelineEditors()`, called from `updateContent()` — mirrors the bundled GitHub
+ * plugin's `GHPRFilesManagerImpl.closeAllFiles()` on disconnect) plus a same-PR safety net in
+ * `openTimelineEditor()`, is what fixes "switching the active account doesn't update avatars in
+ * the conversation" — previously, [FileEditorManager][com.intellij.openapi.fileEditor.FileEditorManager],
+ * which tracks/reuses open editors by [VirtualFile][com.intellij.openapi.vfs.VirtualFile] identity,
+ * could resolve "open the conversation for PR #N" to an editor built against the old context
+ * (including the avatar loader in [GiteaPRTimelineFileEditor], constructed once from
+ * `file.ctx.api`) because identity ignored the context entirely.
  *
  * The same identity gap still exists on
  * [GiteaPRDiffVirtualFile][com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffVirtualFile]

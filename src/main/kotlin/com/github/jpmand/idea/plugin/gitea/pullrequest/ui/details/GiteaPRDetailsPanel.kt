@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details
 
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.MergePullRequestOption
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.giteaWriteActionNotImplemented
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.HorizontalListPanel
@@ -23,8 +24,11 @@ import com.intellij.openapi.util.NlsSafe
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.components.ActionLink
+import com.intellij.ui.components.JBCheckBox
+import com.intellij.ui.components.JBOptionButton
 import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import net.miginfocom.layout.CC
 import net.miginfocom.layout.LC
 import net.miginfocom.swing.MigLayout
@@ -124,11 +128,23 @@ class GiteaPRDetailsPanel(
         val openInBrowser = stubActionSwing("pull.request.action.open.in.browser") { BrowserUtil.browse(vm.url) }
         val reopen = stubActionSwing("pull.request.action.reopen") { vm.reopenPullRequest() }
         val readyForReview = stubActionSwing("pull.request.action.ready.for.review")
+        val closeButton = actionButton("pull.request.action.close") { vm.closePullRequest() }
+        val (mergeControl, mergeOptionButton) = createMergeControl()
 
         val openedPanel = HorizontalListPanel(CodeReviewDetailsActionsComponentFactory.BUTTONS_GAP).apply {
-            add(actionButton("pull.request.action.merge") { showMergeDialog() })
-            add(actionButton("pull.request.action.close") { vm.closePullRequest() })
+            add(mergeControl)
+            add(closeButton)
             add(stubButton("pull.request.action.submit.review"))
+        }
+
+        // Mirrors the bundled GitHub plugin's isBusy-gated close/reopen/merge actions: disable
+        // while a call is in flight so a double-click can't fire concurrent requests.
+        cs.launch {
+            vm.isActionInProgress.collect { busy ->
+                closeButton.isEnabled = !busy
+                mergeOptionButton.isEnabled = !busy
+                reopen.isEnabled = !busy
+            }
         }
 
         return CodeReviewDetailsActionsComponentFactory.createActionsComponent(
@@ -148,11 +164,44 @@ class GiteaPRDetailsPanel(
     private fun actionButton(bundleKey: String, action: () -> Unit): JButton =
         JButton(GiteaBundle.message(bundleKey)).apply { addActionListener { action() } }
 
-    private fun showMergeDialog() {
-        val dialog = GiteaPRMergeDialog(project)
-        if (dialog.showAndGet()) {
-            vm.mergePullRequest(dialog.selectedMethod, dialog.deleteBranch)
+    /**
+     * A GitHub-style "Merge ▾" split button — the default action merges immediately, the dropdown
+     * offers the other strategies, no confirmation dialog. Reference: `GHPRCommitMergeAction` /
+     * `GHPRSquashMergeAction` in the bundled GitHub plugin, each a plain per-strategy action with
+     * no intermediate dialog step.
+     */
+    private fun createMergeControl(): Pair<JComponent, JBOptionButton> {
+        val deleteBranchCheckBox = JBCheckBox(GiteaBundle.message("pull.request.merge.dialog.delete.branch"))
+        val strategies = listOf(
+            MergePullRequestOption.Do.MERGE,
+            MergePullRequestOption.Do.SQUASH,
+            MergePullRequestOption.Do.REBASE,
+            MergePullRequestOption.Do.REBASEMERGE,
+            MergePullRequestOption.Do.FASTFORWARDONLY,
+        )
+        fun mergeAction(method: MergePullRequestOption.Do) = object : AbstractAction(mergeMethodLabel(method)) {
+            override fun actionPerformed(e: ActionEvent?) = vm.mergePullRequest(method, deleteBranchCheckBox.isSelected)
         }
+
+        val optionButton = JBOptionButton(
+            mergeAction(strategies.first()),
+            strategies.drop(1).map { mergeAction(it) }.toTypedArray(),
+        )
+
+        val panel = HorizontalListPanel(CodeReviewDetailsActionsComponentFactory.BUTTONS_GAP).apply {
+            add(optionButton)
+            add(deleteBranchCheckBox)
+        }
+        return panel to optionButton
+    }
+
+    private fun mergeMethodLabel(method: MergePullRequestOption.Do): String = when (method) {
+        MergePullRequestOption.Do.MERGE -> GiteaBundle.message("pull.request.merge.method.merge")
+        MergePullRequestOption.Do.REBASE -> GiteaBundle.message("pull.request.merge.method.rebase")
+        MergePullRequestOption.Do.REBASEMERGE -> GiteaBundle.message("pull.request.merge.method.rebase.merge")
+        MergePullRequestOption.Do.SQUASH -> GiteaBundle.message("pull.request.merge.method.squash")
+        MergePullRequestOption.Do.FASTFORWARDONLY -> GiteaBundle.message("pull.request.merge.method.fast.forward")
+        MergePullRequestOption.Do.MANUALLYMERGED -> method.value
     }
 
     private fun stubActionSwing(bundleKey: String, action: (() -> Unit)? = null): AbstractAction {

@@ -1,8 +1,8 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.diff
 
 import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPullRequestsSettings
-import com.github.jpmand.idea.plugin.gitea.pullrequest.editor.GiteaPRDiffEditorModel
-import com.github.jpmand.idea.plugin.gitea.pullrequest.editor.GiteaPRInlayComponentsFactory
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRDiffEditorModel
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRInlayComponentsFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.intellij.collaboration.async.launchNow
 import com.intellij.openapi.components.service

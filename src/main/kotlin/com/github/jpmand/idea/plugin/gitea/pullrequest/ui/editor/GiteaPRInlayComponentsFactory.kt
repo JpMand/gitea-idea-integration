@@ -1,4 +1,4 @@
-package com.github.jpmand.idea.plugin.gitea.pullrequest.editor
+package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor
 
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRCommentViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRThreadViewModel
@@ -15,12 +15,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.awt.FlowLayout
 import java.text.SimpleDateFormat
-import javax.swing.Box
-import javax.swing.BoxLayout
-import javax.swing.JComponent
-import javax.swing.JLabel
-import javax.swing.JPanel
-import javax.swing.JTextArea
+import javax.swing.*
 
 /** Existing comment threads, read-only display plus resolve/unresolve. Comment composition
  * (NewComment/DraftComment) is a separate, still-unimplemented feature. */

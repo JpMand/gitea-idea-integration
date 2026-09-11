@@ -5,6 +5,8 @@ import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewThread
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaTimelineItem
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.intellij.collaboration.messages.CollaborationToolsBundle
+import com.intellij.collaboration.ui.CollaborationToolsUIUtil
 import com.intellij.collaboration.ui.HorizontalListPanel
 import com.intellij.collaboration.ui.SimpleHtmlPane
 import com.intellij.collaboration.ui.VerticalListPanel
@@ -13,38 +15,39 @@ import com.intellij.collaboration.ui.codereview.CodeReviewChatItemUIUtil.Compone
 import com.intellij.collaboration.ui.codereview.CodeReviewTimelineUIUtil
 import com.intellij.collaboration.ui.codereview.timeline.StatusMessageComponentFactory
 import com.intellij.collaboration.ui.codereview.timeline.StatusMessageType
+import com.intellij.collaboration.ui.codereview.timeline.TimelineDiffComponentFactory
 import com.intellij.collaboration.ui.codereview.timeline.thread.TimelineThreadCommentsPanel
 import com.intellij.collaboration.ui.icon.IconsProvider
+import com.intellij.diff.util.LineRange
 import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.application.EDT
+import com.intellij.openapi.diagnostic.thisLogger
+import com.intellij.openapi.diff.impl.patch.PatchHunkUtil
+import com.intellij.openapi.diff.impl.patch.PatchReader
+import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.text.StringUtil
-import com.intellij.openapi.application.EDT
 import com.intellij.ui.CollectionListModel
-import com.intellij.ui.JBColor
 import com.intellij.ui.PopupHandler
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBFont
-import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import icons.CollaborationToolsIcons
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.awt.Font
 import java.awt.datatransfer.StringSelection
 import javax.swing.JComponent
 import javax.swing.JEditorPane
-import javax.swing.JTextPane
-import javax.swing.text.SimpleAttributeSet
-import javax.swing.text.StyleConstants
 
 /**
  * Renders one [GiteaPRTimelineItemViewModel] using the platform timeline-item shell
@@ -88,7 +91,7 @@ class GiteaPRTimelineItemComponentFactory(
                 renderMarkdownInto(cs, pane, item.body)
                 add(pane)
             }
-            item.threads.forEach { thread -> add(threadPanel(thread)) }
+            item.threads.forEach { thread -> add(threadPanel(cs, thread)) }
         }
         return chatItem(item, content,
             urlActions(item.htmlUrl, "pull.request.action.open.comment.in.browser", "pull.request.action.copy.comment.link"))
@@ -163,7 +166,7 @@ class GiteaPRTimelineItemComponentFactory(
      * anchor's [com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewComment.commitId] no
      * longer matches [headSha], then the comments themselves.
      */
-    private fun threadPanel(thread: GiteaReviewThread): JComponent {
+    private fun threadPanel(cs: CoroutineScope, thread: GiteaReviewThread): JComponent {
         val anchor = thread.comments.firstOrNull()
         val isOutdated = anchor?.commitId != null && anchor.commitId != headSha
 
@@ -177,10 +180,9 @@ class GiteaPRTimelineItemComponentFactory(
                 font = JBFont.small()
             })
             if (isOutdated) {
-                add(JBLabel(GiteaBundle.message("pull.request.timeline.thread.outdated")).apply {
-                    foreground = JBColor.ORANGE
-                    font = JBFont.small().asBold()
-                })
+                // Reuses the platform's own tag component + bundled string — the same "OUTDATED"
+                // pill the bundled GitHub plugin's review-thread timeline shows.
+                add(CollaborationToolsUIUtil.createTagLabel(CollaborationToolsBundle.message("review.thread.outdated.tag")))
             }
         }
         val commentsPanel = TimelineThreadCommentsPanel(
@@ -189,40 +191,47 @@ class GiteaPRTimelineItemComponentFactory(
         )
         return VerticalListPanel(2).apply {
             add(locationRow)
-            diffHunkPanel(anchor?.diffHunk)?.let { add(it) }
+            diffHunkComponent(cs, thread.path, anchor?.diffHunk)?.let { add(it) }
             add(commentsPanel)
         }
     }
 
-    /** A small syntax-colored preview of the anchor comment's diff hunk — additions/deletions
-     * get GitHub-style backgrounds, `@@ ... @@` headers are muted. `null` when there's no hunk
-     * (e.g. a PR-level, non-line-anchored review comment). */
-    private fun diffHunkPanel(diffHunk: String?): JComponent? {
-        if (diffHunk.isNullOrBlank()) return null
-        val pane = JTextPane().apply {
-            isEditable = false
-            font = Font(Font.MONOSPACED, Font.PLAIN, JBFont.small().size)
-            border = JBUI.Borders.empty(4, 6)
-        }
-        val doc = pane.styledDocument
-        val header = SimpleAttributeSet().apply {
-            StyleConstants.setForeground(this, DIFF_HEADER_FG)
-            StyleConstants.setItalic(this, true)
-        }
-        val addition = SimpleAttributeSet().apply { StyleConstants.setBackground(this, DIFF_ADD_BG) }
-        val deletion = SimpleAttributeSet().apply { StyleConstants.setBackground(this, DIFF_DEL_BG) }
-        runCatching {
-            diffHunk.trimEnd('\n').lineSequence().forEach { line ->
-                val attrs = when {
-                    line.startsWith("@@") -> header
-                    line.startsWith("+") -> addition
-                    line.startsWith("-") -> deletion
-                    else -> null
-                }
-                doc.insertString(doc.length, line + "\n", attrs)
-            }
-        }
-        return pane
+    /**
+     * A real, syntax-highlighted, theme-consistent diff preview of the anchor comment's diff
+     * hunk — reuses the platform's [TimelineDiffComponentFactory] (the same editor-based renderer
+     * the bundled GitHub plugin's review-thread timeline uses) instead of hand-rolling one.
+     * `diffHunk` is Gitea's raw unified-diff hunk text; [PatchHunkUtil.createPatchFromHunk] wraps
+     * it with synthetic `--- a/`/`+++ b/` headers so [PatchReader] can parse it as a one-file
+     * patch (same trick `GHPRTimelineThreadViewModel.calcDiffWithAnchor` uses for GitHub's
+     * `diff_hunk`). Returns `null` when there's no hunk, no path, or it fails to parse (e.g. a
+     * PR-level, non-line-anchored review comment) — no diff box shown in that case.
+     *
+     * The commented line itself is highlighted: like GitHub's `diff_hunk`, Gitea's always ends
+     * exactly at the commented line (verified against the swagger-documented behavior, mirrored
+     * by `calcDiffWithAnchor`), so the anchor is simply the hunk's last line — no need to map
+     * [com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewComment.newLine]/`oldLine`
+     * through [PatchHunkUtil.findHunkLineIndex] to locate it.
+     */
+    private fun diffHunkComponent(cs: CoroutineScope, path: String?, diffHunk: String?): JComponent? {
+        if (diffHunk.isNullOrBlank() || path.isNullOrBlank()) return null
+        val hunk = try {
+            PatchReader(PatchHunkUtil.createPatchFromHunk(path, diffHunk)).readTextPatches().firstOrNull()?.hunks?.firstOrNull()
+        } catch (e: Exception) {
+            thisLogger().warn("Failed to parse diff hunk for $path", e)
+            null
+        } ?: return null
+        if (hunk.lines.isEmpty()) return null
+
+        // Bounds leading context to DIFF_CONTEXT_SIZE lines before the anchor, matching the
+        // platform's own default (can't reference TimelineDiffComponentFactory.DIFF_CONTEXT_SIZE
+        // directly — it's @ApiStatus.Internal).
+        val truncatedHunk = PatchHunkUtil.truncateHunkBefore(hunk, hunk.lines.lastIndex - DIFF_CONTEXT_SIZE)
+        val anchorRange = LineRange(truncatedHunk.lines.lastIndex, truncatedHunk.lines.size)
+
+        val diffComponent = TimelineDiffComponentFactory.createDiffComponentIn(
+            cs, project, EditorFactory.getInstance(), truncatedHunk, anchorRange,
+        )
+        return TimelineDiffComponentFactory.createDiffWithHeader(cs, path, flowOf(null), diffComponent)
     }
 
     private fun reviewStateChip(state: GiteaReviewState): JComponent {
@@ -284,8 +293,6 @@ class GiteaPRTimelineItemComponentFactory(
     private fun esc(s: String): String = StringUtil.escapeXmlEntities(s)
 
     private companion object {
-        val DIFF_ADD_BG = JBColor(0xE6FFEC, 0x253B2D)
-        val DIFF_DEL_BG = JBColor(0xFFEBE9, 0x3B2526)
-        val DIFF_HEADER_FG = JBColor(0x6E7781, 0x8B949E)
+        const val DIFF_CONTEXT_SIZE = 3
     }
 }

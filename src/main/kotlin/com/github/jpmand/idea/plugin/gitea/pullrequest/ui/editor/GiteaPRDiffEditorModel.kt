@@ -1,4 +1,4 @@
-package com.github.jpmand.idea.plugin.gitea.pullrequest.editor
+package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor
 
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.giteaWriteActionNotImplemented
@@ -11,10 +11,10 @@ import com.intellij.diff.util.Side
 import com.intellij.openapi.project.Project
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.SharingStarted
 
 /**
  * Per-editor view model that drives gutter controls (thread bubble icons) and manages

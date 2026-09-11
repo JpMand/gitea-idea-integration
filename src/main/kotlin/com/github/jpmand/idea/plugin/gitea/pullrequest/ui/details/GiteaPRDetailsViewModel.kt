@@ -10,19 +10,9 @@ import com.intellij.collaboration.ui.codereview.details.model.CodeReviewDetailsV
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.project.Project
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
 import com.intellij.openapi.util.text.StringUtil
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.transformLatest
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 
 /**
  * Details view model: title/description/status/branches/commits, plus close/reopen.
@@ -72,6 +62,11 @@ class GiteaPRDetailsViewModel(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    /** True while a close/reopen/merge call is in flight — disables their buttons to prevent a
+     * double-submit (mirrors the bundled GitHub plugin's `reviewFlowVm.isBusy`-gated actions). */
+    private val _isActionInProgress = MutableStateFlow(false)
+    val isActionInProgress: StateFlow<Boolean> = _isActionInProgress.asStateFlow()
+
     private val _error = MutableStateFlow<Throwable?>(null)
     val error: StateFlow<Throwable?> = _error.asStateFlow()
 
@@ -102,12 +97,15 @@ class GiteaPRDetailsViewModel(
 
     private fun editState(state: String, errorKey: String) {
         cs.launch(Dispatchers.IO) {
+            _isActionInProgress.value = true
             try {
                 _pr.value = repository.editPullRequest(prNumber, EditPullRequestOption(state = state))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 notifyError(errorKey)
+            } finally {
+                withContext(NonCancellable) { _isActionInProgress.value = false }
             }
         }
     }
@@ -116,6 +114,7 @@ class GiteaPRDetailsViewModel(
 
     fun mergePullRequest(method: MergePullRequestOption.Do, deleteBranch: Boolean) {
         cs.launch(Dispatchers.IO) {
+            _isActionInProgress.value = true
             try {
                 repository.mergePullRequest(prNumber, MergePullRequestOption(`do` = method, deleteBranchAfterMerge = deleteBranch))
                 _pr.value = repository.loadPullRequest(prNumber)
@@ -123,6 +122,8 @@ class GiteaPRDetailsViewModel(
                 throw e
             } catch (e: Exception) {
                 notifyError("pull.request.action.merge.error")
+            } finally {
+                withContext(NonCancellable) { _isActionInProgress.value = false }
             }
         }
     }

@@ -1,4 +1,4 @@
-package com.github.jpmand.idea.plugin.gitea.pullrequest.editor
+package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor
 
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRThreadViewModel
 import com.intellij.collaboration.ui.codereview.editor.CodeReviewInlayModel
