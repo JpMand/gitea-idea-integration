@@ -2,6 +2,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.EditPullRequestOption
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.MergePullRequestOption
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.codereview.details.data.ReviewRequestState
@@ -106,13 +107,32 @@ class GiteaPRDetailsViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    NotificationGroupManager.getInstance()
-                        .getNotificationGroup("Gitea")
-                        .createNotification(GiteaBundle.message(errorKey), NotificationType.ERROR)
-                        .notify(project)
-                }
+                notifyError(errorKey)
             }
+        }
+    }
+
+    // ── Merge ────────────────────────────────────────────────────────────
+
+    fun mergePullRequest(method: MergePullRequestOption.Do, deleteBranch: Boolean) {
+        cs.launch(Dispatchers.IO) {
+            try {
+                repository.mergePullRequest(prNumber, MergePullRequestOption(`do` = method, deleteBranchAfterMerge = deleteBranch))
+                _pr.value = repository.loadPullRequest(prNumber)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                notifyError("pull.request.action.merge.error")
+            }
+        }
+    }
+
+    private suspend fun notifyError(bundleKey: String) {
+        withContext(Dispatchers.Main) {
+            NotificationGroupManager.getInstance()
+                .getNotificationGroup("Gitea")
+                .createNotification(GiteaBundle.message(bundleKey), NotificationType.ERROR)
+                .notify(project)
         }
     }
 }

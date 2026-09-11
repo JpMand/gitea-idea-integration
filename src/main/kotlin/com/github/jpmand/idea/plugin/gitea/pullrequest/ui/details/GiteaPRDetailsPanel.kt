@@ -126,7 +126,7 @@ class GiteaPRDetailsPanel(
         val readyForReview = stubActionSwing("pull.request.action.ready.for.review")
 
         val openedPanel = HorizontalListPanel(CodeReviewDetailsActionsComponentFactory.BUTTONS_GAP).apply {
-            add(stubButton("pull.request.action.merge"))
+            add(actionButton("pull.request.action.merge") { showMergeDialog() })
             add(actionButton("pull.request.action.close") { vm.closePullRequest() })
             add(stubButton("pull.request.action.submit.review"))
         }
@@ -147,6 +147,13 @@ class GiteaPRDetailsPanel(
 
     private fun actionButton(bundleKey: String, action: () -> Unit): JButton =
         JButton(GiteaBundle.message(bundleKey)).apply { addActionListener { action() } }
+
+    private fun showMergeDialog() {
+        val dialog = GiteaPRMergeDialog(project)
+        if (dialog.showAndGet()) {
+            vm.mergePullRequest(dialog.selectedMethod, dialog.deleteBranch)
+        }
+    }
 
     private fun stubActionSwing(bundleKey: String, action: (() -> Unit)? = null): AbstractAction {
         val label = GiteaBundle.message(bundleKey)
