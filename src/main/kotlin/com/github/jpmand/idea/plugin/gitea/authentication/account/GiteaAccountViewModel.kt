@@ -1,7 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.authentication.account
 
 import com.github.jpmand.idea.plugin.gitea.exception.GiteaHttpStatusErrorAction
-import com.intellij.collaboration.async.childScope
 import com.intellij.openapi.project.Project
 import com.intellij.platform.util.coroutines.childScope
 import kotlinx.coroutines.CoroutineScope

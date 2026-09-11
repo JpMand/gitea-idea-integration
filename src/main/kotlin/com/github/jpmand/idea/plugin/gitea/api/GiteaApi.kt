@@ -46,7 +46,7 @@ internal class GiteaApiImpl(
 private fun httpHelper(server: GiteaServerPath, tokenSupplier: () -> String): HttpApiHelper {
   val authConfigurer = object : HttpRequestConfigurer {
 
-    override fun configure(builder: HttpRequest.Builder): HttpRequest.Builder {
+    override suspend fun configureSuspend(builder: HttpRequest.Builder): HttpRequest.Builder {
       val uri = builder.build().uri()
       if (server.isAuthorizedUrl(uri)) {
         val token = tokenSupplier()
@@ -56,6 +56,7 @@ private fun httpHelper(server: GiteaServerPath, tokenSupplier: () -> String): Ht
         return builder
       }
     }
+
   }
   val requestConfigurer =
     CompoundRequestConfigurer(RequestTimeoutConfigurer(), GiteaHeaderConfigurer(), authConfigurer)
@@ -98,7 +99,7 @@ private fun httpHelper(): HttpApiHelper {
 private const val PLUGIN_USER_AGENT_NAME = "GiteaIdeaIntegration"
 
 private class GiteaHeaderConfigurer : HttpRequestConfigurer {
-  override fun configure(builder: HttpRequest.Builder): HttpRequest.Builder =
+  override suspend fun configureSuspend(builder: HttpRequest.Builder): HttpRequest.Builder =
     builder.apply {
       header(HttpClientUtil.USER_AGENT_HEADER, HttpClientUtil.getUserAgentValue(PLUGIN_USER_AGENT_NAME))
     }

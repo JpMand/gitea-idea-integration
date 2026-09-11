@@ -14,6 +14,7 @@ import com.intellij.collaboration.ui.codereview.timeline.StatusMessageComponentF
 import com.intellij.collaboration.ui.codereview.timeline.StatusMessageType
 import com.intellij.collaboration.ui.codereview.timeline.thread.TimelineThreadCommentsPanel
 import com.intellij.collaboration.ui.icon.IconsProvider
+import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
@@ -85,7 +86,7 @@ class GiteaPRTimelineItemComponentFactory(
         )
         return CodeReviewChatItemUIUtil.build(
             ComponentType.FULL,
-            { CollaborationToolsIcons.Review.Branch },
+            { AllIcons.Vcs.Branch },
             VerticalListPanel(4).apply { add(header); add(list) },
         ) {
             withHeader(

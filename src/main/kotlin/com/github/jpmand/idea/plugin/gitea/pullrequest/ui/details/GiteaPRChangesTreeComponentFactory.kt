@@ -21,14 +21,10 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.panels.Wrapper
 import com.intellij.util.ui.JBUI
 import com.intellij.vcsUtil.VcsUtil
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChangedBy
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
 import javax.swing.JComponent
 
@@ -69,7 +65,7 @@ object GiteaPRChangesTreeComponentFactory {
                     } else {
                         val beforeSha = selectedCommit?.parents?.firstOrNull()?.sha ?: pr.base.sha
                         val afterSha = selectedCommit?.sha ?: pr.head.sha
-                        val repoRoot = ProjectLevelVcsManager.getInstance(project).allVersionedRoots.firstOrNull()?.path
+                        val repoRoot = ProjectLevelVcsManager.getInstance(project).getAllVersionedRoots().firstOrNull()?.path
                         val before = Sha(beforeSha)
                         val after = Sha(afterSha)
                         val relPathByChange = LinkedHashMap<RefComparisonChange, String>()
@@ -116,7 +112,7 @@ object GiteaPRChangesTreeComponentFactory {
 
     private fun filePath(repoRootPath: String?, relativePath: String): FilePath =
         if (repoRootPath.isNullOrBlank()) VcsUtil.getFilePath(relativePath, false)
-        else VcsUtil.getFilePath(File(repoRootPath, relativePath))
+        else VcsUtil.getFilePath(File(repoRootPath, relativePath), false)
 
     /** Minimal revision number — the path-based tree only needs it for tooltips. */
     private class Sha(private val sha: String) : ShortVcsRevisionNumber {

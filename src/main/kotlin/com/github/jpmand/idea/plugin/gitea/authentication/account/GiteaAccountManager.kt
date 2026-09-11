@@ -2,11 +2,7 @@ package com.github.jpmand.idea.plugin.gitea.authentication.account
 
 import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil.SERVICE_NAME
-import com.intellij.collaboration.auth.AccountManager
-import com.intellij.collaboration.auth.AccountManagerBase
-import com.intellij.collaboration.auth.CredentialsRepository
-import com.intellij.collaboration.auth.ObservableAccountsRepository
-import com.intellij.collaboration.auth.PasswordSafeCredentialsRepository
+import com.intellij.collaboration.auth.*
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
 
@@ -18,6 +14,7 @@ class PersistentGiteaAccountManager :
   GiteaAccountManager,
   AccountManagerBase<GiteaAccount, String>(logger<GiteaAccountManager>()) {
 
+  // For some reason, verifier marks this as referring to deprecated AccountsRepository.
   override fun accountsRepository(): ObservableAccountsRepository<GiteaAccount> = service<GitePersistentAccounts>()
 
   override fun credentialsRepository(): CredentialsRepository<GiteaAccount, String> =

@@ -5,9 +5,6 @@
     <vendor>JpMand</vendor>
     <!-- version and idea-version are patched in from gradle.properties by the Gradle plugin. -->
 
-    <depends>com.intellij.modules.platform</depends>
-    <depends>Git4Idea</depends>
-
     <!-- Bundled platform content modules used at runtime. Two-sided with `platformBundledModules`
          in gradle.properties: Gradle puts them on the compile classpath, these entries wire them
          onto the plugin classloader. Without them, classes such as
@@ -16,6 +13,8 @@
         <module name="intellij.platform.collaborationTools"/>
         <module name="intellij.platform.vcs.impl"/>
         <module name="intellij.platform.vcs.dvcs.impl"/>
+        <plugin id="Git4Idea"/>
+        <plugin id="com.intellij.modules.platform"/>
     </dependencies>
 
     <resource-bundle>messages.GiteaBundle</resource-bundle>

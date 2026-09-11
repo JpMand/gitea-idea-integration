@@ -16,14 +16,8 @@ import com.intellij.platform.util.coroutines.childScope
 import git4idea.checkout.GitCheckoutProvider
 import git4idea.commands.Git
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import java.net.URI
-import java.net.URL
 import java.nio.file.Paths
 
 @Suppress("UnstableApiUsage")
@@ -74,7 +68,7 @@ internal class GiteaCloneRepositoriesViewModelImpl(
                 val uri = URI.create(text);
                 when (uri.scheme) {
                     "http", "https" -> {
-                        URL(text)
+                        uri.toURL()
                     }
 
                     "ssh" -> {

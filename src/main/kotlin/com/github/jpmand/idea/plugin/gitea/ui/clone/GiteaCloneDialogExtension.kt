@@ -1,7 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.ui.clone
 
 import com.github.jpmand.idea.plugin.gitea.GiteaIcons
-import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager
 import com.github.jpmand.idea.plugin.gitea.ui.clone.model.GiteaCloneViewModelImpl
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil.SERVICE_DISPLAY_NAME

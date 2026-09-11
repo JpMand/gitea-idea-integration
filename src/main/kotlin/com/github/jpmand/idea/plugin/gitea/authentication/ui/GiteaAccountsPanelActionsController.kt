@@ -4,7 +4,6 @@ import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil
 import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil.LoginResult
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
-import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle.message
 import com.intellij.collaboration.auth.ui.AccountsPanelActionsController
 import com.intellij.openapi.project.Project
 import com.intellij.ui.awt.RelativePoint
