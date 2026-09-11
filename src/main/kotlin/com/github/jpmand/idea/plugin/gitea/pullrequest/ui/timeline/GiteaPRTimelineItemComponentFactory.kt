@@ -23,6 +23,7 @@ import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.text.StringUtil
+import com.intellij.openapi.application.EDT
 import com.intellij.ui.CollectionListModel
 import com.intellij.ui.PopupHandler
 import com.intellij.ui.components.ActionLink
@@ -31,8 +32,12 @@ import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.UIUtil
 import icons.CollaborationToolsIcons
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.awt.datatransfer.StringSelection
 import javax.swing.JComponent
+import javax.swing.JEditorPane
 
 /**
  * Renders one [GiteaPRTimelineItemViewModel] using the platform timeline-item shell
@@ -44,10 +49,12 @@ import javax.swing.JComponent
 class GiteaPRTimelineItemComponentFactory(
     private val project: Project,
     private val avatars: IconsProvider<GiteaUser>,
+    /** Renders a body to sanitized HTML via the server; null on failure (keep the fallback). */
+    private val renderMarkdown: suspend (String) -> String?,
 ) {
 
     fun create(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel): JComponent = when (item) {
-        is GiteaPRTimelineItemViewModel.Comment -> comment(item)
+        is GiteaPRTimelineItemViewModel.Comment -> comment(cs, item)
         is GiteaPRTimelineItemViewModel.Review -> review(cs, item)
         is GiteaPRTimelineItemViewModel.Commits -> commits(item)
         is GiteaPRTimelineItemViewModel.Event -> event(item)
@@ -55,20 +62,36 @@ class GiteaPRTimelineItemComponentFactory(
 
     // ── item kinds ─────────────────────────────────────────────────────────
 
-    private fun comment(item: GiteaPRTimelineItemViewModel.Comment): JComponent =
-        chatItem(item, SimpleHtmlPane(bodyHtml(item.body)),
+    private fun comment(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel.Comment): JComponent {
+        val pane = SimpleHtmlPane(bodyHtml(item.body))
+        item.body?.let { renderMarkdownInto(cs, pane, it) }
+        return chatItem(item, pane,
             urlActions(item.htmlUrl, "pull.request.action.open.comment.in.browser", "pull.request.action.copy.comment.link"))
+    }
 
     private fun review(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel.Review): JComponent {
         val content = VerticalListPanel(4).apply {
             add(reviewStateChip(item.state))
-            if (!item.body.isNullOrBlank()) add(SimpleHtmlPane(bodyHtml(item.body)))
+            if (!item.body.isNullOrBlank()) {
+                val pane = SimpleHtmlPane(bodyHtml(item.body))
+                renderMarkdownInto(cs, pane, item.body)
+                add(pane)
+            }
             item.threads.forEach { thread ->
                 add(threadPanel(thread.path, thread.newLine ?: thread.oldLine, thread.comments))
             }
         }
         return chatItem(item, content,
             urlActions(item.htmlUrl, "pull.request.action.open.comment.in.browser", "pull.request.action.copy.comment.link"))
+    }
+
+    /** Renders [markdown] and swaps it into [pane] on the EDT; leaves the fallback on failure. */
+    private fun renderMarkdownInto(cs: CoroutineScope, pane: JEditorPane, markdown: String) {
+        if (markdown.isBlank()) return
+        cs.launch {
+            val html = renderMarkdown(markdown) ?: return@launch
+            withContext(Dispatchers.EDT) { pane.text = html }
+        }
     }
 
     private fun commits(item: GiteaPRTimelineItemViewModel.Commits): JComponent {

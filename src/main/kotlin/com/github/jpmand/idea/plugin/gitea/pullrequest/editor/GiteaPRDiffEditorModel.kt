@@ -60,16 +60,17 @@ class GiteaPRDiffEditorModel(
     // Read-only: the gutter shows existing thread bubbles but no "add comment" affordance —
     // composing a line comment is a Milestone-2 feature. isLineCommentable is false everywhere
     // so the platform does not render a "+" the plugin can't yet act on.
+    // linesWithComments (which lines get a highlighted gutter marker) is gated by the
+    // "highlight lines with comments" setting.
 
     override val gutterControlsState: StateFlow<CodeReviewEditorGutterControlsModel.ControlsState?> =
-        threadInlays.let { flow ->
-            combine(flow, discussionsVm.discussionsViewOption) { threads, viewOption ->
-                val linesWithComments = threads.mapNotNull { it.line.value }.toSet()
-                object : CodeReviewEditorGutterControlsModel.ControlsState {
-                    override val linesWithComments: Set<Int> = linesWithComments
-                    override val linesWithNewComments: Set<Int> = emptySet()
-                    override fun isLineCommentable(lineIdx: Int): Boolean = false
-                }
+        combine(threadInlays, discussionsVm.discussionsViewOption, discussionsVm.highlightDiffLines) {
+            threads, _, highlight ->
+            val linesWithComments = if (highlight) threads.mapNotNull { it.line.value }.toSet() else emptySet()
+            object : CodeReviewEditorGutterControlsModel.ControlsState {
+                override val linesWithComments: Set<Int> = linesWithComments
+                override val linesWithNewComments: Set<Int> = emptySet()
+                override fun isLineCommentable(lineIdx: Int): Boolean = false
             }
         }.stateIn(cs, SharingStarted.Eagerly, null)
 

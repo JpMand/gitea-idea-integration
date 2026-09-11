@@ -6,6 +6,7 @@ import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaProjectDe
 import com.github.jpmand.idea.plugin.gitea.authentication.ui.GiteaAccountsDetailsProvider
 import com.github.jpmand.idea.plugin.gitea.authentication.ui.GiteaAccountsListModel
 import com.github.jpmand.idea.plugin.gitea.authentication.ui.GiteaAccountsPanelActionsController
+import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPullRequestsSettings
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle.message
 import com.github.jpmand.idea.plugin.gitea.util.GiteaPluginProjectScopeProvider
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil.SERVICE_DISPLAY_NAME
@@ -22,6 +23,7 @@ import com.intellij.openapi.ui.DialogPanel
 import com.intellij.ui.dsl.builder.*
 import kotlinx.coroutines.Dispatchers
 import org.jetbrains.annotations.ApiStatus
+import javax.swing.JCheckBox
 
 @Suppress("UnstableApiUsage")
 internal class GiteaSettingsConfigurable internal constructor(private val project: Project) :
@@ -31,6 +33,7 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
     val defaultAccountHolder = project.service<GiteaProjectDefaultAccountHolder>()
     val accountManager = service<GiteaAccountManager>()
     val giteaSettings = GiteaSettings.getInstance()
+    val prSettings = project.service<GiteaPullRequestsSettings>()
 
     val scope = scopeProvider.childScope(
       javaClass.name, disposable!!,
@@ -78,6 +81,20 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
             { giteaSettings.cloneWithSsh },
             { giteaSettings.cloneWithSsh = it })
       }
+
+      lateinit var editorReviewEnabledCheckBox: Cell<JCheckBox>
+      row {
+        editorReviewEnabledCheckBox = checkBox(message("settings.editor.review.enabled"))
+          .bindSelected(
+            { prSettings.editorReviewEnabled },
+            { prSettings.editorReviewEnabled = it })
+      }
+      row {
+        checkBox(message("settings.editor.review.highlight.lines"))
+          .bindSelected(
+            { prSettings.highlightDiffLinesInEditor },
+            { prSettings.highlightDiffLinesInEditor = it })
+      }.enabledIf(editorReviewEnabledCheckBox.selected)
 
       addWarningForMemoryOnlyPasswordSafeAndGet(
         scope,

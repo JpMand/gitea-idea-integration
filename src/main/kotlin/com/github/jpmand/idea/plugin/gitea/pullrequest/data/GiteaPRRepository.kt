@@ -39,10 +39,12 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.repoCombinedStatus
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoGetSingleCommit
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoListCollaborators
 import com.github.jpmand.idea.plugin.gitea.api.GITEA_PAGE_SIZE
+import com.github.jpmand.idea.plugin.gitea.api.GiteaRepositoryCoordinates
 import com.github.jpmand.idea.plugin.gitea.api.giteaApiCall
 import com.github.jpmand.idea.plugin.gitea.api.loadAllGiteaPages
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoListLabels
 import com.intellij.collaboration.api.HttpStatusErrorException
+import com.intellij.openapi.components.service
 
 /**
  * Data-access layer for PR operations scoped to a single [GiteaPRDataContext].
@@ -54,6 +56,9 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
 
     private val owner: String get() = ctx.repo.repositoryPath.owner
     private val repo: String get() = ctx.repo.repositoryPath.repository
+
+    /** The Gitea repo this PR belongs to — used to resolve the matching git4idea repository/remote. */
+    val repositoryCoordinates: GiteaRepositoryCoordinates get() = ctx.repo
 
     // ── Pull Requests ─────────────────────────────────────────────────────
 
@@ -172,6 +177,15 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
 
     suspend fun loadCommitStatuses(ref: String) =
         ctx.api.repoListCommitStatuses(owner, repo, ref)
+
+    // ── Markdown ──────────────────────────────────────────────────────────
+
+    /**
+     * Renders a PR/issue/comment body to sanitized HTML via the server's markdown renderer.
+     * Returns null on any failure — callers keep showing their escaped-plain-text fallback.
+     */
+    suspend fun renderMarkdown(markdown: String): String? =
+        service<GiteaMarkdownService>().render(ctx.api, ctx.repo.repositoryPath.fullPath(), markdown)
 }
 
 /**

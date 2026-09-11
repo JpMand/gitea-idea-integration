@@ -32,7 +32,7 @@ class GiteaPRDetailsTab(
     onShowTimeline: () -> Unit,
 ) {
 
-    private val detailsVm = GiteaPRDetailsViewModel(cs, pr, repository)
+    private val detailsVm = GiteaPRDetailsViewModel(project, cs, pr, repository)
     private val statusVm = GiteaPRStatusViewModel(cs, pr, repository)
     private val diffVm = GiteaPRDiffViewModel(cs, project, pr, repository)
     private val discussionsVm = GiteaPRDiscussionsViewModels(project, cs, pr.number.toInt(), repository)

@@ -32,7 +32,9 @@ class GiteaPRTimelineFileEditor(
     private val avatarIconsProvider =
         CachingIconsProvider(AsyncImageIconsProvider<GiteaUser>(cs, GiteaImageLoader(file.ctx.api)))
     private val itemFactory =
-        com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineItemComponentFactory(project, avatarIconsProvider)
+        com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineItemComponentFactory(
+            project, avatarIconsProvider, file.repository::renderMarkdown,
+        )
 
     private val component: JComponent =
         GiteaPRTimelineComponentFactory.create(cs, vm, itemFactory, avatarIconsProvider) { vm.reload() }

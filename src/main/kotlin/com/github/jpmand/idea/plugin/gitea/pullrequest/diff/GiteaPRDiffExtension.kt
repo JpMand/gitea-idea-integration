@@ -1,9 +1,11 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.diff
 
+import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPullRequestsSettings
 import com.github.jpmand.idea.plugin.gitea.pullrequest.editor.GiteaPRDiffEditorModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.editor.GiteaPRInlayComponentsFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.intellij.collaboration.async.launchNow
+import com.intellij.openapi.components.service
 import com.intellij.collaboration.ui.codereview.diff.viewer.showCodeReview
 import com.intellij.collaboration.ui.codereview.editor.ReviewInEditorUtil
 import com.intellij.diff.DiffContext
@@ -28,6 +30,8 @@ class GiteaPRDiffExtension : DiffExtension() {
 
     override fun onViewerCreated(viewer: FrameDiffTool.DiffViewer, context: DiffContext, request: DiffRequest) {
         if (viewer !is DiffViewerBase) return
+        val project = context.project ?: return
+        if (!project.service<GiteaPullRequestsSettings>().editorReviewEnabled) return
         val discussionsVm = context.getUserData(GiteaPRDiscussionsViewModels.CONTEXT_KEY) ?: return
         val fileVm = request.getUserData(GiteaPRDiffFileViewModel.CONTEXT_KEY) ?: return
 
@@ -41,7 +45,7 @@ class GiteaPRDiffExtension : DiffExtension() {
                     launchNow {
                         ReviewInEditorUtil.showReviewToolbar(discussionsVm, editor)
                     }
-                    GiteaPRDiffEditorModel(this, context.project, fileVm.file.filename, side, discussionsVm, locationToLine, lineToLocation)
+                    GiteaPRDiffEditorModel(this, project, fileVm.file.filename, side, discussionsVm, locationToLine, lineToLocation)
                 },
                 rendererFactory = { inlayModel ->
                     GiteaPRInlayComponentsFactory.createRenderer(this, inlayModel)

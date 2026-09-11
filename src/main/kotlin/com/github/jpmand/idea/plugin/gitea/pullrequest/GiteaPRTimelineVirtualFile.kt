@@ -13,6 +13,21 @@ import com.intellij.testFramework.LightVirtualFile
  *
  * [repository] / [pr] / [ctx] are captured by value; if the account/repo context changes while
  * this tab is open it keeps working against its original repository.
+ *
+ * KNOWN ISSUE (tracked for the write-actions phase): [equals]/[hashCode] key only on [prNumber] +
+ * [project], not on [ctx]. Since [FileEditorManager][com.intellij.openapi.fileEditor.FileEditorManager]
+ * tracks/reuses open editors by [VirtualFile][com.intellij.openapi.vfs.VirtualFile] identity, opening
+ * "the same" PR's conversation again after switching the active Gitea account can resolve to the
+ * previously-open tab/editor — built against the *old* [ctx] (including the avatar loader in
+ * [GiteaPRTimelineFileEditor], which is constructed once from `file.ctx.api`). This is the likely
+ * cause of "switching accounts doesn't update avatars in the conversation, even after closing and
+ * reopening the tab": a genuinely fresh [GiteaPRTimelineVirtualFile] with the new [ctx] can still
+ * `equals()` an editor the platform hasn't actually discarded. Fix candidates: fold [ctx] (or at
+ * least [ctx]'s account id) into equality/hashCode so an account switch opens a distinct tab; and/or
+ * have [GiteaPRDataContextHolder][com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContextHolder]
+ * proactively close any open PR editors when its context changes. The same identity gap exists on
+ * [com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffVirtualFile] (no [equals] override
+ * at all — falls back to [LightVirtualFile]'s default).
  */
 class GiteaPRTimelineVirtualFile(
     val prNumber: Int,

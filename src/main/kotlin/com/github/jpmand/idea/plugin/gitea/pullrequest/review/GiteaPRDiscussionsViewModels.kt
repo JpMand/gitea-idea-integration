@@ -39,6 +39,10 @@ class GiteaPRDiscussionsViewModels(
 ) : CodeReviewInEditorViewModel {
 
     private val settings: GiteaPullRequestsSettings get() = project.service()
+
+    /** Whether the diff editor should highlight lines that carry review comments. */
+    val highlightDiffLines: StateFlow<Boolean> = settings.highlightDiffLinesInEditorState
+
     companion object {
         val CONTEXT_KEY: Key<GiteaPRDiscussionsViewModels> = Key.create("gitea.pr.discussions.vm")
     }

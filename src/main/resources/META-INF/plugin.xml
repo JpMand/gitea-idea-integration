@@ -12,6 +12,7 @@
     <dependencies>
         <module name="intellij.platform.collaborationTools"/>
         <module name="intellij.platform.vcs.impl"/>
+        <module name="intellij.platform.vcs.dvcs"/>
         <module name="intellij.platform.vcs.dvcs.impl"/>
         <plugin id="Git4Idea"/>
         <plugin id="com.intellij.modules.platform"/>
