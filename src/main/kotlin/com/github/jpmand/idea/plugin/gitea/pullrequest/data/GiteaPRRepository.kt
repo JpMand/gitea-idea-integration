@@ -15,6 +15,7 @@ import com.github.jpmand.idea.plugin.gitea.api.models.toThreads
 import com.github.jpmand.idea.plugin.gitea.api.models.toTimelineItemOrNull
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.TimelineComment
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.issueListTimeline
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreateIssueCommentOption
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreatePullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.EditPullRequestOption
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.MergePullRequestOption
@@ -22,6 +23,7 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.decodeContent
 import com.github.jpmand.idea.plugin.gitea.api.rest.getFileContents
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.toChangedFile
+import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoCreatePullRequestComment
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoCreatePullRequestReview
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoEditPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoGetPullRequest
@@ -141,6 +143,11 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
 
     suspend fun unresolveComment(commentId: Long): GiteaReviewComment =
         GiteaReviewComment.fromDto(ctx.api.repoUnresolvePullRequestReviewComment(owner, repo, commentId))
+
+    /** Posts a new top-level (non-inline) timeline comment. */
+    suspend fun createComment(prNumber: Int, body: String) {
+        ctx.api.repoCreatePullRequestComment(owner, repo, prNumber, CreateIssueCommentOption(body))
+    }
 
     // ── Files & Commits ───────────────────────────────────────────────────
 

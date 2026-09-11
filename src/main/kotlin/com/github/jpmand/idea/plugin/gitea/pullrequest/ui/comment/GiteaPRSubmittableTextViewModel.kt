@@ -1,7 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
-import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.giteaWriteActionNotImplemented
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.codereview.CodeReviewChatItemUIUtil
 import com.intellij.collaboration.ui.codereview.comment.CodeReviewCommentTextFieldFactory
@@ -17,18 +16,26 @@ import javax.swing.AbstractAction
 import javax.swing.JComponent
 
 /**
- * A real markdown comment editor (platform [CodeReviewSubmittableTextViewModelBase] +
- * [CodeReviewCommentTextFieldFactory]) whose submit is a Milestone-2 stub — it pops
- * "not implemented yet" and sends nothing.
+ * A markdown comment editor (platform [CodeReviewSubmittableTextViewModelBase] +
+ * [CodeReviewCommentTextFieldFactory]) that posts a new top-level PR comment via [onSubmit] and
+ * clears the field on success. A failed submission leaves the draft text in place and surfaces
+ * through the platform's own busy/error UI, driven by
+ * [state][com.intellij.collaboration.ui.codereview.comment.CodeReviewSubmittableTextViewModel.state].
  */
 @Suppress("UnstableApiUsage")
 class GiteaPRSubmittableTextViewModel(
     project: Project,
     cs: CoroutineScope,
-    private val actionName: String,
+    private val onSubmit: suspend (String) -> Unit,
 ) : CodeReviewSubmittableTextViewModelBase(project, cs, "") {
 
-    fun submitStub() = giteaWriteActionNotImplemented(project, actionName)
+    fun submitComment() {
+        if (text.value.isBlank()) return
+        submit { body ->
+            onSubmit(body)
+            text.value = ""
+        }
+    }
 }
 
 @Suppress("UnstableApiUsage")
@@ -41,7 +48,7 @@ object GiteaPRCommentFieldFactory {
         iconUser: GiteaUser,
     ): JComponent {
         val submitAction = object : AbstractAction(GiteaBundle.message("pull.request.action.comment")) {
-            override fun actionPerformed(e: ActionEvent?) = vm.submitStub()
+            override fun actionPerformed(e: ActionEvent?) = vm.submitComment()
         }
         val config = CommentInputActionsComponentFactory.Config(
             primaryAction = MutableStateFlow(submitAction),

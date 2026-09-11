@@ -3,7 +3,6 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRSubmittableTextViewModel
-import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.util.ComputedResult
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CancellationException
@@ -33,8 +32,11 @@ class GiteaPRTimelineViewModel(
     val author = pr.author
     val createdAt: Date = pr.createdAt
 
-    /** Milestone-2 stub — the editor renders, submit pops "not implemented yet". */
-    val newCommentVm = GiteaPRSubmittableTextViewModel(project, cs, GiteaBundle.message("pull.request.action.comment"))
+    /** Posts a new top-level timeline comment, then reloads the timeline to show it. */
+    val newCommentVm = GiteaPRSubmittableTextViewModel(project, cs) { body ->
+        repository.createComment(pr.number.toInt(), body)
+        reload()
+    }
 
     private val _items = MutableStateFlow<ComputedResult<List<GiteaPRTimelineItemViewModel>>?>(null)
     val items: StateFlow<ComputedResult<List<GiteaPRTimelineItemViewModel>>?> = _items.asStateFlow()
