@@ -48,7 +48,7 @@ class GiteaPRDiffExtension : DiffExtension() {
                     GiteaPRDiffEditorModel(this, project, fileVm.file.filename, side, discussionsVm, locationToLine, lineToLocation)
                 },
                 rendererFactory = { inlayModel ->
-                    GiteaPRInlayComponentsFactory.createRenderer(this, inlayModel)
+                    GiteaPRInlayComponentsFactory.createRenderer(project, this, inlayModel)
                 }
             )
         }

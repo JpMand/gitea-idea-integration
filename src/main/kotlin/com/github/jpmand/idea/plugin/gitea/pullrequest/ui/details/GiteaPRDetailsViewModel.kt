@@ -1,9 +1,13 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.EditPullRequestOption
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
+import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.codereview.details.data.ReviewRequestState
 import com.intellij.collaboration.ui.codereview.details.model.CodeReviewDetailsViewModel
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -20,8 +24,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Milestone-1 (read-only) details view model: title/description/status/branches/commits.
- * Mutating actions (merge/close/reopen) are intentionally not exposed here — Milestone 2.
+ * Details view model: title/description/status/branches/commits, plus close/reopen.
+ * Merge and review submission are still stubbed in [GiteaPRDetailsPanel].
  */
 @Suppress("UnstableApiUsage")
 class GiteaPRDetailsViewModel(
@@ -88,4 +92,27 @@ class GiteaPRDetailsViewModel(
 
     private fun escapedFallback(markdown: String): String =
         StringUtil.escapeXmlEntities(markdown).replace("\n", "<br>")
+
+    // ── Close / Reopen ───────────────────────────────────────────────────
+
+    fun closePullRequest() = editState("closed", "pull.request.action.close.error")
+
+    fun reopenPullRequest() = editState("open", "pull.request.action.reopen.error")
+
+    private fun editState(state: String, errorKey: String) {
+        cs.launch(Dispatchers.IO) {
+            try {
+                _pr.value = repository.editPullRequest(prNumber, EditPullRequestOption(state = state))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    NotificationGroupManager.getInstance()
+                        .getNotificationGroup("Gitea")
+                        .createNotification(GiteaBundle.message(errorKey), NotificationType.ERROR)
+                        .notify(project)
+                }
+            }
+        }
+    }
 }
