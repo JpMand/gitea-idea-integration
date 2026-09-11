@@ -171,7 +171,15 @@ class GiteaPRToolWindowController(
 
     private fun openTimelineEditor(repository: GiteaPRRepository, pr: GiteaPullRequest, ctx: GiteaPRDataContext) {
         val file = GiteaPRTimelineVirtualFile(pr.number.toInt(), pr, repository, ctx, project)
-        FileEditorManager.getInstance(project).openFile(file, true)
+        val fileEditorManager = FileEditorManager.getInstance(project)
+        // GiteaPRTimelineVirtualFile.equals() folds in the context (account/repo), so a tab left
+        // open from before a context change (e.g. switching the active account) never equals the
+        // fresh `file` above — close it explicitly instead of leaving a stale duplicate tab.
+        fileEditorManager.openFiles
+            .filterIsInstance<GiteaPRTimelineVirtualFile>()
+            .filter { it.prNumber == file.prNumber && it != file }
+            .forEach { fileEditorManager.closeFile(it) }
+        fileEditorManager.openFile(file, true)
     }
 
     private fun closeAllDetailTabs() {

@@ -1,8 +1,9 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details
 
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaCommitStatus
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaCommitStatusState
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CommitStatus
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRReviewerState
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.computeReviewerStates
@@ -53,8 +54,8 @@ class GiteaPRStatusViewModel(
     init {
         cs.launch(Dispatchers.IO) {
             try {
-                val combined = repository.loadCombinedStatus(initialPr.head.sha)
-                _ciJobs.value = combined.statuses.orEmpty().map { it.toCiJob() }
+                val statuses = repository.loadCombinedStatus(initialPr.head.sha)
+                _ciJobs.value = statuses.map { it.toCiJob() }
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
@@ -78,14 +79,14 @@ class GiteaPRStatusViewModel(
         cs.launch { _showJobsDetailsRequests.emit(_ciJobs.value) }
     }
 
-    private fun CommitStatus.toCiJob(): CodeReviewCIJob = CodeReviewCIJob(
+    private fun GiteaCommitStatus.toCiJob(): CodeReviewCIJob = CodeReviewCIJob(
         name = context ?: description ?: "check",
         status = when (status) {
-            CommitStatus.Status.PENDING, CommitStatus.Status.WARNING -> CodeReviewCIJobState.PENDING
-            CommitStatus.Status.SUCCESS -> CodeReviewCIJobState.SUCCESS
-            CommitStatus.Status.ERROR, CommitStatus.Status.FAILURE -> CodeReviewCIJobState.FAILED
-            CommitStatus.Status.SKIPPED -> CodeReviewCIJobState.SKIPPED
-            null -> CodeReviewCIJobState.PENDING
+            GiteaCommitStatusState.PENDING, GiteaCommitStatusState.WARNING -> CodeReviewCIJobState.PENDING
+            GiteaCommitStatusState.SUCCESS -> CodeReviewCIJobState.SUCCESS
+            GiteaCommitStatusState.ERROR, GiteaCommitStatusState.FAILURE -> CodeReviewCIJobState.FAILED
+            GiteaCommitStatusState.SKIPPED -> CodeReviewCIJobState.SKIPPED
+            GiteaCommitStatusState.UNKNOWN -> CodeReviewCIJobState.PENDING
         },
         isRequired = false, // Gitea's commit-status API doesn't expose branch-protection "required" flags
         detailsUrl = targetUrl ?: initialPr.htmlUrl,

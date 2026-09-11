@@ -12,22 +12,23 @@ import com.intellij.testFramework.LightVirtualFile
  * tool-window tab. A bare [LightVirtualFile] (like [com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffVirtualFile]).
  *
  * [repository] / [pr] / [ctx] are captured by value; if the account/repo context changes while
- * this tab is open it keeps working against its original repository.
+ * this tab is open, the OPEN tab keeps working against its original context (it's a live editor,
+ * already built against `ctx.api`) — but [equals]/[hashCode] fold in the context's account and
+ * repo, so a *new* [GiteaPRTimelineVirtualFile] built under a different context is never
+ * considered "the same file" as a stale one. That, combined with
+ * [GiteaPRToolWindowController][com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow.GiteaPRToolWindowController]
+ * proactively closing any other open tab for the same [prNumber] before opening a new one, is what
+ * fixes "switching the active account doesn't update avatars in the conversation" — previously,
+ * [FileEditorManager][com.intellij.openapi.fileEditor.FileEditorManager], which tracks/reuses open
+ * editors by [VirtualFile][com.intellij.openapi.vfs.VirtualFile] identity, could resolve "open the
+ * conversation for PR #N" to an editor built against the old context (including the avatar loader
+ * in [GiteaPRTimelineFileEditor], constructed once from `file.ctx.api`) because identity ignored
+ * the context entirely.
  *
- * KNOWN ISSUE (tracked for the write-actions phase): [equals]/[hashCode] key only on [prNumber] +
- * [project], not on [ctx]. Since [FileEditorManager][com.intellij.openapi.fileEditor.FileEditorManager]
- * tracks/reuses open editors by [VirtualFile][com.intellij.openapi.vfs.VirtualFile] identity, opening
- * "the same" PR's conversation again after switching the active Gitea account can resolve to the
- * previously-open tab/editor — built against the *old* [ctx] (including the avatar loader in
- * [GiteaPRTimelineFileEditor], which is constructed once from `file.ctx.api`). This is the likely
- * cause of "switching accounts doesn't update avatars in the conversation, even after closing and
- * reopening the tab": a genuinely fresh [GiteaPRTimelineVirtualFile] with the new [ctx] can still
- * `equals()` an editor the platform hasn't actually discarded. Fix candidates: fold [ctx] (or at
- * least [ctx]'s account id) into equality/hashCode so an account switch opens a distinct tab; and/or
- * have [GiteaPRDataContextHolder][com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContextHolder]
- * proactively close any open PR editors when its context changes. The same identity gap exists on
- * [com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffVirtualFile] (no [equals] override
- * at all — falls back to [LightVirtualFile]'s default).
+ * The same identity gap still exists on
+ * [GiteaPRDiffVirtualFile][com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffVirtualFile]
+ * (no [equals] override at all, so it falls back to identity — every open is a "new" file, which
+ * avoids this bug but never reuses/focuses an already-open diff tab either).
  */
 class GiteaPRTimelineVirtualFile(
     val prNumber: Int,
@@ -43,8 +44,17 @@ class GiteaPRTimelineVirtualFile(
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is GiteaPRTimelineVirtualFile) return false
-        return prNumber == other.prNumber && project == other.project
+        return prNumber == other.prNumber &&
+            project == other.project &&
+            ctx.account.id == other.ctx.account.id &&
+            ctx.repo.repositoryPath == other.ctx.repo.repositoryPath
     }
 
-    override fun hashCode(): Int = 31 * prNumber + project.hashCode()
+    override fun hashCode(): Int {
+        var result = prNumber
+        result = 31 * result + project.hashCode()
+        result = 31 * result + ctx.account.id.hashCode()
+        result = 31 * result + ctx.repo.repositoryPath.hashCode()
+        return result
+    }
 }

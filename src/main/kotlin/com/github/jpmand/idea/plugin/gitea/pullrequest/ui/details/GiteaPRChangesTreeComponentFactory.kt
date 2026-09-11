@@ -1,7 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details
 
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaCommit
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.Commit
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.GiteaPRFileStatusEnum
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
@@ -44,7 +44,7 @@ object GiteaPRChangesTreeComponentFactory {
         project: Project,
         pr: GiteaPullRequest,
         repository: GiteaPRRepository,
-        selectedCommitFlow: Flow<Commit?>,
+        selectedCommitFlow: Flow<GiteaCommit?>,
         onOpenChange: (String) -> Unit,
     ): JComponent {
         val wrapper = Wrapper(LoadingLabel())
@@ -63,7 +63,7 @@ object GiteaPRChangesTreeComponentFactory {
                     if (files.isEmpty()) {
                         label(GiteaBundle.message("pull.request.details.changes.empty"))
                     } else {
-                        val beforeSha = selectedCommit?.parents?.firstOrNull()?.sha ?: pr.base.sha
+                        val beforeSha = selectedCommit?.firstParentSha ?: pr.base.sha
                         val afterSha = selectedCommit?.sha ?: pr.head.sha
                         val repoRoot = ProjectLevelVcsManager.getInstance(project).getAllVersionedRoots().firstOrNull()?.path
                         val before = Sha(beforeSha)

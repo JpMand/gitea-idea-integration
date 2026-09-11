@@ -1,11 +1,10 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.data
 
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaCommit
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReview
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewState
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaTimelineItem
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.Commit
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.RepoCommit
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.TimelineComment
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.User
 import org.junit.Assert.assertEquals
@@ -36,7 +35,15 @@ class GiteaPRTimelineMergeTest {
             ),
         )
         val commits = listOf(
-            Commit(sha = "abcdef1234567890", created = at(1), commit = RepoCommit(message = "do a thing\n\nbody")),
+            GiteaCommit(
+                sha = "abcdef1234567890",
+                author = null,
+                authorName = null,
+                messageTitle = "do a thing",
+                htmlUrl = null,
+                createdAt = Date.from(at(1).toInstant()),
+                firstParentSha = null,
+            ),
         )
 
         val items = mergeTimeline(timeline, reviews, emptyMap(), commits)

@@ -81,7 +81,7 @@ class GiteaPRDetailsPanel(
 
         val commitInfo = CodeReviewDetailsCommitInfoComponentFactory.create(
             cs, vm.changesVm.selectedCommit,
-            commitPresentation = { commit -> commit?.toPresentation() ?: emptyPresentation() },
+            commitPresentation = { commit -> commit.toPresentation() },
             htmlPaneFactory = { SimpleHtmlPane() },
         )
 
@@ -155,19 +155,15 @@ class GiteaPRDetailsPanel(
 
     // ── helpers ────────────────────────────────────────────────────────────
 
-    private fun com.github.jpmand.idea.plugin.gitea.api.rest.dto.Commit.toPresentation(): CommitPresentation {
-        @NlsSafe val title = StringUtil.escapeXmlEntities(
-            commit?.message?.lineSequence()?.firstOrNull()?.trim() ?: sha.orEmpty().take(7),
-        )
+    private fun com.github.jpmand.idea.plugin.gitea.api.models.GiteaCommit.toPresentation(): CommitPresentation {
+        @NlsSafe val title = StringUtil.escapeXmlEntities(messageTitle)
         return CommitPresentation(
             titleHtml = title,
             descriptionHtml = "",
-            author = commit?.author?.name ?: author?.login.orEmpty(),
-            committedDate = created?.let { Date.from(it.toInstant()) } ?: Date(),
+            author = authorName ?: author?.login.orEmpty(),
+            committedDate = createdAt ?: Date(),
         )
     }
-
-    private fun emptyPresentation() = CommitPresentation("", "", "", Date())
 
     private fun pad(c: JComponent, top: Int, bottom: Int): JComponent =
         JPanel(MigLayout(LC().fillX().insets("$top", "0", "$bottom", "0"))).apply {

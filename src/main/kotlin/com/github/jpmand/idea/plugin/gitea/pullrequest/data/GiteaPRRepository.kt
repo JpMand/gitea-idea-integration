@@ -1,5 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.data
 
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaCommit
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaCommitStatus
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaLabel
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReview
@@ -13,8 +15,6 @@ import com.github.jpmand.idea.plugin.gitea.api.models.toThreads
 import com.github.jpmand.idea.plugin.gitea.api.models.toTimelineItemOrNull
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.TimelineComment
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.issueListTimeline
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CombinedStatus
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.Commit
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreatePullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.EditPullRequestOption
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.MergePullRequestOption
@@ -26,7 +26,6 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoCreatePullRequestRevi
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoEditPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoGetPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoGetPullRequestReviewComments
-import com.github.jpmand.idea.plugin.gitea.api.rest.repoListCommitStatuses
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoListPullRequestCommits
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoListPullRequestFiles
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoListPullRequestReviews
@@ -167,16 +166,14 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
             if (e.statusCode == 404) "" else throw e
         }
 
-    suspend fun loadCommits(prNumber: Int): List<Commit> =
+    suspend fun loadCommits(prNumber: Int): List<GiteaCommit> =
         loadAllGiteaPages { page -> ctx.api.repoListPullRequestCommits(owner, repo, prNumber, page = page, limit = GITEA_PAGE_SIZE) }
+            .map { GiteaCommit.fromDto(it) }
 
     // ── CI Status ─────────────────────────────────────────────────────────
 
-    suspend fun loadCombinedStatus(ref: String): CombinedStatus =
-        ctx.api.repoCombinedStatus(owner, repo, ref)
-
-    suspend fun loadCommitStatuses(ref: String) =
-        ctx.api.repoListCommitStatuses(owner, repo, ref)
+    suspend fun loadCombinedStatus(ref: String): List<GiteaCommitStatus> =
+        ctx.api.repoCombinedStatus(owner, repo, ref).statuses.orEmpty().map { GiteaCommitStatus.fromDto(it) }
 
     // ── Markdown ──────────────────────────────────────────────────────────
 
@@ -201,7 +198,7 @@ fun mergeTimeline(
     timeline: List<TimelineComment>,
     reviewsById: Map<Long, GiteaReview>,
     threadsByReviewId: Map<Long, List<GiteaReviewThread>>,
-    commits: List<Commit>,
+    commits: List<GiteaCommit>,
 ): List<GiteaTimelineItem> {
     val items = mutableListOf<GiteaTimelineItem>()
     val seenReviews = mutableSetOf<Long>()
@@ -240,16 +237,15 @@ fun mergeTimeline(
     }
 
     for (commit in commits) {
-        val ts = commit.created?.toDate() ?: continue
-        val sha = commit.sha ?: continue
+        val ts = commit.createdAt ?: continue
+        val sha = commit.sha.ifEmpty { null } ?: continue
         items += GiteaTimelineItem.Commit(
             id = sha.hashCode().toLong(),
-            actor = commit.author?.let { GiteaUser.fromDto(it) },
+            actor = commit.author,
             timestamp = ts,
             sha = sha,
             shortSha = sha.take(7),
-            messageTitle = commit.commit?.message?.lineSequence()?.firstOrNull()?.trim().orEmpty()
-                .ifEmpty { sha.take(7) },
+            messageTitle = commit.messageTitle,
             htmlUrl = commit.htmlUrl,
         )
     }
