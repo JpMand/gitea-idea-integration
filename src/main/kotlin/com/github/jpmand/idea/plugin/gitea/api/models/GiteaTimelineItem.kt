@@ -72,7 +72,35 @@ sealed interface GiteaTimelineItem {
             HEAD_BRANCH_DELETED,
             LOCKED,
             UNLOCKED,
-            REFERENCED,
+
+            /** This PR was referenced from a plain issue's body/comment. [newValue] carries the
+             * referencing issue's "#number title" for display. */
+            REFERENCED_FROM_ISSUE,
+            /** This PR was referenced from another pull request's body/comment. [newValue]
+             * carries the referencing PR's "#number title". */
+            REFERENCED_FROM_PULL_REQUEST,
+            /** This PR was referenced from within a comment (on this or another issue/PR).
+             * [newValue] carries a short description, if any. */
+            REFERENCED_FROM_COMMENT,
+            /** This PR was referenced from a commit message. [newValue] carries the short SHA. */
+            REFERENCED_FROM_COMMIT,
+
+            TIME_TRACKING_STARTED,
+            TIME_TRACKING_STOPPED,
+            TIME_ADDED_MANUALLY,
+            TIME_TRACKING_CANCELLED,
+            TIME_ESTIMATE_CHANGED,
+            DUE_DATE_ADDED,
+            DUE_DATE_MODIFIED,
+            DUE_DATE_REMOVED,
+            DEPENDENCY_ADDED,
+            DEPENDENCY_REMOVED,
+            PROJECT_CHANGED,
+            PROJECT_COLUMN_CHANGED,
+            PINNED,
+            UNPINNED,
+            AUTO_MERGE_SCHEDULED,
+            AUTO_MERGE_CANCELLED,
         }
     }
 }

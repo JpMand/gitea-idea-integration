@@ -281,7 +281,32 @@ class GiteaPRTimelineItemComponentFactory(
         GiteaTimelineItem.Event.Kind.HEAD_BRANCH_DELETED -> GiteaBundle.message("pull.request.timeline.event.head.deleted")
         GiteaTimelineItem.Event.Kind.LOCKED -> GiteaBundle.message("pull.request.timeline.event.locked")
         GiteaTimelineItem.Event.Kind.UNLOCKED -> GiteaBundle.message("pull.request.timeline.event.unlocked")
-        GiteaTimelineItem.Event.Kind.REFERENCED -> GiteaBundle.message("pull.request.timeline.event.referenced")
+
+        GiteaTimelineItem.Event.Kind.REFERENCED_FROM_ISSUE ->
+            GiteaBundle.message("pull.request.timeline.event.referenced.from.issue", item.newValue ?: "")
+        GiteaTimelineItem.Event.Kind.REFERENCED_FROM_PULL_REQUEST ->
+            GiteaBundle.message("pull.request.timeline.event.referenced.from.pull", item.newValue ?: "")
+        GiteaTimelineItem.Event.Kind.REFERENCED_FROM_COMMENT ->
+            GiteaBundle.message("pull.request.timeline.event.referenced.from.comment", item.newValue ?: "")
+        GiteaTimelineItem.Event.Kind.REFERENCED_FROM_COMMIT ->
+            GiteaBundle.message("pull.request.timeline.event.referenced.from.commit", item.newValue ?: "")
+
+        GiteaTimelineItem.Event.Kind.TIME_TRACKING_STARTED -> GiteaBundle.message("pull.request.timeline.event.time.tracking.started")
+        GiteaTimelineItem.Event.Kind.TIME_TRACKING_STOPPED -> GiteaBundle.message("pull.request.timeline.event.time.tracking.stopped")
+        GiteaTimelineItem.Event.Kind.TIME_ADDED_MANUALLY -> GiteaBundle.message("pull.request.timeline.event.time.added.manually")
+        GiteaTimelineItem.Event.Kind.TIME_TRACKING_CANCELLED -> GiteaBundle.message("pull.request.timeline.event.time.tracking.cancelled")
+        GiteaTimelineItem.Event.Kind.TIME_ESTIMATE_CHANGED -> GiteaBundle.message("pull.request.timeline.event.time.estimate.changed")
+        GiteaTimelineItem.Event.Kind.DUE_DATE_ADDED -> GiteaBundle.message("pull.request.timeline.event.due.date.added")
+        GiteaTimelineItem.Event.Kind.DUE_DATE_MODIFIED -> GiteaBundle.message("pull.request.timeline.event.due.date.modified")
+        GiteaTimelineItem.Event.Kind.DUE_DATE_REMOVED -> GiteaBundle.message("pull.request.timeline.event.due.date.removed")
+        GiteaTimelineItem.Event.Kind.DEPENDENCY_ADDED -> GiteaBundle.message("pull.request.timeline.event.dependency.added")
+        GiteaTimelineItem.Event.Kind.DEPENDENCY_REMOVED -> GiteaBundle.message("pull.request.timeline.event.dependency.removed")
+        GiteaTimelineItem.Event.Kind.PROJECT_CHANGED -> GiteaBundle.message("pull.request.timeline.event.project.changed")
+        GiteaTimelineItem.Event.Kind.PROJECT_COLUMN_CHANGED -> GiteaBundle.message("pull.request.timeline.event.project.column.changed")
+        GiteaTimelineItem.Event.Kind.PINNED -> GiteaBundle.message("pull.request.timeline.event.pinned")
+        GiteaTimelineItem.Event.Kind.UNPINNED -> GiteaBundle.message("pull.request.timeline.event.unpinned")
+        GiteaTimelineItem.Event.Kind.AUTO_MERGE_SCHEDULED -> GiteaBundle.message("pull.request.timeline.event.auto.merge.scheduled")
+        GiteaTimelineItem.Event.Kind.AUTO_MERGE_CANCELLED -> GiteaBundle.message("pull.request.timeline.event.auto.merge.cancelled")
     }
 
     private fun actorName(user: GiteaUser?): String = user?.let { it.fullName ?: it.login } ?: "—"
