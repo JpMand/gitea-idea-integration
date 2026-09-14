@@ -27,12 +27,7 @@ import com.intellij.ui.content.ContentManagerEvent
 import com.intellij.ui.content.ContentManagerListener
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import javax.swing.JComponent
@@ -108,7 +103,6 @@ class GiteaPRToolWindowController(
     }
 
     private fun showEmptyState() {
-        toolWindow.stripeTitle = "Gitea Pull Requests"
         currentCtx = null
         listPanelJob?.cancel()
         listPanelJob = null
@@ -117,11 +111,6 @@ class GiteaPRToolWindowController(
     }
 
     private fun rebuildListTab(ctx: GiteaPRDataContext) {
-        // Show the connected repository where the static "Gitea Pull Requests" label used to sit
-        // — the pinned list tab already repeats the repo name, so this avoids a redundant fixed
-        // label with no actual repo context in it.
-        toolWindow.stripeTitle = ctx.repo.repositoryPath.repository
-
         listPanelJob?.cancel()
         val job = SupervisorJob(cs.coroutineContext[Job])
         listPanelJob = job
