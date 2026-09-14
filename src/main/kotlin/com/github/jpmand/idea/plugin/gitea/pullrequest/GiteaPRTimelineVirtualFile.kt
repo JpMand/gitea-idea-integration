@@ -52,7 +52,7 @@ class GiteaPRTimelineVirtualFile(
     val repository: GiteaPRRepository,
     val ctx: GiteaPRDataContext,
     private val project: Project,
-) : LightVirtualFile("gitea-pr-$prNumber-timeline", GiteaPRTimelineFileType, "") {
+) : LightVirtualFile("${pr.title} #${pr.id}", GiteaPRTimelineFileType, "test") {
 
     override fun isValid(): Boolean = !project.isDisposed
     override fun isWritable(): Boolean = false
