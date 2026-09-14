@@ -42,7 +42,9 @@ object GiteaPRTimelineComponentFactory {
 
         val description = itemFactory.create(
             cs,
-            GiteaPRTimelineItemViewModel.Comment(vm.author, vm.createdAt, vm.descriptionMarkdown, vm.pr.htmlUrl),
+            // id = 0 is never a real comment id (Gitea's start at 1) — the description isn't
+            // editable/deletable through the comment-edit path (out of scope; see plan notes).
+            GiteaPRTimelineItemViewModel.Comment(0L, vm.author, vm.createdAt, vm.descriptionMarkdown, vm.pr.htmlUrl),
         )
 
         val itemsPanel = VerticalListPanel(0)

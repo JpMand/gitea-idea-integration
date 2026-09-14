@@ -17,6 +17,7 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.dto.TimelineComment
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.issueListTimeline
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreateIssueCommentOption
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreatePullReviewOptions
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.EditIssueCommentOption
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.EditPullRequestOption
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.MergePullRequestOption
 import com.github.jpmand.idea.plugin.gitea.api.rest.decodeContent
@@ -25,7 +26,9 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.toChangedFile
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoCreatePullRequestComment
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoCreatePullRequestReview
+import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoDeletePullRequestComment
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoEditPullRequest
+import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoEditPullRequestComment
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoGetPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoGetPullRequestReviewComments
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoListPullRequestCommits
@@ -147,6 +150,19 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     /** Posts a new top-level (non-inline) timeline comment. */
     suspend fun createComment(prNumber: Int, body: String) {
         ctx.api.repoCreatePullRequestComment(owner, repo, prNumber, CreateIssueCommentOption(body))
+    }
+
+    /**
+     * Edits an existing comment's body. Gitea uses the same endpoint for both top-level timeline
+     * comments and inline review-thread comments — no distinction is needed here.
+     */
+    suspend fun editComment(commentId: Long, body: String) {
+        ctx.api.repoEditPullRequestComment(owner, repo, commentId, EditIssueCommentOption(body))
+    }
+
+    /** Deletes a comment (top-level or inline review-thread). */
+    suspend fun deleteComment(commentId: Long) {
+        ctx.api.repoDeletePullRequestComment(owner, repo, commentId)
     }
 
     // ── Files & Commits ───────────────────────────────────────────────────

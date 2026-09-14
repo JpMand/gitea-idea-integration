@@ -34,6 +34,9 @@ class GiteaPRTimelineFileEditor(
     private val itemFactory =
         com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineItemComponentFactory(
             project, avatarIconsProvider, file.repository::renderMarkdown, headSha = file.pr.head.sha,
+            currentUserLogin = file.ctx.account.name,
+            onEditComment = { id, body -> file.repository.editComment(id, body); vm.reload() },
+            onDeleteComment = { id -> file.repository.deleteComment(id); vm.reload() },
         )
 
     private val component: JComponent =

@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline
 
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewComment
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewState
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewThread
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaTimelineItem
@@ -7,12 +8,16 @@ import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.messages.CollaborationToolsBundle
 import com.intellij.collaboration.ui.CollaborationToolsUIUtil
+import com.intellij.collaboration.ui.EditableComponentFactory
 import com.intellij.collaboration.ui.HorizontalListPanel
 import com.intellij.collaboration.ui.SimpleHtmlPane
 import com.intellij.collaboration.ui.VerticalListPanel
 import com.intellij.collaboration.ui.codereview.CodeReviewChatItemUIUtil
 import com.intellij.collaboration.ui.codereview.CodeReviewChatItemUIUtil.ComponentType
 import com.intellij.collaboration.ui.codereview.CodeReviewTimelineUIUtil
+import com.intellij.collaboration.ui.codereview.comment.CodeReviewCommentUIUtil
+import com.intellij.collaboration.ui.codereview.comment.CodeReviewSubmittableTextViewModelBase
+import com.intellij.collaboration.ui.codereview.comment.CodeReviewTextEditingViewModel
 import com.intellij.collaboration.ui.codereview.timeline.StatusMessageComponentFactory
 import com.intellij.collaboration.ui.codereview.timeline.StatusMessageType
 import com.intellij.collaboration.ui.codereview.timeline.TimelineDiffComponentFactory
@@ -42,6 +47,7 @@ import com.intellij.util.ui.UIUtil
 import icons.CollaborationToolsIcons
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -65,6 +71,11 @@ class GiteaPRTimelineItemComponentFactory(
      * [com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewComment.commitId] means the diff
      * it was anchored to is no longer the latest one, i.e. it's "outdated" (GitHub's term). */
     private val headSha: String,
+    /** The signed-in account's login — gates the edit/delete controls to a comment's own author
+     * (Gitea's API exposes no `viewerCanUpdate`-style flag, so this is a client-side check). */
+    private val currentUserLogin: String,
+    private val onEditComment: suspend (id: Long, body: String) -> Unit,
+    private val onDeleteComment: suspend (id: Long) -> Unit,
 ) {
 
     fun create(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel): JComponent = when (item) {
@@ -77,10 +88,10 @@ class GiteaPRTimelineItemComponentFactory(
     // ── item kinds ─────────────────────────────────────────────────────────
 
     private fun comment(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel.Comment): JComponent {
-        val pane = SimpleHtmlPane(bodyHtml(item.body))
-        item.body?.let { renderMarkdownInto(cs, pane, it) }
+        val (pane, actionsPanel) = commentBodyAndActions(cs, item.id, item.actor?.login, item.body)
         return chatItem(item, pane,
-            urlActions(item.htmlUrl, "pull.request.action.open.comment.in.browser", "pull.request.action.copy.comment.link"))
+            urlActions(item.htmlUrl, "pull.request.action.open.comment.in.browser", "pull.request.action.copy.comment.link"),
+            actionsPanel)
     }
 
     private fun review(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel.Review): JComponent {
@@ -142,6 +153,7 @@ class GiteaPRTimelineItemComponentFactory(
         item: GiteaPRTimelineItemViewModel,
         content: JComponent,
         actions: List<AnAction>,
+        actionsPanel: JComponent? = null,
     ): JComponent {
         if (actions.isNotEmpty()) {
             PopupHandler.installPopupMenu(content, DefaultActionGroup(actions), "GiteaPRTimelinePopup")
@@ -153,9 +165,59 @@ class GiteaPRTimelineItemComponentFactory(
         ) {
             withHeader(
                 CodeReviewTimelineUIUtil.createTitleTextPane(actorName(item.actor), item.actor?.htmlUrl, item.timestamp),
-                null,
+                actionsPanel,
             )
         }
+    }
+
+    /**
+     * Renders a comment's body, swappable in-place for an editor when its own author clicks Edit
+     * — plus, only for the signed-in user's own comments (`id <= 0`, the synthetic PR-description
+     * row, never gets controls), an edit/delete actions row using the same platform helpers
+     * GitHub's own comment factories use ([CodeReviewCommentUIUtil.createEditButton] /
+     * [CodeReviewCommentUIUtil.createDeleteCommentIconButton] — the latter already asks for
+     * confirmation before invoking its callback).
+     */
+    private fun commentBodyAndActions(
+        cs: CoroutineScope,
+        id: Long,
+        authorLogin: String?,
+        body: String?,
+    ): Pair<JComponent, JComponent?> {
+        val pane = SimpleHtmlPane(bodyHtml(body))
+        body?.let { renderMarkdownInto(cs, pane, it) }
+        if (id <= 0 || authorLogin != currentUserLogin) return pane to null
+
+        val editVmFlow = MutableStateFlow<CodeReviewTextEditingViewModel?>(null)
+        val bodyComponent = EditableComponentFactory.wrapTextComponent(cs, pane, editVmFlow)
+
+        val actionsPanel = HorizontalListPanel(CodeReviewCommentUIUtil.Actions.HORIZONTAL_GAP).apply {
+            add(CodeReviewCommentUIUtil.createEditButton {
+                val editVm = CommentEditViewModel(cs, body.orEmpty(), id) { editVmFlow.value = null }
+                editVmFlow.value = editVm
+                editVm.requestFocus()
+            })
+            add(CodeReviewCommentUIUtil.createDeleteCommentIconButton {
+                cs.launch { onDeleteComment(id) }
+            })
+        }
+        return bodyComponent to actionsPanel
+    }
+
+    private inner class CommentEditViewModel(
+        cs: CoroutineScope,
+        initialText: String,
+        private val commentId: Long,
+        private val onDone: () -> Unit,
+    ) : CodeReviewSubmittableTextViewModelBase(project, cs, initialText), CodeReviewTextEditingViewModel {
+        override fun save() {
+            submit { newBody ->
+                onEditComment(commentId, newBody)
+                onDone()
+            }
+        }
+
+        override fun stopEditing() = onDone()
     }
 
     /**
@@ -187,12 +249,24 @@ class GiteaPRTimelineItemComponentFactory(
         }
         val commentsPanel = TimelineThreadCommentsPanel(
             CollectionListModel(thread.comments),
-            { c -> JBLabel("<html><b>${esc(c.author?.login ?: "")}</b>: ${esc(c.body ?: "")}</html>") },
+            { c -> threadCommentRow(cs, c) },
         )
         return VerticalListPanel(2).apply {
             add(locationRow)
             diffHunkComponent(cs, thread.path, anchor?.diffHunk)?.let { add(it) }
             add(commentsPanel)
+        }
+    }
+
+    private fun threadCommentRow(cs: CoroutineScope, comment: GiteaReviewComment): JComponent {
+        val (bodyComponent, actionsPanel) = commentBodyAndActions(cs, comment.id, comment.author?.login, comment.body)
+        val headerRow = HorizontalListPanel(CodeReviewCommentUIUtil.Actions.HORIZONTAL_GAP).apply {
+            add(JBLabel("<html><b>${esc(comment.author?.login ?: "")}</b></html>"))
+            actionsPanel?.let { add(it) }
+        }
+        return VerticalListPanel(2).apply {
+            add(headerRow)
+            add(bodyComponent)
         }
     }
 

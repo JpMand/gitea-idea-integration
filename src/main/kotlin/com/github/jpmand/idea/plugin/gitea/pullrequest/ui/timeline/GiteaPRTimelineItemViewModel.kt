@@ -18,6 +18,7 @@ sealed interface GiteaPRTimelineItemViewModel {
     val timestamp: Date
 
     data class Comment(
+        val id: Long,
         override val actor: GiteaUser?,
         override val timestamp: Date,
         val body: String?,
@@ -67,7 +68,7 @@ fun List<GiteaTimelineItem>.toItemViewModels(): List<GiteaPRTimelineItemViewMode
             is GiteaTimelineItem.Commit -> pendingCommits += item
             is GiteaTimelineItem.Comment -> {
                 flushCommits()
-                result += GiteaPRTimelineItemViewModel.Comment(item.actor, item.timestamp, item.body, item.htmlUrl)
+                result += GiteaPRTimelineItemViewModel.Comment(item.id, item.actor, item.timestamp, item.body, item.htmlUrl)
             }
             is GiteaTimelineItem.Review -> {
                 flushCommits()
