@@ -16,17 +16,16 @@ import com.github.jpmand.idea.plugin.gitea.api.models.toTimelineItemOrNull
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.TimelineComment
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.issueListTimeline
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreateIssueCommentOption
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreatePullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.EditIssueCommentOption
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.EditPullRequestOption
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.MergePullRequestOption
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.SubmitPullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.api.rest.decodeContent
 import com.github.jpmand.idea.plugin.gitea.api.rest.getFileContents
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.toChangedFile
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineItemViewModel
+import com.github.jpmand.idea.plugin.gitea.api.rest.currentUser
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoCreatePullRequestComment
-import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoCreatePullRequestReview
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoDeletePullRequestComment
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoEditPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoEditPullRequestComment
@@ -38,7 +37,6 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoListPullRequestReview
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoListPullRequests
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoMergePullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoResolvePullRequestReviewComment
-import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoSubmitPullRequestReview
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoUnresolvePullRequestReviewComment
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.GiteaPullRequestSortEnum
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoCombinedStatus
@@ -51,6 +49,7 @@ import com.github.jpmand.idea.plugin.gitea.api.loadAllGiteaPages
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoListLabels
 import com.intellij.collaboration.api.HttpStatusErrorException
 import com.intellij.openapi.components.service
+import java.util.Date
 
 /**
  * Data-access layer for PR operations scoped to a single [GiteaPRDataContext].
@@ -140,17 +139,6 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         return mergeTimeline(timeline, reviewsById, threadsByReviewId, commits)
     }
 
-    suspend fun submitReview(prNumber: Int, body: CreatePullReviewOptions): GiteaReview =
-        GiteaReview.fromDto(ctx.api.repoCreatePullRequestReview(owner, repo, prNumber, body))
-
-    /** Submits (finishes) a review that was previously created with `event = PENDING`. */
-    suspend fun submitPendingReview(prNumber: Int, reviewId: Long, body: SubmitPullReviewOptions): GiteaReview =
-        GiteaReview.fromDto(ctx.api.repoSubmitPullRequestReview(owner, repo, prNumber, reviewId, body))
-
-    /** The signed-in account's own not-yet-submitted review for this PR, if any. */
-    suspend fun findMyPendingReview(prNumber: Int): GiteaReview? =
-        loadReviews(prNumber).firstOrNull { it.state == GiteaReviewState.PENDING && it.author?.login == ctx.account.name }
-
     suspend fun resolveComment(commentId: Long): GiteaReviewComment =
         GiteaReviewComment.fromDto(ctx.api.repoResolvePullRequestReviewComment(owner, repo, commentId))
 
@@ -158,9 +146,19 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         GiteaReviewComment.fromDto(ctx.api.repoUnresolvePullRequestReviewComment(owner, repo, commentId))
 
     /** Posts a new top-level (non-inline) timeline comment. */
-    suspend fun createComment(prNumber: Int, body: String) {
-        ctx.api.repoCreatePullRequestComment(owner, repo, prNumber, CreateIssueCommentOption(body))
+    suspend fun createComment(prNumber: Int, body: String): GiteaPRTimelineItemViewModel.Comment {
+        val comment = ctx.api.repoCreatePullRequestComment(owner, repo, prNumber, CreateIssueCommentOption(body))
+        return GiteaPRTimelineItemViewModel.Comment(
+            comment.id ?: 0L,
+            comment.user?.let { GiteaUser.fromDto(it) },
+            comment.createdAt?.toDate() ?: Date(),
+            comment.body,
+            comment.htmlUrl,
+        )
     }
+
+    /** The signed-in account's own profile — used for the "leave a comment" avatar. */
+    suspend fun currentUser(): GiteaUser = ctx.api.currentUser()
 
     /**
      * Edits an existing comment's body. Gitea uses the same endpoint for both top-level timeline

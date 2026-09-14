@@ -6,7 +6,6 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.dto.ChangedFile
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.Comment
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.Commit
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreateIssueCommentOption
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreatePullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.DismissPullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.EditIssueCommentOption
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.EditPullRequestOption
@@ -14,7 +13,6 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.dto.MergePullRequestOption
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.PullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.PullReview
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.PullReviewComment
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.SubmitPullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.TimelineComment
 import com.intellij.collaboration.api.httpclient.HttpClientUtil
 import com.intellij.collaboration.api.json.loadJsonList
@@ -110,40 +108,10 @@ suspend fun GiteaApi.repoGetPullRequestReviewComments(
 }
 
 @Suppress("UnstableApiUsage")
-suspend fun GiteaApi.repoCreatePullRequestReview(
-  owner: String,
-  repo: String,
-  index: Int,
-  body: CreatePullReviewOptions,
-): PullReview {
-  val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/reviews")
-  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
-    .build()
-  return rest.loadJsonValue<PullReview>(request).body()
-}
-
-@Suppress("UnstableApiUsage")
 suspend fun GiteaApi.repoDeletePullRequestReview(owner: String, repo: String, index: Int, id: Long) {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/reviews/$id")
   val request = request(uri).DELETE().build()
   rest.loadOptionalJsonValue<Unit>(request)
-}
-
-/** POST /repos/{owner}/{repo}/pulls/{index}/reviews/{id} — submit a pending review. */
-@Suppress("UnstableApiUsage")
-suspend fun GiteaApi.repoSubmitPullRequestReview(
-  owner: String,
-  repo: String,
-  index: Int,
-  id: Long,
-  body: SubmitPullReviewOptions,
-): PullReview {
-  val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/reviews/$id")
-  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
-    .build()
-  return rest.loadJsonValue<PullReview>(request).body()
 }
 
 @Suppress("UnstableApiUsage")

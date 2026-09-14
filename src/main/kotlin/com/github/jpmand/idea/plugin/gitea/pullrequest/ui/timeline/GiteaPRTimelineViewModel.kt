@@ -1,31 +1,26 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReview
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreatePullReviewOptions
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.SubmitPullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRSubmittableTextViewModel
-import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.util.ComputedResult
-import com.intellij.notification.NotificationGroupManager
-import com.intellij.notification.NotificationType
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.Date
 
-/** Read-only view model for a PR's activity timeline (Conversation). */
+/**
+ * Read-only view model for a PR's activity timeline (Conversation). Reviews render here but
+ * aren't authored here — review submission lives in the future Diff/Review-mode live editor.
+ */
 class GiteaPRTimelineViewModel(
     parentCs: CoroutineScope,
     private val project: Project,
@@ -41,33 +36,38 @@ class GiteaPRTimelineViewModel(
     val author = pr.author
     val createdAt: Date = pr.createdAt
 
-    /** Posts a new top-level timeline comment, then reloads the timeline to show it. */
+    /**
+     * Posts a new top-level timeline comment and appends it to the already-loaded list, instead
+     * of reloading the whole timeline — a full [reload] flips [items] through a loading state,
+     * making every existing item disappear and reappear for a moment.
+     */
     val newCommentVm = GiteaPRSubmittableTextViewModel(project, cs) { body ->
-        repository.createComment(pr.number.toInt(), body)
-        reload()
+        val comment = repository.createComment(pr.number.toInt(), body)
+        val currentList = _items.value?.result?.getOrNull()
+        if (currentList != null) {
+            _items.value = ComputedResult.success(currentList + comment)
+        } else {
+            reload()
+        }
     }
 
     private val _items = MutableStateFlow<ComputedResult<List<GiteaPRTimelineItemViewModel>>?>(null)
     val items: StateFlow<ComputedResult<List<GiteaPRTimelineItemViewModel>>?> = _items.asStateFlow()
-
-    /** The signed-in account's own not-yet-submitted review for this PR, if any — surfaced as a
-     * "finish your review" prompt instead of the "start a review" composer. */
-    private val _pendingReview = MutableStateFlow<GiteaReview?>(null)
-    val pendingReview: StateFlow<GiteaReview?> = _pendingReview.asStateFlow()
-
-    private val _isSubmittingReview = MutableStateFlow(false)
-    val isSubmittingReview: StateFlow<Boolean> = _isSubmittingReview.asStateFlow()
 
     /** Repo collaborators, loaded once for `@`-mention completion in comment editors — see
      * [com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.mention.GiteaMentionCompletionContributor]. */
     private val _mentionCandidates = MutableStateFlow<List<GiteaUser>>(emptyList())
     val mentionCandidates: StateFlow<List<GiteaUser>> = _mentionCandidates.asStateFlow()
 
+    /** The signed-in account's own profile, loaded once — used for the "leave a comment" field's
+     * avatar so it reflects whoever is actually signed in, not [author] (the PR's opener). */
+    private val _currentUser = MutableStateFlow<GiteaUser?>(null)
+    val currentUser: StateFlow<GiteaUser?> = _currentUser.asStateFlow()
+
     private var loadJob: Job? = null
 
     init {
         reload()
-        reloadPendingReview()
         cs.launch(Dispatchers.IO) {
             try {
                 _mentionCandidates.value = repository.loadPossibleAuthors()
@@ -75,6 +75,15 @@ class GiteaPRTimelineViewModel(
                 throw e
             } catch (_: Exception) {
                 // Best-effort — a failed lookup just means no mention completion, not an error banner.
+            }
+        }
+        cs.launch(Dispatchers.IO) {
+            try {
+                _currentUser.value = repository.currentUser()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Best-effort — a failed lookup just means the comment field stays hidden until retried.
             }
         }
     }
@@ -91,72 +100,6 @@ class GiteaPRTimelineViewModel(
             } catch (e: Exception) {
                 _items.value = ComputedResult.failure(e)
             }
-        }
-    }
-
-    private fun reloadPendingReview() {
-        cs.launch(Dispatchers.IO) {
-            try {
-                _pendingReview.value = repository.findMyPendingReview(pr.number.toInt())
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                // Best-effort — a failed lookup just means no "finish your review" prompt shows.
-            }
-        }
-    }
-
-    /**
-     * Submits a brand-new review with the given verdict — or, when [event] is `PENDING`, creates
-     * a draft review that only becomes visible to others once [submitPendingReview] finishes it.
-     * A pending review created this way is body-only: there's no per-line diff-comment
-     * composition (that's a separate, larger feature — see the plan notes).
-     */
-    fun submitReview(event: CreatePullReviewOptions.Event, body: String) {
-        cs.launch(Dispatchers.IO) {
-            _isSubmittingReview.value = true
-            try {
-                repository.submitReview(pr.number.toInt(), CreatePullReviewOptions(body = body.ifBlank { null }, event = event))
-                reload()
-                reloadPendingReview()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                notifyError("pull.request.action.submit.review.error")
-            } finally {
-                withContext(NonCancellable) { _isSubmittingReview.value = false }
-            }
-        }
-    }
-
-    /** Finishes (submits) the currently pending review with the given verdict. */
-    fun submitPendingReview(event: SubmitPullReviewOptions.Event, body: String) {
-        val reviewId = pendingReview.value?.id ?: return
-        cs.launch(Dispatchers.IO) {
-            _isSubmittingReview.value = true
-            try {
-                repository.submitPendingReview(
-                    pr.number.toInt(), reviewId,
-                    SubmitPullReviewOptions(body = body.ifBlank { null }, event = event),
-                )
-                reload()
-                reloadPendingReview()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                notifyError("pull.request.action.submit.review.error")
-            } finally {
-                withContext(NonCancellable) { _isSubmittingReview.value = false }
-            }
-        }
-    }
-
-    private suspend fun notifyError(bundleKey: String) {
-        withContext(Dispatchers.Main) {
-            NotificationGroupManager.getInstance()
-                .getNotificationGroup("Gitea")
-                .createNotification(GiteaBundle.message(bundleKey), NotificationType.ERROR)
-                .notify(project)
         }
     }
 }

@@ -1,35 +1,32 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline
 
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReview
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreatePullReviewOptions
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.SubmitPullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRCommentFieldFactory
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
-import com.intellij.collaboration.ui.HorizontalListPanel
 import com.intellij.collaboration.ui.VerticalListPanel
 import com.intellij.collaboration.ui.icon.IconsProvider
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
-import com.intellij.ui.components.JBScrollPane
-import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.components.panels.Wrapper
 import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.ScrollPaneConstants
 
 /**
  * Assembles the PR activity-timeline editor, mirroring the bundled GitLab plugin's
- * `GitLabMergeRequestTimelineComponentFactory`: `[title, description, items, new-comment field,
- * review composer]` in a vertical column. The description is rendered through the same
+ * `GitLabMergeRequestTimelineComponentFactory`: `[title, description, items, new-comment field]`
+ * in a vertical column. The description is rendered through the same
  * [GiteaPRTimelineItemComponentFactory] shell as a synthetic comment.
+ *
+ * Reviews are read-only here (state chip, body, threads — see
+ * [GiteaPRTimelineItemComponentFactory.review]): review *authoring* lives in the future
+ * Diff/Review-mode live editor, not this Timeline.
  */
 @Suppress("UnstableApiUsage")
 object GiteaPRTimelineComponentFactory {
@@ -73,15 +70,7 @@ object GiteaPRTimelineComponentFactory {
 
         val commentField = JPanel(java.awt.BorderLayout()).apply {
             border = JBUI.Borders.empty(8, 16)
-            add(
-                GiteaPRCommentFieldFactory.create(cs, vm.newCommentVm, avatars, vm.author, vm.mentionCandidates),
-                java.awt.BorderLayout.CENTER,
-            )
-        }
-
-        val reviewComposer = JPanel(java.awt.BorderLayout()).apply {
-            border = JBUI.Borders.empty(0, 16, 8, 16)
-            add(reviewComposerPanel(cs, vm), java.awt.BorderLayout.CENTER)
+            add(commentFieldPanel(cs, vm, avatars), java.awt.BorderLayout.CENTER)
         }
 
         val column = VerticalListPanel(0).apply {
@@ -89,7 +78,6 @@ object GiteaPRTimelineComponentFactory {
             add(description)
             add(itemsPanel)
             add(commentField)
-            add(reviewComposer)
         }
 
         val refreshBar = JPanel(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 0, 0)).apply {
@@ -109,24 +97,19 @@ object GiteaPRTimelineComponentFactory {
         }
     }
 
-    private fun info(text: String): JComponent =
-        JBLabel(text).apply {
-            foreground = UIUtil.getContextHelpForeground()
-            border = JBUI.Borders.empty(12, 16)
-        }
-
     /**
-     * Reactively swaps between the "start a review" composer and a "finish your review" prompt
-     * depending on [GiteaPRTimelineViewModel.pendingReview] — mirrors the bundled GitHub plugin's
-     * `GHPRFileEditorComponentFactory.createMergedTimelineItem`-style banner pattern, simplified:
-     * a pending review here is body-only (no per-line diff-comment composition — see the plan
-     * notes for why that's a separate, larger feature).
+     * The "leave a comment" field needs the signed-in account's [GiteaUser] (for its avatar
+     * icon), which is loaded asynchronously ([GiteaPRTimelineViewModel.currentUser]) rather than
+     * available up front like [GiteaPRTimelineViewModel.author] — swap it in reactively via a
+     * [Wrapper] once it arrives instead of blocking panel construction on it.
      */
-    private fun reviewComposerPanel(cs: CoroutineScope, vm: GiteaPRTimelineViewModel): JComponent {
+    private fun commentFieldPanel(cs: CoroutineScope, vm: GiteaPRTimelineViewModel, avatars: IconsProvider<GiteaUser>): JComponent {
         val wrapper = Wrapper()
         cs.launch {
-            vm.pendingReview.collect { pending ->
-                wrapper.setContent(if (pending == null) startReviewPanel(cs, vm) else finishReviewPanel(cs, vm, pending))
+            vm.currentUser.collect { user ->
+                wrapper.setContent(
+                    user?.let { GiteaPRCommentFieldFactory.create(cs, vm.newCommentVm, avatars, it, vm.mentionCandidates) },
+                )
                 wrapper.revalidate()
                 wrapper.repaint()
             }
@@ -134,67 +117,9 @@ object GiteaPRTimelineComponentFactory {
         return wrapper
     }
 
-    private fun startReviewPanel(cs: CoroutineScope, vm: GiteaPRTimelineViewModel): JComponent {
-        val textArea = reviewTextArea()
-        val buttons = HorizontalListPanel(8).apply {
-            add(JButton(GiteaBundle.message("pull.request.review.submit.comment")).apply {
-                addActionListener { vm.submitReview(CreatePullReviewOptions.Event.COMMENT, textArea.text) }
-            })
-            add(JButton(GiteaBundle.message("pull.request.review.submit.approve")).apply {
-                addActionListener { vm.submitReview(CreatePullReviewOptions.Event.APPROVED, textArea.text) }
-            })
-            add(JButton(GiteaBundle.message("pull.request.review.submit.request.changes")).apply {
-                addActionListener { vm.submitReview(CreatePullReviewOptions.Event.REQUESTCHANGES, textArea.text) }
-            })
-            add(JButton(GiteaBundle.message("pull.request.timeline.review.save.pending")).apply {
-                addActionListener { vm.submitReview(CreatePullReviewOptions.Event.PENDING, textArea.text) }
-            })
+    private fun info(text: String): JComponent =
+        JBLabel(text).apply {
+            foreground = UIUtil.getContextHelpForeground()
+            border = JBUI.Borders.empty(12, 16)
         }
-        bindBusyState(cs, vm, buttons)
-        return VerticalListPanel(4).apply {
-            add(JBLabel(GiteaBundle.message("pull.request.timeline.review.composer.hint")).apply {
-                foreground = UIUtil.getContextHelpForeground()
-                font = JBFont.small()
-            })
-            add(JBScrollPane(textArea))
-            add(buttons)
-        }
-    }
-
-    private fun finishReviewPanel(cs: CoroutineScope, vm: GiteaPRTimelineViewModel, pending: GiteaReview): JComponent {
-        val textArea = reviewTextArea().apply { text = pending.body.orEmpty() }
-        val buttons = HorizontalListPanel(8).apply {
-            add(JButton(GiteaBundle.message("pull.request.review.submit.comment")).apply {
-                addActionListener { vm.submitPendingReview(SubmitPullReviewOptions.Event.COMMENT, textArea.text) }
-            })
-            add(JButton(GiteaBundle.message("pull.request.review.submit.approve")).apply {
-                addActionListener { vm.submitPendingReview(SubmitPullReviewOptions.Event.APPROVED, textArea.text) }
-            })
-            add(JButton(GiteaBundle.message("pull.request.review.submit.request.changes")).apply {
-                addActionListener { vm.submitPendingReview(SubmitPullReviewOptions.Event.REQUESTCHANGES, textArea.text) }
-            })
-        }
-        bindBusyState(cs, vm, buttons)
-        return VerticalListPanel(4).apply {
-            add(JBLabel(GiteaBundle.message("pull.request.timeline.review.pending.banner")).apply {
-                font = JBFont.label().asBold()
-            })
-            add(JBScrollPane(textArea))
-            add(buttons)
-        }
-    }
-
-    private fun reviewTextArea(): JBTextArea =
-        JBTextArea(3, 40).apply {
-            lineWrap = true
-            wrapStyleWord = true
-        }
-
-    /** [JComponent.setEnabled] doesn't propagate to children in Swing — disable each button
-     * directly so the whole row is inert while a review submission is in flight. */
-    private fun bindBusyState(cs: CoroutineScope, vm: GiteaPRTimelineViewModel, buttons: JComponent) {
-        cs.launch {
-            vm.isSubmittingReview.collect { busy -> buttons.components.forEach { it.isEnabled = !busy } }
-        }
-    }
 }
