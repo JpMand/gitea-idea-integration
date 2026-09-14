@@ -7,15 +7,9 @@ import com.intellij.collaboration.ui.Either
 import com.intellij.collaboration.ui.HorizontalListPanel
 import com.intellij.collaboration.ui.SimpleHtmlPane
 import com.intellij.collaboration.ui.VerticalListPanel
-import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsActionsComponentFactory
-import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsBranchComponentFactory
-import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsCommitInfoComponentFactory
-import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsCommitsComponentFactory
-import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsStatusComponentFactory
-import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsTitleComponentFactory
-import com.intellij.collaboration.ui.codereview.details.CommitPresentation
-import com.intellij.collaboration.ui.codereview.details.ReviewDetailsUIUtil
+import com.intellij.collaboration.ui.codereview.details.*
 import com.intellij.ide.BrowserUtil
+import com.intellij.markdown.utils.convertMarkdownToHtml
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -36,12 +30,8 @@ import net.miginfocom.layout.LC
 import net.miginfocom.swing.MigLayout
 import java.awt.event.ActionEvent
 import java.awt.event.ActionListener
-import java.util.Date
-import javax.swing.AbstractAction
-import javax.swing.JButton
-import javax.swing.JComponent
-import javax.swing.JPanel
-import javax.swing.ScrollPaneConstants
+import java.util.*
+import javax.swing.*
 
 /**
  * Read-only PR-details tool-window tab, laid out like the bundled GitLab plugin's
@@ -229,8 +219,8 @@ class GiteaPRDetailsPanel(
     private fun com.github.jpmand.idea.plugin.gitea.api.models.GiteaCommit.toPresentation(): CommitPresentation {
         @NlsSafe val title = StringUtil.escapeXmlEntities(messageTitle)
         return CommitPresentation(
-            titleHtml = title,
-            descriptionHtml = "",
+            titleHtml = convertMarkdownToHtml(title),
+            descriptionHtml = convertMarkdownToHtml(messageBody.orEmpty()),
             author = authorName ?: author?.login.orEmpty(),
             committedDate = createdAt ?: Date(),
         )

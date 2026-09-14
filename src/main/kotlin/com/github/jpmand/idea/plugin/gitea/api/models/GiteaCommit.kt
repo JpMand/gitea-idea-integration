@@ -1,7 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.api.models
 
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.Commit
-import java.util.Date
+import java.util.*
 
 data class GiteaCommit(
     val sha: String,
@@ -10,6 +10,7 @@ data class GiteaCommit(
      * Gitea account — is unavailable. */
     val authorName: String?,
     val messageTitle: String,
+    val messageBody: String?,
     val htmlUrl: String?,
     val createdAt: Date?,
     val firstParentSha: String?,
@@ -23,6 +24,7 @@ data class GiteaCommit(
                 authorName = dto.commit?.author?.name,
                 messageTitle = dto.commit?.message?.lineSequence()?.firstOrNull()?.trim().orEmpty()
                     .ifEmpty { sha.take(7) },
+                messageBody = dto.commit?.message?.lineSequence()?.drop(1)?.joinToString("\n")?.trim(),
                 htmlUrl = dto.htmlUrl,
                 createdAt = dto.created?.toDate(),
                 firstParentSha = dto.parents?.firstOrNull()?.sha,
