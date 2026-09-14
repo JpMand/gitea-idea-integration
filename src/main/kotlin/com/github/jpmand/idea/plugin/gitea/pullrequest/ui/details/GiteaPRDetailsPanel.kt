@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.MergePullRequestOption
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.giteaWriteActionNotImplemented
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.intellij.collaboration.ui.Either
 import com.intellij.collaboration.ui.HorizontalListPanel
 import com.intellij.collaboration.ui.SimpleHtmlPane
 import com.intellij.collaboration.ui.VerticalListPanel
@@ -28,11 +29,13 @@ import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBOptionButton
 import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import net.miginfocom.layout.CC
 import net.miginfocom.layout.LC
 import net.miginfocom.swing.MigLayout
 import java.awt.event.ActionEvent
+import java.awt.event.ActionListener
 import java.util.Date
 import javax.swing.AbstractAction
 import javax.swing.JButton
@@ -57,6 +60,14 @@ class GiteaPRDetailsPanel(
     private val onShowTimeline: () -> Unit,
     private val onRefresh: () -> Unit,
 ) {
+
+    companion object {
+        /** Tighter than the platform's default [CodeReviewDetailsActionsComponentFactory.BUTTONS_GAP]/
+         * [ReviewDetailsUIUtil.ACTIONS_GAPS] — this row (merge control, delete-branch checkbox,
+         * close button) reads better compact. */
+        private val COMPACT_BUTTONS_GAP = JBUI.scale(4)
+        private val COMPACT_ACTIONS_GAP = JBUI.scale(4)
+    }
 
     fun create(): JComponent {
         val actionGroup = createActionGroup()
@@ -89,10 +100,17 @@ class GiteaPRDetailsPanel(
             htmlPaneFactory = { SimpleHtmlPane() },
         )
 
+        val resolveConflictsLink = MutableStateFlow<Either<String, ActionListener>>(
+            Either.right(ActionListener { vm.branchesVm.resolveConflicts() }),
+        )
         val statusComponent = VerticalListPanel(4).apply {
             add(CodeReviewDetailsStatusComponentFactory.createCiComponent(cs, statusVm))
             add(CodeReviewDetailsStatusComponentFactory.createNeedReviewerComponent(cs, statusVm.reviewerStates))
-            add(CodeReviewDetailsStatusComponentFactory.createConflictsComponent(cs, statusVm.hasConflicts))
+            add(
+                CodeReviewDetailsStatusComponentFactory.createConflictsComponent(
+                    cs, statusVm.hasConflicts, resolveConflictsLink, vm.branchesVm.isResolvingConflicts,
+                ),
+            )
         }
 
         val actionsComponent = createActionsComponent()
@@ -112,7 +130,7 @@ class GiteaPRDetailsPanel(
             }, CC().growX())
             add(changesComponent, CC().grow().push())
             add(pad(statusComponent, ReviewDetailsUIUtil.STATUSES_GAPS.top, ReviewDetailsUIUtil.STATUSES_GAPS.bottom), CC().growX())
-            add(pad(actionsComponent, ReviewDetailsUIUtil.ACTIONS_GAPS.top, ReviewDetailsUIUtil.ACTIONS_GAPS.bottom), CC().growX())
+            add(pad(actionsComponent, COMPACT_ACTIONS_GAP, COMPACT_ACTIONS_GAP), CC().growX())
         }
     }
 
@@ -131,10 +149,9 @@ class GiteaPRDetailsPanel(
         val closeButton = actionButton("pull.request.action.close") { vm.closePullRequest() }
         val (mergeControl, mergeOptionButton) = createMergeControl()
 
-        val openedPanel = HorizontalListPanel(CodeReviewDetailsActionsComponentFactory.BUTTONS_GAP).apply {
+        val openedPanel = HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
             add(mergeControl)
             add(closeButton)
-            add(stubButton("pull.request.action.submit.review"))
         }
 
         // Mirrors the bundled GitHub plugin's isBusy-gated close/reopen/merge actions: disable
@@ -154,11 +171,6 @@ class GiteaPRDetailsPanel(
             closedStatePanel = CodeReviewDetailsActionsComponentFactory.createActionsForClosedReview(reopen),
             draftedStatePanel = CodeReviewDetailsActionsComponentFactory.createActionsForDraftReview(readyForReview),
         )
-    }
-
-    private fun stubButton(bundleKey: String): JButton {
-        val label = GiteaBundle.message(bundleKey)
-        return JButton(label).apply { addActionListener { giteaWriteActionNotImplemented(project, label) } }
     }
 
     private fun actionButton(bundleKey: String, action: () -> Unit): JButton =
@@ -188,7 +200,7 @@ class GiteaPRDetailsPanel(
             strategies.drop(1).map { mergeAction(it) }.toTypedArray(),
         )
 
-        val panel = HorizontalListPanel(CodeReviewDetailsActionsComponentFactory.BUTTONS_GAP).apply {
+        val panel = HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
             add(optionButton)
             add(deleteBranchCheckBox)
         }

@@ -9,6 +9,7 @@ import com.intellij.collaboration.ui.codereview.details.model.CodeReviewBranches
 import com.intellij.collaboration.ui.codereview.details.model.CodeReviewBranchesViewModel
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
@@ -16,15 +17,19 @@ import git4idea.branch.GitBrancher
 import git4idea.fetch.GitFetchSupport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
 
 /**
  * "Checkout" for the PR-details header: fetches the PR's head commit and checks out a local
@@ -48,6 +53,9 @@ class GiteaPRBranchesViewModel(
 
     private val _showBranchesRequests = MutableSharedFlow<CodeReviewBranches>()
     override val showBranchesRequests: SharedFlow<CodeReviewBranches> = _showBranchesRequests
+
+    private val _isResolvingConflicts = MutableStateFlow(false)
+    val isResolvingConflicts: StateFlow<Boolean> = _isResolvingConflicts.asStateFlow()
 
     override fun fetchAndCheckoutRemoteBranch() {
         val pr = prFlow.value
@@ -88,6 +96,71 @@ class GiteaPRBranchesViewModel(
         cs.launch {
             val pr = prFlow.value
             _showBranchesRequests.emit(CodeReviewBranches(pr.head.ref, pr.base.ref))
+        }
+    }
+
+    /**
+     * Checks out the PR branch locally (if not already), fetches the base branch, then merges the
+     * base branch's remote-tracking ref into it via [GitBrancher.merge]. On conflicts, git4idea's
+     * own merge machinery surfaces its native "Conflicts" dialog automatically — no plugin-side
+     * dialog code needed. Resolution and any follow-up commit/push stay manual.
+     */
+    fun resolveConflicts() {
+        val mapping = findRepositoryMapping()
+        if (mapping == null) {
+            notifyError(GiteaBundle.message("pull.request.branch.checkout.no.repository"))
+            return
+        }
+        val pr = prFlow.value
+
+        cs.launch {
+            _isResolvingConflicts.value = true
+            try {
+                if (!_isCheckedOut.value && !checkoutPrBranch(mapping, pr)) return@launch
+
+                val baseFetch = withContext(Dispatchers.IO) {
+                    GitFetchSupport.fetchSupport(project).fetch(mapping.gitRepository, mapping.gitRemote)
+                }
+                if (!baseFetch.isSuccessful()) {
+                    withContext(Dispatchers.EDT) { baseFetch.showNotificationIfFailed() }
+                    return@launch
+                }
+
+                withContext(Dispatchers.EDT) {
+                    GitBrancher.getInstance(project).merge(
+                        "${mapping.gitRemote.name}/${pr.base.ref}",
+                        GitBrancher.DeleteOnMergeOption.NOTHING,
+                        listOf(mapping.gitRepository),
+                    )
+                }
+            } finally {
+                withContext(NonCancellable) { _isResolvingConflicts.value = false }
+            }
+        }
+    }
+
+    private suspend fun checkoutPrBranch(mapping: GiteaGitRepositoryMapping, pr: GiteaPullRequest): Boolean {
+        val prRef = "refs/pull/${pr.number}/head"
+        val localRef = "refs/gitea/pr/${pr.number}/head"
+        val branchName = "gitea/pr-${pr.number}"
+
+        val fetchResult = withContext(Dispatchers.IO) {
+            GitFetchSupport.fetchSupport(project).fetch(mapping.gitRepository, mapping.gitRemote, "$prRef:$localRef")
+        }
+        if (!fetchResult.isSuccessful()) {
+            withContext(Dispatchers.EDT) { fetchResult.showNotificationIfFailed() }
+            return false
+        }
+
+        return suspendCancellableCoroutine { cont ->
+            ApplicationManager.getApplication().invokeLater {
+                GitBrancher.getInstance(project).checkoutNewBranchStartingFrom(
+                    branchName, localRef, listOf(mapping.gitRepository),
+                ) {
+                    _isCheckedOut.value = true
+                    cont.resume(true)
+                }
+            }
         }
     }
 
