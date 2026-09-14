@@ -1,6 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.mention.GITEA_MENTION_CANDIDATES_KEY
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.codereview.CodeReviewChatItemUIUtil
 import com.intellij.collaboration.ui.codereview.comment.CodeReviewCommentTextFieldFactory
@@ -11,6 +12,8 @@ import com.intellij.collaboration.ui.icon.IconsProvider
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import java.awt.event.ActionEvent
 import javax.swing.AbstractAction
 import javax.swing.JComponent
@@ -46,6 +49,8 @@ object GiteaPRCommentFieldFactory {
         vm: GiteaPRSubmittableTextViewModel,
         avatars: IconsProvider<GiteaUser>,
         iconUser: GiteaUser,
+        /** Repo collaborators for `@`-mention completion; `null` skips wiring it up. */
+        mentionCandidates: StateFlow<List<GiteaUser>>? = null,
     ): JComponent {
         val submitAction = object : AbstractAction(GiteaBundle.message("pull.request.action.comment")) {
             override fun actionPerformed(e: ActionEvent?) = vm.submitComment()
@@ -60,6 +65,10 @@ object GiteaPRCommentFieldFactory {
         val iconConfig = CommentTextFieldFactory.IconConfig.of(
             CodeReviewChatItemUIUtil.ComponentType.FULL, avatars, iconUser,
         )
-        return CodeReviewCommentTextFieldFactory.createIn(cs, vm, config, iconConfig)
+        return CodeReviewCommentTextFieldFactory.createIn(cs, vm, config, iconConfig) { editor ->
+            if (mentionCandidates != null) {
+                cs.launch { mentionCandidates.collect { editor.putUserData(GITEA_MENTION_CANDIDATES_KEY, it) } }
+            }
+        }
     }
 }

@@ -34,6 +34,11 @@
                             serviceImplementation="com.github.jpmand.idea.plugin.gitea.CachingGiteaServersManager"/>
         <diff.DiffExtension implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffExtension"/>
         <fileEditorProvider implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPRTimelineEditorProvider"/>
+        <!-- language="any": the comment editor is Markdown-typed when the bundled Markdown plugin
+             is enabled, plain text otherwise, so the language can't be pinned statically — scoping
+             is done entirely via GITEA_MENTION_CANDIDATES_KEY on the editor. -->
+        <completion.contributor language="any"
+            implementationClass="com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.mention.GiteaMentionCompletionContributor"/>
         <toolWindow id="Gitea Pull Requests"
                     anchor="left"
                     secondary="false"

@@ -73,7 +73,10 @@ object GiteaPRTimelineComponentFactory {
 
         val commentField = JPanel(java.awt.BorderLayout()).apply {
             border = JBUI.Borders.empty(8, 16)
-            add(GiteaPRCommentFieldFactory.create(cs, vm.newCommentVm, avatars, vm.author), java.awt.BorderLayout.CENTER)
+            add(
+                GiteaPRCommentFieldFactory.create(cs, vm.newCommentVm, avatars, vm.author, vm.mentionCandidates),
+                java.awt.BorderLayout.CENTER,
+            )
         }
 
         val reviewComposer = JPanel(java.awt.BorderLayout()).apply {

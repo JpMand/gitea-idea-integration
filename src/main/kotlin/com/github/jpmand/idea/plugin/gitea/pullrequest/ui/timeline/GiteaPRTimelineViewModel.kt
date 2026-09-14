@@ -2,6 +2,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReview
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreatePullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.SubmitPullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
@@ -57,11 +58,25 @@ class GiteaPRTimelineViewModel(
     private val _isSubmittingReview = MutableStateFlow(false)
     val isSubmittingReview: StateFlow<Boolean> = _isSubmittingReview.asStateFlow()
 
+    /** Repo collaborators, loaded once for `@`-mention completion in comment editors — see
+     * [com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.mention.GiteaMentionCompletionContributor]. */
+    private val _mentionCandidates = MutableStateFlow<List<GiteaUser>>(emptyList())
+    val mentionCandidates: StateFlow<List<GiteaUser>> = _mentionCandidates.asStateFlow()
+
     private var loadJob: Job? = null
 
     init {
         reload()
         reloadPendingReview()
+        cs.launch(Dispatchers.IO) {
+            try {
+                _mentionCandidates.value = repository.loadPossibleAuthors()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Best-effort — a failed lookup just means no mention completion, not an error banner.
+            }
+        }
     }
 
     fun reload() {
