@@ -40,6 +40,7 @@ class GiteaPRTimelineMergeTest {
                 author = null,
                 authorName = null,
                 messageTitle = "do a thing",
+                messageBody = null,
                 htmlUrl = null,
                 createdAt = Date.from(at(1).toInstant()),
                 firstParentSha = null,
