@@ -57,6 +57,10 @@ class GiteaPRDetailsPanel(
          * close button) reads better compact. */
         private val COMPACT_BUTTONS_GAP = JBUI.scale(4)
         private val COMPACT_ACTIONS_GAP = JBUI.scale(4)
+
+        /** Cap on the "Show details" commit-info area — past this it scrolls internally instead
+         * of pushing the changes tree/status/actions rows down or off-screen. */
+        private const val COMMIT_INFO_MAX_HEIGHT = 220
     }
 
     fun create(): JComponent {
@@ -84,6 +88,10 @@ class GiteaPRDetailsPanel(
             add(CodeReviewDetailsBranchComponentFactory.create(cs, vm.branchesVm), java.awt.BorderLayout.EAST)
         }
 
+        // The platform factory bundles its own "Show details" toggle that reveals the selected
+        // commit's full message — can get long, so it gets its own capped, independently
+        // scrolling area instead of sharing one with (and potentially pushing off-screen) the
+        // title/nav-bar/branch row above it.
         val commitInfo = CodeReviewDetailsCommitInfoComponentFactory.create(
             cs, vm.changesVm.selectedCommit,
             commitPresentation = { commit -> commit.toPresentation() },
@@ -105,19 +113,26 @@ class GiteaPRDetailsPanel(
 
         val actionsComponent = createActionsComponent()
 
-        val content = VerticalListPanel(0).apply {
+        // Title/nav-bar/branch row: always fully visible, never scrolls on its own.
+        val header = VerticalListPanel(0).apply {
             border = JBUI.Borders.empty(8, 8, 0, 8)
             add(pad(titleComponent, ReviewDetailsUIUtil.TITLE_GAPS.top, ReviewDetailsUIUtil.TITLE_GAPS.bottom))
             add(pad(navBar, 0, 8))
             add(pad(commitsAndBranch, 0, 4))
-            add(pad(commitInfo, 0, 0))
         }
 
+        val commitInfoScrollPane = ScrollPaneFactory.createScrollPane(pad(commitInfo, 0, 0), true).apply {
+            horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
+        }
+
+        // shrink(0) on the header/commit-info rows keeps them at their preferred size always —
+        // the changes tree (the sole push/grow row) is what absorbs a shrinking tool-window
+        // height first; only once it's already at its own minimum does MigLayout start shrinking
+        // the remaining non-push rows (status, then actions).
         return JPanel(MigLayout(LC().insets("0").fill().flowY().noGrid().gridGap("0", "0"))).apply {
             isOpaque = false
-            add(ScrollPaneFactory.createScrollPane(content, true).apply {
-                horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
-            }, CC().growX())
+            add(header, CC().growX().shrink(0f))
+            add(commitInfoScrollPane, CC().growX().shrink(0f).maxHeight("${JBUI.scale(COMMIT_INFO_MAX_HEIGHT)}"))
             add(changesComponent, CC().grow().push())
             add(pad(statusComponent, ReviewDetailsUIUtil.STATUSES_GAPS.top, ReviewDetailsUIUtil.STATUSES_GAPS.bottom), CC().growX())
             add(pad(actionsComponent, COMPACT_ACTIONS_GAP, COMPACT_ACTIONS_GAP), CC().growX())
