@@ -56,6 +56,10 @@ class GiteaPRDetailsTab(
         discussionsVm.reload()
     }
 
+    /** Selects the given commit in the changes tree — used when a "referenced/added commit" is
+     * clicked from the Timeline (see [GiteaPRCommitSelectionRequests]). */
+    fun selectCommitBySha(sha: String) = detailsVm.changesVm.selectCommitBySha(sha)
+
     val component: JComponent = JPanel(BorderLayout()).apply {
         add(
             giteaReviewErrorPanel(

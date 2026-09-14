@@ -76,6 +76,10 @@ class GiteaPRTimelineItemComponentFactory(
     private val currentUserLogin: String,
     private val onEditComment: suspend (id: Long, body: String) -> Unit,
     private val onDeleteComment: suspend (id: Long) -> Unit,
+    /** Requests the ToolWindow's Details tab open (or focus) with the given commit's changes
+     * selected in the changes tree — used by both the "added N commits" block and a
+     * "referenced from commit" event, instead of opening the commit in a browser. */
+    private val onOpenCommit: (sha: String) -> Unit,
 ) {
 
     fun create(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel): JComponent = when (item) {
@@ -120,7 +124,7 @@ class GiteaPRTimelineItemComponentFactory(
     private fun commits(item: GiteaPRTimelineItemViewModel.Commits): JComponent {
         val list = VerticalListPanel(2).apply {
             item.commits.forEach { c ->
-                add(ActionLink("${c.shortSha}  ${c.messageTitle}") { c.htmlUrl?.let(BrowserUtil::browse) })
+                add(ActionLink("${c.shortSha}  ${c.messageTitle}") { onOpenCommit(c.sha) })
             }
         }
         val header = JBLabel(
@@ -143,6 +147,16 @@ class GiteaPRTimelineItemComponentFactory(
     }
 
     private fun event(item: GiteaPRTimelineItemViewModel.Event): JComponent {
+        val sha = item.newValue
+        if (item.kind == GiteaTimelineItem.Event.Kind.REFERENCED_FROM_COMMIT && sha != null) {
+            val prefixHtml = "<b>${esc(actorName(item.actor))}</b> " +
+                esc(GiteaBundle.message("pull.request.timeline.event.referenced.from.commit", "").trimEnd())
+            val row = HorizontalListPanel(4).apply {
+                add(SimpleHtmlPane(prefixHtml))
+                add(ActionLink(sha.take(7)) { onOpenCommit(sha) })
+            }
+            return StatusMessageComponentFactory.create(row, StatusMessageType.SECONDARY_INFO)
+        }
         val text = "<b>${esc(actorName(item.actor))}</b> ${esc(eventText(item))}"
         return StatusMessageComponentFactory.create(SimpleHtmlPane(text), StatusMessageType.SECONDARY_INFO)
     }
@@ -363,7 +377,7 @@ class GiteaPRTimelineItemComponentFactory(
         GiteaTimelineItem.Event.Kind.REFERENCED_FROM_COMMENT ->
             GiteaBundle.message("pull.request.timeline.event.referenced.from.comment", item.newValue ?: "")
         GiteaTimelineItem.Event.Kind.REFERENCED_FROM_COMMIT ->
-            GiteaBundle.message("pull.request.timeline.event.referenced.from.commit", item.newValue ?: "")
+            GiteaBundle.message("pull.request.timeline.event.referenced.from.commit", item.newValue?.take(7) ?: "")
 
         GiteaTimelineItem.Event.Kind.TIME_TRACKING_STARTED -> GiteaBundle.message("pull.request.timeline.event.time.tracking.started")
         GiteaTimelineItem.Event.Kind.TIME_TRACKING_STOPPED -> GiteaBundle.message("pull.request.timeline.event.time.tracking.stopped")

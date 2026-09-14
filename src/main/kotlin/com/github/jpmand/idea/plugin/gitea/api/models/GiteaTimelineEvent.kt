@@ -73,7 +73,9 @@ fun TimelineComment.toTimelineItemOrNull(): GiteaTimelineItem? {
         "issue_ref" -> event(GiteaTimelineItem.Event.Kind.REFERENCED_FROM_ISSUE, newValue = referencingIssueText())
         "pull_ref" -> event(GiteaTimelineItem.Event.Kind.REFERENCED_FROM_PULL_REQUEST, newValue = referencingIssueText())
         "comment_ref" -> event(GiteaTimelineItem.Event.Kind.REFERENCED_FROM_COMMENT, newValue = referencingIssueText())
-        "commit_ref" -> event(GiteaTimelineItem.Event.Kind.REFERENCED_FROM_COMMIT, newValue = refCommitSha?.take(7))
+        // Full sha kept (not truncated) — the Timeline renders it as a clickable link that opens
+        // the commit in the Files-changed tree; truncation for display happens at render time.
+        "commit_ref" -> event(GiteaTimelineItem.Event.Kind.REFERENCED_FROM_COMMIT, newValue = refCommitSha)
 
         "start_tracking" -> event(GiteaTimelineItem.Event.Kind.TIME_TRACKING_STARTED)
         "stop_tracking" -> event(GiteaTimelineItem.Event.Kind.TIME_TRACKING_STOPPED)

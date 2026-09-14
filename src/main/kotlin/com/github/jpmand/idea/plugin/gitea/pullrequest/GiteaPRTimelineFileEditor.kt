@@ -3,10 +3,12 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.data.GiteaImageLoader
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineComponentFactory
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineItemComponentFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineViewModel
-import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow.GiteaPRCommitSelectionRequests
 import com.intellij.collaboration.ui.icon.AsyncImageIconsProvider
 import com.intellij.collaboration.ui.icon.CachingIconsProvider
+import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.fileEditor.FileEditorState
 import com.intellij.openapi.project.Project
@@ -31,20 +33,22 @@ class GiteaPRTimelineFileEditor(
     private val vm = GiteaPRTimelineViewModel(cs, project, file.pr, file.repository)
     private val avatarIconsProvider =
         CachingIconsProvider(AsyncImageIconsProvider<GiteaUser>(cs, GiteaImageLoader(file.ctx.api)))
-    private val itemFactory =
-        com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineItemComponentFactory(
-            project, avatarIconsProvider, file.repository::renderMarkdown, headSha = file.pr.head.sha,
-            currentUserLogin = file.ctx.account.name,
-            onEditComment = { id, body -> file.repository.editComment(id, body); vm.reload() },
-            onDeleteComment = { id -> file.repository.deleteComment(id); vm.reload() },
-        )
+    private val itemFactory = GiteaPRTimelineItemComponentFactory(
+        project, avatarIconsProvider, file.repository::renderMarkdown, headSha = file.pr.head.sha,
+        currentUserLogin = file.ctx.account.name,
+        onEditComment = { id, body -> file.repository.editComment(id, body); vm.reload() },
+        onDeleteComment = { id -> file.repository.deleteComment(id); vm.reload() },
+        onOpenCommit = { sha ->
+            project.service<GiteaPRCommitSelectionRequests>().request(file.pr, file.repository, file.ctx, sha)
+        },
+    )
 
     private val component: JComponent =
         GiteaPRTimelineComponentFactory.create(cs, vm, itemFactory, avatarIconsProvider) { vm.reload() }
 
     override fun getComponent(): JComponent = component
     override fun getPreferredFocusedComponent(): JComponent? = null
-    override fun getName(): String = GiteaBundle.message("pull.request.timeline.tab.name", file.pr.number)
+    override fun getName(): String = "${file.pr.title} #${file.pr.number}"
     override fun setState(state: FileEditorState) {}
     override fun isModified(): Boolean = false
     override fun isValid(): Boolean = !project.isDisposed

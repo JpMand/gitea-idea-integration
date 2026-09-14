@@ -1,10 +1,24 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest
 
+import com.github.jpmand.idea.plugin.gitea.GiteaIcons
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContext
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
+import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.project.Project
 import com.intellij.testFramework.LightVirtualFile
+import javax.swing.Icon
+
+/** Gives the Timeline editor tab the Gitea logo instead of the platform's default plain-text
+ * file icon — [GiteaPRTimelineVirtualFile] has no real on-disk content, so nothing else about
+ * this [FileType] (extension, binary-ness, ...) is ever consulted. */
+private object GiteaPRTimelineFileType : FileType {
+    override fun getName(): String = "Gitea PR Timeline"
+    override fun getDescription(): String = "Gitea pull request activity timeline"
+    override fun getDefaultExtension(): String = ""
+    override fun getIcon(): Icon = GiteaIcons.Logo
+    override fun isBinary(): Boolean = true
+}
 
 /**
  * The PR "activity timeline" (Conversation) as an editor tab — see [GiteaPRTimelineFileEditor] /
@@ -38,7 +52,7 @@ class GiteaPRTimelineVirtualFile(
     val repository: GiteaPRRepository,
     val ctx: GiteaPRDataContext,
     private val project: Project,
-) : LightVirtualFile("gitea-pr-$prNumber-timeline") {
+) : LightVirtualFile("gitea-pr-$prNumber-timeline", GiteaPRTimelineFileType, "") {
 
     override fun isValid(): Boolean = !project.isDisposed
     override fun isWritable(): Boolean = false

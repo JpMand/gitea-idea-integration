@@ -64,7 +64,7 @@ class GiteaPRToolWindowController(
     private var listContent: Content? = null
     private var listPanelJob: Job? = null
 
-    private class DetailTab(val content: Content, val scope: CoroutineScope)
+    private class DetailTab(val content: Content, val scope: CoroutineScope, val tab: GiteaPRDetailsTab)
 
     private val detailTabs = LinkedHashMap<Int, DetailTab>()
 
@@ -82,6 +82,9 @@ class GiteaPRToolWindowController(
         })
         cs.launch {
             project.service<GiteaPRDataContextHolder>().context.collect { ctx -> updateContent(ctx) }
+        }
+        cs.launch {
+            project.service<GiteaPRCommitSelectionRequests>().requests.collect { req -> handleCommitSelection(req) }
         }
     }
 
@@ -105,6 +108,7 @@ class GiteaPRToolWindowController(
     }
 
     private fun showEmptyState() {
+        toolWindow.stripeTitle = "Gitea Pull Requests"
         currentCtx = null
         listPanelJob?.cancel()
         listPanelJob = null
@@ -113,6 +117,11 @@ class GiteaPRToolWindowController(
     }
 
     private fun rebuildListTab(ctx: GiteaPRDataContext) {
+        // Show the connected repository where the static "Gitea Pull Requests" label used to sit
+        // — the pinned list tab already repeats the repo name, so this avoids a redundant fixed
+        // label with no actual repo context in it.
+        toolWindow.stripeTitle = ctx.repo.repositoryPath.repository
+
         listPanelJob?.cancel()
         val job = SupervisorJob(cs.coroutineContext[Job])
         listPanelJob = job
@@ -125,7 +134,7 @@ class GiteaPRToolWindowController(
         val listPanel = GiteaPRListPanel(
             panelCs, listVm, avatarIconsProvider,
             repositoryWebUrl = ctx.repo.getWebURI().toString(),
-            onPROpenRequested = { pr -> openOrFocusDetailTab(ctx, repository, pr) },
+            onPROpenRequested = { pr -> openPullRequest(ctx, repository, pr) },
         ).create()
 
         val content = cm.factory.createContent(
@@ -148,11 +157,11 @@ class GiteaPRToolWindowController(
         cm.setSelectedContent(content)
     }
 
-    private fun openOrFocusDetailTab(ctx: GiteaPRDataContext, repository: GiteaPRRepository, pr: GiteaPullRequest) {
+    private fun openOrFocusDetailTab(ctx: GiteaPRDataContext, repository: GiteaPRRepository, pr: GiteaPullRequest): GiteaPRDetailsTab {
         val number = pr.number.toInt()
         detailTabs[number]?.let {
             cm.setSelectedContent(it.content, true)
-            return
+            return it.tab
         }
 
         val tabJob = SupervisorJob(cs.coroutineContext[Job])
@@ -166,9 +175,25 @@ class GiteaPRToolWindowController(
             isPinnable = false
             setDisposer(Disposable { tabJob.cancel() })
         }
-        detailTabs[number] = DetailTab(content, tabScope)
+        detailTabs[number] = DetailTab(content, tabScope, tab)
         cm.addContent(content)
         cm.setSelectedContent(content, true)
+        return tab
+    }
+
+    /** Opens a PR from the list: both the Details tab and the Conversation timeline editor, not
+     * just Details — most users want to start reading/commenting right away. */
+    private fun openPullRequest(ctx: GiteaPRDataContext, repository: GiteaPRRepository, pr: GiteaPullRequest) {
+        openOrFocusDetailTab(ctx, repository, pr)
+        openTimelineEditor(repository, pr, ctx)
+    }
+
+    /** Opens (or focuses) the given PR's Details tab and selects the referenced commit in its
+     * changes tree — see [GiteaPRCommitSelectionRequests]. */
+    private fun handleCommitSelection(req: GiteaPRCommitSelectionRequests.Request) {
+        toolWindow.activate(null)
+        val tab = openOrFocusDetailTab(req.ctx, req.repository, req.pr)
+        tab.selectCommitBySha(req.commitSha)
     }
 
     private fun openTimelineEditor(repository: GiteaPRRepository, pr: GiteaPullRequest, ctx: GiteaPRDataContext) {

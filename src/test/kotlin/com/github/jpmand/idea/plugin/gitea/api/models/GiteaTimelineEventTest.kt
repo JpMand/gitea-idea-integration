@@ -38,7 +38,8 @@ class GiteaTimelineEventTest {
         val commitRef = comment("commit_ref") { copy(refCommitSha = "abcdef1234567890") }
             .toTimelineItemOrNull() as GiteaTimelineItem.Event
         assertEquals(GiteaTimelineItem.Event.Kind.REFERENCED_FROM_COMMIT, commitRef.kind)
-        assertEquals("abcdef1", commitRef.newValue)
+        // Full sha kept — truncation for display happens at render time, not in the mapper.
+        assertEquals("abcdef1234567890", commitRef.newValue)
     }
 
     @Test

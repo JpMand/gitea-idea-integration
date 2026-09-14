@@ -58,6 +58,13 @@ class GiteaPRChangesViewModel(
         _selectedCommitIndex.value = index.coerceIn(-1, maxOf(-1, size - 1))
     }
 
+    /** Selects the commit with the given sha, if it's among [reviewCommits] — a no-op otherwise
+     * (e.g. commits are still loading). Used by "open this commit" clicks from the Timeline. */
+    fun selectCommitBySha(sha: String) {
+        val index = _commits.value.indexOfFirst { it.sha == sha }
+        if (index >= 0) selectCommit(index)
+    }
+
     override fun selectNextCommit() {
         val size = _commits.value.size
         val cur = _selectedCommitIndex.value
