@@ -20,6 +20,7 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreatePullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.EditIssueCommentOption
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.EditPullRequestOption
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.MergePullRequestOption
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.SubmitPullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.api.rest.decodeContent
 import com.github.jpmand.idea.plugin.gitea.api.rest.getFileContents
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
@@ -37,6 +38,7 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoListPullRequestReview
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoListPullRequests
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoMergePullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoResolvePullRequestReviewComment
+import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoSubmitPullRequestReview
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoUnresolvePullRequestReviewComment
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.GiteaPullRequestSortEnum
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoCombinedStatus
@@ -140,6 +142,14 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
 
     suspend fun submitReview(prNumber: Int, body: CreatePullReviewOptions): GiteaReview =
         GiteaReview.fromDto(ctx.api.repoCreatePullRequestReview(owner, repo, prNumber, body))
+
+    /** Submits (finishes) a review that was previously created with `event = PENDING`. */
+    suspend fun submitPendingReview(prNumber: Int, reviewId: Long, body: SubmitPullReviewOptions): GiteaReview =
+        GiteaReview.fromDto(ctx.api.repoSubmitPullRequestReview(owner, repo, prNumber, reviewId, body))
+
+    /** The signed-in account's own not-yet-submitted review for this PR, if any. */
+    suspend fun findMyPendingReview(prNumber: Int): GiteaReview? =
+        loadReviews(prNumber).firstOrNull { it.state == GiteaReviewState.PENDING && it.author?.login == ctx.account.name }
 
     suspend fun resolveComment(commentId: Long): GiteaReviewComment =
         GiteaReviewComment.fromDto(ctx.api.repoResolvePullRequestReviewComment(owner, repo, commentId))
