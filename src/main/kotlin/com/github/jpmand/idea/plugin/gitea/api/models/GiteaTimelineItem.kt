@@ -19,6 +19,8 @@ sealed interface GiteaTimelineItem {
         override val timestamp: Date,
         val body: String?,
         val htmlUrl: String?,
+        /** Null, or equal to [timestamp], when never edited. */
+        val updatedAt: Date? = null,
     ) : GiteaTimelineItem
 
     /** A commit pushed to the PR branch. */

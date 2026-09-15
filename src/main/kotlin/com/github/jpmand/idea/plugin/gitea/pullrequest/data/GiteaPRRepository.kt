@@ -175,6 +175,7 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
             comment.createdAt?.toDate() ?: Date(),
             comment.body,
             comment.htmlUrl,
+            comment.updatedAt?.toDate(),
         )
     }
 
@@ -285,7 +286,7 @@ fun mergeTimeline(
                 if (reviewId != null) {
                     reviewItem(reviewId, actor, ts, tc.body)
                 } else if (!tc.body.isNullOrBlank()) {
-                    items += GiteaTimelineItem.Comment(tc.id ?: 0L, actor, ts, tc.body, tc.htmlUrl)
+                    items += GiteaTimelineItem.Comment(tc.id ?: 0L, actor, ts, tc.body, tc.htmlUrl, tc.updatedAt?.toDate())
                 }
             "review" -> if (reviewId != null) reviewItem(reviewId, actor, ts, tc.body)
             // Inline review comments live inside their review; commits come from the commits

@@ -41,6 +41,12 @@ class GiteaPRTimelineFileEditor(
         onOpenCommit = { sha ->
             project.service<GiteaPRCommitSelectionRequests>().request(file.pr, file.repository, file.ctx, sha)
         },
+        onReplyToThread = { threadId, body ->
+            file.repository.replyToComment(file.pr.number.toInt(), threadId, body)
+            vm.reload()
+        },
+        currentUser = vm.currentUser,
+        mentionCandidates = vm.mentionCandidates,
     )
 
     private val component: JComponent =

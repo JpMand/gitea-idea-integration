@@ -23,7 +23,11 @@ sealed interface GiteaPRTimelineItemViewModel {
         override val timestamp: Date,
         val body: String?,
         val htmlUrl: String?,
-    ) : GiteaPRTimelineItemViewModel
+        /** Null, or equal to [timestamp], when never edited. */
+        val updatedAt: Date? = null,
+    ) : GiteaPRTimelineItemViewModel {
+        val edited: Boolean get() = updatedAt != null && updatedAt != timestamp
+    }
 
     data class Commits(
         val commits: List<GiteaTimelineItem.Commit>,
@@ -68,7 +72,7 @@ fun List<GiteaTimelineItem>.toItemViewModels(): List<GiteaPRTimelineItemViewMode
             is GiteaTimelineItem.Commit -> pendingCommits += item
             is GiteaTimelineItem.Comment -> {
                 flushCommits()
-                result += GiteaPRTimelineItemViewModel.Comment(item.id, item.actor, item.timestamp, item.body, item.htmlUrl)
+                result += GiteaPRTimelineItemViewModel.Comment(item.id, item.actor, item.timestamp, item.body, item.htmlUrl, item.updatedAt)
             }
             is GiteaTimelineItem.Review -> {
                 flushCommits()

@@ -5,6 +5,8 @@ import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewState
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewThread
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaTimelineItem
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRCommentFieldFactory
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRSubmittableTextViewModel
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.messages.CollaborationToolsBundle
 import com.intellij.collaboration.ui.CollaborationToolsUIUtil
@@ -42,16 +44,19 @@ import com.intellij.ui.CollectionListModel
 import com.intellij.ui.PopupHandler
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.panels.Wrapper
 import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.UIUtil
 import icons.CollaborationToolsIcons
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.awt.datatransfer.StringSelection
+import java.util.Date
 import javax.swing.JComponent
 import javax.swing.JEditorPane
 
@@ -80,6 +85,12 @@ class GiteaPRTimelineItemComponentFactory(
      * selected in the changes tree — used by both the "added N commits" block and a
      * "referenced from commit" event, instead of opening the commit in a browser. */
     private val onOpenCommit: (sha: String) -> Unit,
+    /** Replies to an existing review-comment thread, identified by its anchor comment id. */
+    private val onReplyToThread: suspend (threadId: Long, body: String) -> Unit,
+    /** The signed-in account's own profile — used for the reply composer's avatar; `null` while
+     * still loading (the composer stays hidden until it resolves). */
+    private val currentUser: StateFlow<GiteaUser?>,
+    private val mentionCandidates: StateFlow<List<GiteaUser>>,
 ) {
 
     fun create(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel): JComponent = when (item) {
@@ -95,7 +106,7 @@ class GiteaPRTimelineItemComponentFactory(
         val (pane, actionsPanel) = commentBodyAndActions(cs, item.id, item.actor?.login, item.body)
         return chatItem(item, pane,
             urlActions(item.htmlUrl, "pull.request.action.open.comment.in.browser", "pull.request.action.copy.comment.link"),
-            actionsPanel)
+            actionsPanel, edited = item.edited)
     }
 
     private fun review(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel.Review): JComponent {
@@ -168,6 +179,7 @@ class GiteaPRTimelineItemComponentFactory(
         content: JComponent,
         actions: List<AnAction>,
         actionsPanel: JComponent? = null,
+        edited: Boolean = false,
     ): JComponent {
         if (actions.isNotEmpty()) {
             PopupHandler.installPopupMenu(content, DefaultActionGroup(actions), "GiteaPRTimelinePopup")
@@ -178,7 +190,7 @@ class GiteaPRTimelineItemComponentFactory(
             content,
         ) {
             withHeader(
-                CodeReviewTimelineUIUtil.createTitleTextPane(actorName(item.actor), item.actor?.htmlUrl, item.timestamp),
+                titleTextPane(actorName(item.actor), item.actor?.htmlUrl, item.timestamp, edited),
                 actionsPanel,
             )
         }
@@ -269,20 +281,64 @@ class GiteaPRTimelineItemComponentFactory(
             add(locationRow)
             diffHunkComponent(cs, thread.path, anchor?.diffHunk)?.let { add(it) }
             add(commentsPanel)
+            // Outdated threads (anchored to a diff that's no longer current) can't be replied to.
+            if (!isOutdated) add(replyComposer(cs, thread.id))
         }
     }
 
     private fun threadCommentRow(cs: CoroutineScope, comment: GiteaReviewComment): JComponent {
         val (bodyComponent, actionsPanel) = commentBodyAndActions(cs, comment.id, comment.author?.login, comment.body)
-        val headerRow = HorizontalListPanel(CodeReviewCommentUIUtil.Actions.HORIZONTAL_GAP).apply {
-            add(JBLabel("<html><b>${esc(comment.author?.login ?: "")}</b></html>"))
-            actionsPanel?.let { add(it) }
-        }
-        return VerticalListPanel(2).apply {
-            add(headerRow)
-            add(bodyComponent)
+        return CodeReviewChatItemUIUtil.build(
+            ComponentType.COMPACT,
+            { size -> avatars.getIcon(comment.author, size) },
+            bodyComponent,
+        ) {
+            withHeader(titleTextPane(actorName(comment.author), comment.author?.htmlUrl, comment.createdAt, comment.isEdited), actionsPanel)
         }
     }
+
+    /** [CodeReviewTimelineUIUtil.createTitleTextPane] plus a small "edited" suffix when [edited]. */
+    private fun titleTextPane(name: String, url: String?, timestamp: Date?, edited: Boolean): JComponent {
+        val titlePane = CodeReviewTimelineUIUtil.createTitleTextPane(name, url, timestamp ?: Date())
+        if (!edited) return titlePane
+        return HorizontalListPanel(4).apply {
+            add(titlePane)
+            add(JBLabel(GiteaBundle.message("pull.request.timeline.comment.edited")).apply {
+                foreground = UIUtil.getContextHelpForeground()
+                font = JBFont.small()
+            })
+        }
+    }
+
+    /**
+     * A "Reply" link that swaps in a comment composer (same [GiteaPRCommentFieldFactory] machinery
+     * the top-level "leave a comment" field uses) when clicked, and swaps back once submitted.
+     * Stays hidden while [currentUser] hasn't resolved yet.
+     */
+    private fun replyComposer(cs: CoroutineScope, threadId: Long): JComponent {
+        val wrapper = Wrapper()
+        cs.launch {
+            currentUser.collect { user ->
+                wrapper.setContent(user?.let { replyLink(cs, wrapper, threadId, it) })
+                wrapper.revalidate()
+                wrapper.repaint()
+            }
+        }
+        return wrapper
+    }
+
+    private fun replyLink(cs: CoroutineScope, wrapper: Wrapper, threadId: Long, user: GiteaUser): JComponent =
+        ActionLink(GiteaBundle.message("pull.request.action.reply")) {
+            val replyVm = GiteaPRSubmittableTextViewModel(project, cs) { body ->
+                onReplyToThread(threadId, body)
+                wrapper.setContent(replyLink(cs, wrapper, threadId, user))
+                wrapper.revalidate()
+                wrapper.repaint()
+            }
+            wrapper.setContent(GiteaPRCommentFieldFactory.create(cs, replyVm, avatars, user, mentionCandidates))
+            wrapper.revalidate()
+            wrapper.repaint()
+        }
 
     /**
      * A real, syntax-highlighted, theme-consistent diff preview of the anchor comment's diff

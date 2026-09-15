@@ -22,6 +22,7 @@ data class GiteaReviewComment(
     val resolver: GiteaUser?
 ) {
     val isResolved: Boolean get() = resolver != null
+    val isEdited: Boolean get() = updatedAt != null && createdAt != null && updatedAt != createdAt
 
     companion object {
         fun fromDto(dto: PullReviewComment): GiteaReviewComment = GiteaReviewComment(
