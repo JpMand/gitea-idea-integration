@@ -1,6 +1,10 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details
 
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReview
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreatePullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.MergePullRequestOption
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.SubmitPullReviewOptions
+import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.giteaWriteActionNotImplemented
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.Either
@@ -20,8 +24,14 @@ import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBCheckBox
+import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBOptionButton
+import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.components.JBTextArea
+import com.intellij.ui.components.panels.Wrapper
+import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -46,6 +56,7 @@ class GiteaPRDetailsPanel(
     private val cs: CoroutineScope,
     private val vm: GiteaPRDetailsViewModel,
     private val statusVm: GiteaPRStatusViewModel,
+    private val discussionsVm: GiteaPRDiscussionsViewModels,
     private val changesComponent: JComponent,
     private val onShowTimeline: () -> Unit,
     private val onRefresh: () -> Unit,
@@ -112,6 +123,7 @@ class GiteaPRDetailsPanel(
         }
 
         val actionsComponent = createActionsComponent()
+        val reviewComponent = reviewComposerPanel(cs, discussionsVm)
 
         // Title/nav-bar/branch row: always fully visible, never scrolls on its own.
         val header = VerticalListPanel(0).apply {
@@ -136,6 +148,93 @@ class GiteaPRDetailsPanel(
             add(changesComponent, CC().grow().push())
             add(pad(statusComponent, ReviewDetailsUIUtil.STATUSES_GAPS.top, ReviewDetailsUIUtil.STATUSES_GAPS.bottom), CC().growX())
             add(pad(actionsComponent, COMPACT_ACTIONS_GAP, COMPACT_ACTIONS_GAP), CC().growX())
+            add(pad(reviewComponent, COMPACT_ACTIONS_GAP, COMPACT_ACTIONS_GAP), CC().growX())
+        }
+    }
+
+    // ── review submission ─────────────────────────────────────────────────
+
+    /**
+     * Reactively swaps between the "start a review" composer and a "finish your review" prompt
+     * depending on [GiteaPRDiscussionsViewModels.pendingReview] — a pending review here is
+     * body+verdict only (no per-line composition; that happens in the diff editor, which is also
+     * where [GiteaPRDiscussionsViewModels.draftComments] gets populated).
+     */
+    private fun reviewComposerPanel(cs: CoroutineScope, discussionsVm: GiteaPRDiscussionsViewModels): JComponent {
+        val wrapper = Wrapper()
+        cs.launch {
+            discussionsVm.pendingReview.collect { pending ->
+                wrapper.setContent(
+                    if (pending == null) startReviewPanel(cs, discussionsVm) else finishReviewPanel(cs, discussionsVm, pending),
+                )
+                wrapper.revalidate()
+                wrapper.repaint()
+            }
+        }
+        return wrapper
+    }
+
+    private fun startReviewPanel(cs: CoroutineScope, discussionsVm: GiteaPRDiscussionsViewModels): JComponent {
+        val textArea = reviewTextArea()
+        val draftCountLabel = JBLabel().apply {
+            foreground = UIUtil.getContextHelpForeground()
+            font = JBFont.small()
+        }
+        cs.launch {
+            discussionsVm.draftComments.collect { drafts ->
+                draftCountLabel.text = GiteaBundle.message("pull.request.review.composer.draft.count", drafts.size)
+            }
+        }
+        val buttons = HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
+            add(JButton(GiteaBundle.message("pull.request.action.comment")).apply {
+                addActionListener { discussionsVm.submitReview(CreatePullReviewOptions.Event.COMMENT, textArea.text) }
+            })
+            add(JButton(GiteaBundle.message("pull.request.action.approve")).apply {
+                addActionListener { discussionsVm.submitReview(CreatePullReviewOptions.Event.APPROVED, textArea.text) }
+            })
+            add(JButton(GiteaBundle.message("pull.request.action.request.changes")).apply {
+                addActionListener { discussionsVm.submitReview(CreatePullReviewOptions.Event.REQUESTCHANGES, textArea.text) }
+            })
+            add(JButton(GiteaBundle.message("pull.request.review.save.pending")).apply {
+                addActionListener { discussionsVm.submitReview(CreatePullReviewOptions.Event.PENDING, textArea.text) }
+            })
+        }
+        bindBusyState(cs, discussionsVm, buttons)
+        return VerticalListPanel(4).apply {
+            add(draftCountLabel)
+            add(JBScrollPane(textArea))
+            add(buttons)
+        }
+    }
+
+    private fun finishReviewPanel(cs: CoroutineScope, discussionsVm: GiteaPRDiscussionsViewModels, pending: GiteaReview): JComponent {
+        val textArea = reviewTextArea().apply { text = pending.body.orEmpty() }
+        val buttons = HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
+            add(JButton(GiteaBundle.message("pull.request.action.comment")).apply {
+                addActionListener { discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.COMMENT, textArea.text) }
+            })
+            add(JButton(GiteaBundle.message("pull.request.action.approve")).apply {
+                addActionListener { discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.APPROVED, textArea.text) }
+            })
+            add(JButton(GiteaBundle.message("pull.request.action.request.changes")).apply {
+                addActionListener { discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.REQUESTCHANGES, textArea.text) }
+            })
+        }
+        bindBusyState(cs, discussionsVm, buttons)
+        return VerticalListPanel(4).apply {
+            add(JBLabel(GiteaBundle.message("pull.request.review.pending.banner")).apply { font = JBFont.label().asBold() })
+            add(JBScrollPane(textArea))
+            add(buttons)
+        }
+    }
+
+    private fun reviewTextArea(): JBTextArea = JBTextArea(3, 40).apply { lineWrap = true; wrapStyleWord = true }
+
+    /** [JComponent.setEnabled] doesn't propagate to children in Swing — disable each button
+     * directly so the whole row is inert while a review submission is in flight. */
+    private fun bindBusyState(cs: CoroutineScope, discussionsVm: GiteaPRDiscussionsViewModels, buttons: JComponent) {
+        cs.launch {
+            discussionsVm.isSubmittingReview.collect { busy -> buttons.components.forEach { it.isEnabled = !busy } }
         }
     }
 

@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor
 
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPRDraftComment
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRCommentViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
@@ -7,6 +8,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRThreadViewM
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRCommentFieldFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRSubmittableTextViewModel
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.intellij.collaboration.ui.CollaborationToolsUIUtil
 import com.intellij.collaboration.ui.EditableComponentFactory
 import com.intellij.collaboration.ui.HorizontalListPanel
 import com.intellij.collaboration.ui.codereview.comment.CodeReviewCommentUIUtil
@@ -23,13 +25,15 @@ import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.awt.FlowLayout
 import java.text.SimpleDateFormat
 import javax.swing.*
 
-/** Existing comment threads, read-only display plus resolve/unresolve/reply. Composing a brand
- * new (not-yet-anchored) line comment is a separate, still-unimplemented feature. */
+/** Existing comment threads (read-only display plus resolve/unresolve/reply/edit/delete) and
+ * new-comment composer inlays (a line comment, drafted locally until the whole review is
+ * submitted — see [GiteaPRNewCommentEditorViewModel]). */
 @Suppress("UnstableApiUsage")
 object GiteaPRInlayComponentsFactory {
 
@@ -41,6 +45,7 @@ object GiteaPRInlayComponentsFactory {
     ): ComponentInlayRenderer<JComponent> =
         when (model) {
             is GiteaPRInlayModel.Thread -> CodeReviewComponentInlayRenderer(createThreadPanel(project, cs, model.vm, discussionsVm))
+            is GiteaPRInlayModel.NewComment -> CodeReviewComponentInlayRenderer(createNewCommentPanel(project, cs, model.vm, discussionsVm))
         }
 
     private fun createThreadPanel(
@@ -108,6 +113,88 @@ object GiteaPRInlayComponentsFactory {
             wrapper.revalidate()
             wrapper.repaint()
         }
+
+    /**
+     * A new-comment inlay: shows the composer ([GiteaPRCommentFieldFactory], with a Cancel action
+     * this time) while [GiteaPRNewCommentEditorViewModel.draft] is `null`, then switches to a
+     * compact, locally editable/removable draft row once submitted — never a network call itself,
+     * see [GiteaPRNewCommentEditorViewModel].
+     */
+    private fun createNewCommentPanel(
+        project: Project,
+        cs: CoroutineScope,
+        vm: GiteaPRNewCommentEditorViewModel,
+        discussionsVm: GiteaPRDiscussionsViewModels,
+    ): JComponent {
+        val wrapper = Wrapper()
+        cs.launch {
+            combine(vm.draft, discussionsVm.currentUser) { draft, user -> draft to user }.collect { (draft, user) ->
+                wrapper.setContent(
+                    when {
+                        draft != null -> createDraftRow(project, cs, discussionsVm, vm, draft)
+                        user != null -> GiteaPRCommentFieldFactory.create(
+                            cs, vm.textVm, discussionsVm.avatars, user, discussionsVm.mentionCandidates, onCancel = vm::cancel,
+                        )
+                        else -> null
+                    },
+                )
+                wrapper.revalidate()
+                wrapper.repaint()
+            }
+        }
+        return wrapper
+    }
+
+    private fun createDraftRow(
+        project: Project,
+        cs: CoroutineScope,
+        discussionsVm: GiteaPRDiscussionsViewModels,
+        vm: GiteaPRNewCommentEditorViewModel,
+        draft: GiteaPRDraftComment,
+    ): JComponent {
+        val panel = JPanel()
+        panel.layout = BoxLayout(panel, BoxLayout.Y_AXIS)
+        panel.border = JBUI.Borders.empty(8, 12)
+        panel.add(CollaborationToolsUIUtil.createTagLabel(GiteaBundle.message("pull.request.diff.draft.badge")))
+
+        val bodyArea = JTextArea(draft.body).apply {
+            isEditable = false
+            lineWrap = true
+            wrapStyleWord = true
+            isOpaque = false
+            border = JBUI.Borders.empty(4, 0)
+        }
+        val editVmFlow = MutableStateFlow<CodeReviewTextEditingViewModel?>(null)
+        panel.add(EditableComponentFactory.wrapTextComponent(cs, bodyArea, editVmFlow))
+
+        panel.add(HorizontalListPanel(CodeReviewCommentUIUtil.Actions.HORIZONTAL_GAP).apply {
+            add(CodeReviewCommentUIUtil.createEditButton {
+                val editVm = DraftEditViewModel(project, cs, draft.body, draft.localId, discussionsVm) { editVmFlow.value = null }
+                editVmFlow.value = editVm
+                editVm.requestFocus()
+            })
+            add(CodeReviewCommentUIUtil.createDeleteCommentIconButton { vm.removeDraft() })
+        })
+        return panel
+    }
+
+    private class DraftEditViewModel(
+        project: Project,
+        cs: CoroutineScope,
+        initialText: String,
+        private val localId: Long,
+        private val discussionsVm: GiteaPRDiscussionsViewModels,
+        private val onDone: () -> Unit,
+    ) : CodeReviewSubmittableTextViewModelBase(project, cs, initialText), CodeReviewTextEditingViewModel {
+        override fun save() {
+            submit { newBody ->
+                discussionsVm.updateDraft(localId, newBody)
+                onDone()
+            }
+        }
+
+        override fun stopEditing() = onDone()
+    }
 
     private fun createResolveRow(project: Project, cs: CoroutineScope, vm: GiteaPRThreadViewModel): JComponent {
         val row = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))

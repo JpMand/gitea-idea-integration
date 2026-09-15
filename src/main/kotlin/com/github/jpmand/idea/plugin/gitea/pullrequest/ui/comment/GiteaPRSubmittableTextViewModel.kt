@@ -51,15 +51,23 @@ object GiteaPRCommentFieldFactory {
         iconUser: GiteaUser,
         /** Repo collaborators for `@`-mention completion; `null` skips wiring it up. */
         mentionCandidates: StateFlow<List<GiteaUser>>? = null,
+        /** Adds a "Cancel" action next to Submit — used by dismissible composers (e.g. a new
+         * inline-comment inlay); `null` (the default) omits it, matching every existing caller. */
+        onCancel: (() -> Unit)? = null,
     ): JComponent {
         val submitAction = object : AbstractAction(GiteaBundle.message("pull.request.action.comment")) {
             override fun actionPerformed(e: ActionEvent?) = vm.submitComment()
+        }
+        val cancelAction = onCancel?.let { cancel ->
+            object : AbstractAction(GiteaBundle.message("pull.request.action.cancel")) {
+                override fun actionPerformed(e: ActionEvent?) = cancel()
+            }
         }
         val config = CommentInputActionsComponentFactory.Config(
             primaryAction = MutableStateFlow(submitAction),
             secondaryActions = MutableStateFlow(emptyList()),
             additionalActions = MutableStateFlow(emptyList()),
-            cancelAction = MutableStateFlow(null),
+            cancelAction = MutableStateFlow(cancelAction),
             submitHint = MutableStateFlow(GiteaBundle.message("pull.request.timeline.comment.placeholder")),
         )
         val iconConfig = CommentTextFieldFactory.IconConfig.of(

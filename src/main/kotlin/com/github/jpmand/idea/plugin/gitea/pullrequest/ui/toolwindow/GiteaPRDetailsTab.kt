@@ -69,7 +69,7 @@ class GiteaPRDetailsTab(
         )
         add(
             GiteaPRDetailsPanel(
-                project, cs, detailsVm, statusVm, changesComponent,
+                project, cs, detailsVm, statusVm, discussionsVm, changesComponent,
                 onShowTimeline = onShowTimeline,
                 onRefresh = refresh,
             ).create(),

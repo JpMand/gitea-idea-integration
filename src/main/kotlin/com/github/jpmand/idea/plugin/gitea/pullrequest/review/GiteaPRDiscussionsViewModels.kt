@@ -1,16 +1,24 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.review
 
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPRDraftComment
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReview
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewThread
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreatePullReviewComment
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreatePullReviewOptions
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.SubmitPullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.data.GiteaImageLoader
 import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPullRequestsSettings
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
+import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.codereview.diff.DiscussionsViewOption
 import com.intellij.collaboration.ui.codereview.editor.CodeReviewInEditorViewModel
 import com.intellij.collaboration.ui.icon.AsyncImageIconsProvider
 import com.intellij.collaboration.ui.icon.CachingIconsProvider
 import com.intellij.collaboration.ui.icon.IconsProvider
 import com.intellij.collaboration.util.ComputedResult
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
@@ -18,12 +26,14 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Central ViewModel for the review discussion layer of a single PR.
@@ -74,6 +84,14 @@ class GiteaPRDiscussionsViewModels(
     private val _mentionCandidates = MutableStateFlow<List<GiteaUser>>(emptyList())
     val mentionCandidates: StateFlow<List<GiteaUser>> = _mentionCandidates.asStateFlow()
 
+    /** The signed-in account's own not-yet-submitted review for this PR, if any — surfaced as a
+     * "finish your review" prompt instead of the "start a review" composer. */
+    private val _pendingReview = MutableStateFlow<GiteaReview?>(null)
+    val pendingReview: StateFlow<GiteaReview?> = _pendingReview.asStateFlow()
+
+    private val _isSubmittingReview = MutableStateFlow(false)
+    val isSubmittingReview: StateFlow<Boolean> = _isSubmittingReview.asStateFlow()
+
     // ── Threads ───────────────────────────────────────────────────────────
 
     private val _reloadTrigger = MutableStateFlow(0)
@@ -114,6 +132,19 @@ class GiteaPRDiscussionsViewModels(
                 // Best-effort — a failed lookup just means no mention completion, not an error banner.
             }
         }
+        reloadPendingReview()
+    }
+
+    private fun reloadPendingReview() {
+        cs.launch(Dispatchers.IO) {
+            try {
+                _pendingReview.value = repository.findMyPendingReview(prNumber)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Best-effort — a failed lookup just means no "finish your review" prompt shows.
+            }
+        }
     }
 
     /** Re-fetches all review comments from the API and rebuilds the thread list. */
@@ -136,8 +167,94 @@ class GiteaPRDiscussionsViewModels(
     /** No-op — `updateRequired` is always false so this button is never enabled. */
     override fun updateBranch() = Unit
 
-    // Draft-comment accumulation for new (not-yet-submitted) review comments is a separate,
-    // larger piece of this milestone — not present here yet.
+    // ── Draft comments (not yet submitted) ──────────────────────────────────
+    // Purely local state: Gitea has no endpoint to add a comment to an already-created review
+    // (pending or otherwise), so the whole batch is built up here and submitted as one review —
+    // see GiteaPRRepository.submitReview.
+
+    private val _draftComments = MutableStateFlow<List<GiteaPRDraftComment>>(emptyList())
+    val draftComments: StateFlow<List<GiteaPRDraftComment>> = _draftComments.asStateFlow()
+
+    private var nextDraftId = 0L
+
+    /** Creates a new draft comment and returns it (its [GiteaPRDraftComment.localId] is assigned
+     * here). Purely local — no network call. */
+    fun addDraft(path: String, newLine: Int?, oldLine: Int?, body: String): GiteaPRDraftComment {
+        val draft = GiteaPRDraftComment(nextDraftId++, path, newLine, oldLine, body)
+        _draftComments.value += draft
+        return draft
+    }
+
+    /** Replaces a draft's body in place (identified by [GiteaPRDraftComment.localId]). */
+    fun updateDraft(localId: Long, body: String) {
+        _draftComments.value = _draftComments.value.map { if (it.localId == localId) it.copy(body = body) else it }
+    }
+
+    /** Removes a not-yet-submitted draft comment. Purely local — no network call. */
+    fun removeDraft(localId: Long) {
+        _draftComments.value = _draftComments.value.filterNot { it.localId == localId }
+    }
+
+    /** Returns all current drafts for a specific file path. */
+    fun draftsForPath(path: String): List<GiteaPRDraftComment> = _draftComments.value.filter { it.path == path }
+
+    /**
+     * Submits the current draft batch as a brand-new review with the given verdict — or, when
+     * [event] is `PENDING`, creates a draft review that only becomes visible to others once
+     * [submitPendingReview] finishes it. Clears local drafts and reloads on success.
+     */
+    fun submitReview(event: CreatePullReviewOptions.Event, body: String) {
+        val comments = _draftComments.value.map {
+            CreatePullReviewComment(body = it.body, path = it.path, newPosition = it.newLine?.toLong(), oldPosition = it.oldLine?.toLong())
+        }
+        cs.launch(Dispatchers.IO) {
+            _isSubmittingReview.value = true
+            try {
+                repository.submitReview(
+                    prNumber,
+                    CreatePullReviewOptions(body = body.ifBlank { null }, comments = comments.toTypedArray(), commitId = headSha, event = event),
+                )
+                _draftComments.value = emptyList()
+                reload()
+                reloadPendingReview()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                notifyError("pull.request.action.submit.review.error")
+            } finally {
+                withContext(NonCancellable) { _isSubmittingReview.value = false }
+            }
+        }
+    }
+
+    /** Finishes (submits) the currently pending review with the given verdict — body/event only,
+     * no new comments (Gitea's API has no way to add any to an already-created review). */
+    fun submitPendingReview(event: SubmitPullReviewOptions.Event, body: String) {
+        val reviewId = pendingReview.value?.id ?: return
+        cs.launch(Dispatchers.IO) {
+            _isSubmittingReview.value = true
+            try {
+                repository.submitPendingReview(prNumber, reviewId, SubmitPullReviewOptions(body = body.ifBlank { null }, event = event))
+                reload()
+                reloadPendingReview()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                notifyError("pull.request.action.submit.review.error")
+            } finally {
+                withContext(NonCancellable) { _isSubmittingReview.value = false }
+            }
+        }
+    }
+
+    private suspend fun notifyError(bundleKey: String) {
+        withContext(Dispatchers.Main) {
+            NotificationGroupManager.getInstance()
+                .getNotificationGroup("Gitea")
+                .createNotification(GiteaBundle.message(bundleKey), NotificationType.ERROR)
+                .notify(project)
+        }
+    }
 
     // ── Resolve / unresolve / reply ─────────────────────────────────────────
 
