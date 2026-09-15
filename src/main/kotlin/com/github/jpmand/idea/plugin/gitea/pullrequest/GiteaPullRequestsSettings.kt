@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest
 
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPRDraftComment
 import com.intellij.collaboration.async.mapState
 import com.intellij.collaboration.ui.codereview.diff.DiscussionsViewOption
 import com.intellij.collaboration.util.CollectableSerializablePersistentStateComponent
@@ -33,6 +34,9 @@ internal class GiteaPullRequestsSettings :
         val editorReviewViewOption: DiscussionsViewOption = DiscussionsViewOption.UNRESOLVED_ONLY,
         /** PR number -> repo-relative paths the user has marked "viewed" in the changes tree. */
         val viewedPrFiles: Map<Int, Set<String>> = emptyMap(),
+        /** PR number -> not-yet-submitted inline review comments, so drafts survive closing and
+         * reopening the diff/PR (see [GiteaPRDraftComment]). */
+        val draftComments: Map<Int, List<GiteaPRDraftComment>> = emptyMap(),
     )
 
     var selectedUrlAndAccountId: Pair<String, String>?
@@ -92,6 +96,19 @@ internal class GiteaPullRequestsSettings :
             val current = st.viewedPrFiles[prNumber].orEmpty()
             val next = if (viewed) current + paths else current - paths.toSet()
             st.copy(viewedPrFiles = st.viewedPrFiles + (prNumber to next))
+        }
+    }
+
+    // ── Per-PR draft comments (persisted across sessions) ──────────────────
+
+    fun draftComments(prNumber: Int): List<GiteaPRDraftComment> = state.draftComments[prNumber].orEmpty()
+
+    /** Replaces the entire draft list for [prNumber] — callers own the merge logic (add/update/
+     * remove/clear), this just writes the result through. */
+    fun setDraftComments(prNumber: Int, drafts: List<GiteaPRDraftComment>) {
+        updateStateAndEmit { st ->
+            val next = if (drafts.isEmpty()) st.draftComments - prNumber else st.draftComments + (prNumber to drafts)
+            st.copy(draftComments = next)
         }
     }
 }

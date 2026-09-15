@@ -11,29 +11,52 @@ import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.CollaborationToolsUIUtil
 import com.intellij.collaboration.ui.EditableComponentFactory
 import com.intellij.collaboration.ui.HorizontalListPanel
+import com.intellij.collaboration.ui.VerticalListPanel
+import com.intellij.collaboration.ui.codereview.CodeReviewChatItemUIUtil
+import com.intellij.collaboration.ui.codereview.CodeReviewChatItemUIUtil.ComponentType
+import com.intellij.collaboration.ui.codereview.CodeReviewTimelineUIUtil
 import com.intellij.collaboration.ui.codereview.comment.CodeReviewCommentUIUtil
 import com.intellij.collaboration.ui.codereview.comment.CodeReviewSubmittableTextViewModelBase
 import com.intellij.collaboration.ui.codereview.comment.CodeReviewTextEditingViewModel
 import com.intellij.collaboration.ui.codereview.editor.CodeReviewComponentInlayRenderer
+import com.intellij.collaboration.ui.codereview.timeline.thread.TimelineThreadCommentsPanel
+import com.intellij.diff.util.DiffDrawUtil
+import com.intellij.diff.util.TextDiffType
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.editor.ComponentInlayRenderer
+import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.editor.markup.RangeHighlighter
 import com.intellij.openapi.project.Project
+import com.intellij.ui.CollectionListModel
+import com.intellij.ui.JBColor
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.panels.Wrapper
+import com.intellij.ui.hover.HoverStateListener
+import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import java.awt.Color
+import java.awt.Component
 import java.awt.FlowLayout
-import java.text.SimpleDateFormat
+import java.util.Date
 import javax.swing.*
 
 /** Existing comment threads (read-only display plus resolve/unresolve/reply/edit/delete) and
  * new-comment composer inlays (a line comment, drafted locally until the whole review is
- * submitted — see [GiteaPRNewCommentEditorViewModel]). */
+ * submitted — see [GiteaPRNewCommentEditorViewModel]).
+ *
+ * Comment rows are built with [CodeReviewChatItemUIUtil.build] (avatar + header + hover-reveal
+ * actions) — the same platform shell
+ * [com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineItemComponentFactory]
+ * uses for the Timeline's own comment rows, so a thread looks the same whether it's read from the
+ * diff editor or the Timeline. */
 @Suppress("UnstableApiUsage")
 object GiteaPRInlayComponentsFactory {
 
@@ -44,9 +67,53 @@ object GiteaPRInlayComponentsFactory {
         discussionsVm: GiteaPRDiscussionsViewModels,
     ): ComponentInlayRenderer<JComponent> =
         when (model) {
-            is GiteaPRInlayModel.Thread -> CodeReviewComponentInlayRenderer(createThreadPanel(project, cs, model.vm, discussionsVm))
-            is GiteaPRInlayModel.NewComment -> CodeReviewComponentInlayRenderer(createNewCommentPanel(project, cs, model.vm, discussionsVm))
+            is GiteaPRInlayModel.Thread -> {
+                val card = CodeReviewCommentUIUtil.createEditorInlayPanel(createThreadPanel(project, cs, model.vm, discussionsVm))
+                installHoverAnchorHighlight(card, model.editor, model.editorLineIdx, discussionsVm.highlightDiffLines)
+                CodeReviewComponentInlayRenderer(withInlayMargin(card))
+            }
+            is GiteaPRInlayModel.NewComment -> CodeReviewComponentInlayRenderer(
+                withInlayMargin(CodeReviewCommentUIUtil.createEditorInlayPanel(createNewCommentPanel(project, cs, model.vm, discussionsVm))),
+            )
         }
+
+    /** Breathing room between the rounded card and the surrounding code lines — the inlay
+     * machinery itself adds none (it's just a component appended after a line's end offset). */
+    private fun withInlayMargin(card: JComponent): JComponent =
+        Wrapper(card).apply { border = JBUI.Borders.empty(CodeReviewChatItemUIUtil.THREAD_TOP_MARGIN, 0) }
+
+    /**
+     * While [enabled] and the card is hovered, highlights [lineIdx] in [editor] the same way
+     * [com.intellij.collaboration.ui.codereview.timeline.TimelineDiffComponentFactory]'s own
+     * diff-hunk preview highlights its anchor line (`AnchorLine`, same named color) — via
+     * [DiffDrawUtil.createHighlighter], the public/stable diff API, disposing the highlighter on
+     * hover-out.
+     */
+    private fun installHoverAnchorHighlight(card: JComponent, editor: Editor, lineIdx: Int, enabled: StateFlow<Boolean>) {
+        object : HoverStateListener() {
+            private var highlighters: List<RangeHighlighter> = emptyList()
+
+            override fun hoverChanged(component: Component, hovered: Boolean) {
+                highlighters.forEach { it.dispose() }
+                highlighters = if (hovered && enabled.value) {
+                    DiffDrawUtil.createHighlighter(editor, lineIdx, lineIdx + 1, CommentAnchorLineType, false)
+                } else {
+                    emptyList()
+                }
+            }
+        }.apply { mouseExited(card) }.addTo(card)
+    }
+
+    /** Mirrors [com.intellij.collaboration.ui.codereview.timeline.TimelineDiffComponentFactory]'s
+     * internal `AnchorLine` (same named color, same fallback) — that one is `@ApiStatus.Internal`
+     * only because it lives in `collaboration-tools`; [TextDiffType] itself is public/stable. */
+    private object CommentAnchorLineType : TextDiffType {
+        override fun getName(): String = "Gitea Comment Anchor Line"
+        override fun getColor(editor: Editor?): Color =
+            JBColor.namedColor("Review.Timeline.Thread.Diff.AnchorLine", JBColor(0xFBF1D1, 0x544B2D))
+        override fun getIgnoredColor(editor: Editor?): Color = getColor(editor)
+        override fun getMarkerColor(editor: Editor?): Color = getColor(editor)
+    }
 
     private fun createThreadPanel(
         project: Project,
@@ -54,18 +121,22 @@ object GiteaPRInlayComponentsFactory {
         vm: GiteaPRThreadViewModel,
         discussionsVm: GiteaPRDiscussionsViewModels,
     ): JComponent {
-        val panel = JPanel()
-        panel.layout = BoxLayout(panel, BoxLayout.Y_AXIS)
-        panel.border = JBUI.Borders.empty(8, 12)
+        val commentsPanel = TimelineThreadCommentsPanel(
+            CollectionListModel(vm.commentVMs),
+            { commentVm -> createCommentPanel(project, cs, discussionsVm, commentVm) },
+        )
 
-        for (commentVm in vm.commentVMs) {
-            panel.add(createCommentPanel(project, cs, discussionsVm, commentVm))
-            panel.add(Box.createVerticalStrut(JBUI.scale(6)))
-        }
-
-        panel.add(createResolveRow(project, cs, vm))
+        // 4/CodeReviewCommentUIUtil.INLAY_PADDING(=10) matches ComponentType.COMPACT's own padding
+        // insets, so these rows line up with the comment rows above them. The vertical gap between
+        // rows (comments/resolve/reply) gets a little breathing room too — COMPACT's own 4px
+        // top/bottom inset per row reads as cramped when several rows stack directly.
+        val panel = VerticalListPanel(4)
+        panel.add(commentsPanel)
+        panel.add(createResolveRow(project, cs, vm).apply { border = JBUI.Borders.empty(4, 10) })
         // Outdated threads (anchored to a diff that's no longer current) can't be replied to.
-        if (!vm.isOutdated) panel.add(replyComposer(project, cs, discussionsVm, vm.id))
+        if (!vm.isOutdated) {
+            panel.add(replyComposer(project, cs, discussionsVm, vm.lastCommentId).apply { border = JBUI.Borders.empty(4, 10) })
+        }
 
         return panel
     }
@@ -131,7 +202,7 @@ object GiteaPRInlayComponentsFactory {
             combine(vm.draft, discussionsVm.currentUser) { draft, user -> draft to user }.collect { (draft, user) ->
                 wrapper.setContent(
                     when {
-                        draft != null -> createDraftRow(project, cs, discussionsVm, vm, draft)
+                        draft != null -> createDraftRow(project, cs, discussionsVm, vm, draft, user)
                         user != null -> GiteaPRCommentFieldFactory.create(
                             cs, vm.textVm, discussionsVm.avatars, user, discussionsVm.mentionCandidates, onCancel = vm::cancel,
                         )
@@ -151,12 +222,8 @@ object GiteaPRInlayComponentsFactory {
         discussionsVm: GiteaPRDiscussionsViewModels,
         vm: GiteaPRNewCommentEditorViewModel,
         draft: GiteaPRDraftComment,
+        user: GiteaUser?,
     ): JComponent {
-        val panel = JPanel()
-        panel.layout = BoxLayout(panel, BoxLayout.Y_AXIS)
-        panel.border = JBUI.Borders.empty(8, 12)
-        panel.add(CollaborationToolsUIUtil.createTagLabel(GiteaBundle.message("pull.request.diff.draft.badge")))
-
         val bodyArea = JTextArea(draft.body).apply {
             isEditable = false
             lineWrap = true
@@ -165,17 +232,24 @@ object GiteaPRInlayComponentsFactory {
             border = JBUI.Borders.empty(4, 0)
         }
         val editVmFlow = MutableStateFlow<CodeReviewTextEditingViewModel?>(null)
-        panel.add(EditableComponentFactory.wrapTextComponent(cs, bodyArea, editVmFlow))
+        val bodyComponent = EditableComponentFactory.wrapTextComponent(cs, bodyArea, editVmFlow)
 
-        panel.add(HorizontalListPanel(CodeReviewCommentUIUtil.Actions.HORIZONTAL_GAP).apply {
+        val actionsPanel = HorizontalListPanel(CodeReviewCommentUIUtil.Actions.HORIZONTAL_GAP).apply {
             add(CodeReviewCommentUIUtil.createEditButton {
                 val editVm = DraftEditViewModel(project, cs, draft.body, draft.localId, discussionsVm) { editVmFlow.value = null }
                 editVmFlow.value = editVm
                 editVm.requestFocus()
             })
             add(CodeReviewCommentUIUtil.createDeleteCommentIconButton { vm.removeDraft() })
-        })
-        return panel
+        }
+
+        return CodeReviewChatItemUIUtil.build(
+            ComponentType.COMPACT,
+            { size -> discussionsVm.avatars.getIcon(user, size) },
+            bodyComponent,
+        ) {
+            withHeader(CollaborationToolsUIUtil.createTagLabel(GiteaBundle.message("pull.request.diff.draft.badge")), actionsPanel)
+        }
     }
 
     private class DraftEditViewModel(
@@ -224,19 +298,31 @@ object GiteaPRInlayComponentsFactory {
         discussionsVm: GiteaPRDiscussionsViewModels,
         vm: GiteaPRCommentViewModel,
     ): JComponent {
-        val panel = JPanel()
-        panel.layout = BoxLayout(panel, BoxLayout.Y_AXIS)
-        val authorText = vm.author?.login ?: "unknown"
-        val dateText = vm.createdAt?.let { SimpleDateFormat("yyyy-MM-dd").format(it) } ?: ""
-        val editedText = if (vm.comment.isEdited) " " + GiteaBundle.message("pull.request.timeline.comment.edited") else ""
-        val header = JLabel("<html><b>$authorText</b>&nbsp;&nbsp;<span color='gray'>$dateText$editedText</span></html>")
-        panel.add(header)
-
         val (bodyComponent, actionsPanel) = commentBodyAndActions(project, cs, discussionsVm, vm)
-        panel.add(bodyComponent)
-        actionsPanel?.let { panel.add(it) }
-        return panel
+        return CodeReviewChatItemUIUtil.build(
+            ComponentType.COMPACT,
+            { size -> discussionsVm.avatars.getIcon(vm.author, size) },
+            bodyComponent,
+        ) {
+            withHeader(titleTextPane(authorName(vm.author), vm.author?.htmlUrl, vm.createdAt, vm.comment.isEdited), actionsPanel)
+        }
     }
+
+    /** [CodeReviewTimelineUIUtil.createTitleTextPane] plus a small "edited" suffix when [edited] —
+     * matches [com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineItemComponentFactory.titleTextPane]. */
+    private fun titleTextPane(name: String, url: String?, timestamp: Date?, edited: Boolean): JComponent {
+        val titlePane = CodeReviewTimelineUIUtil.createTitleTextPane(name, url, timestamp ?: Date())
+        if (!edited) return titlePane
+        return HorizontalListPanel(4).apply {
+            add(titlePane)
+            add(JLabel(GiteaBundle.message("pull.request.timeline.comment.edited")).apply {
+                foreground = UIUtil.getContextHelpForeground()
+                font = JBFont.small()
+            })
+        }
+    }
+
+    private fun authorName(user: GiteaUser?): String = user?.let { it.fullName ?: it.login } ?: "unknown"
 
     /**
      * Renders a comment's body, swappable in-place for an editor when its own author clicks Edit

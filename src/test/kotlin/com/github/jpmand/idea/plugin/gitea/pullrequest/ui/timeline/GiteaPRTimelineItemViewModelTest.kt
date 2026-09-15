@@ -10,7 +10,7 @@ class GiteaPRTimelineItemViewModelTest {
 
     private fun date(min: Int) = Date(1_700_000_000_000L + min * 60_000L)
     private fun comment(min: Int) = GiteaTimelineItem.Comment(min.toLong(), null, date(min), "c$min", null)
-    private fun commit(min: Int) = GiteaTimelineItem.Commit(min.toLong(), null, date(min), "sha$min", "sha$min", "msg$min", null)
+    private fun commit(min: Int) = GiteaTimelineItem.Commit(min.toLong(), null, date(min), null, "sha$min", "sha$min", "msg$min", null)
     private fun review(min: Int) =
         GiteaTimelineItem.Review(min.toLong(), null, date(min), GiteaReviewState.COMMENT, null, null, emptyList())
 

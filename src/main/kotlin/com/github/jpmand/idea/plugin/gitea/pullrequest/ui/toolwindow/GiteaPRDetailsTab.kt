@@ -39,7 +39,7 @@ class GiteaPRDetailsTab(
     private val diffFile = GiteaPRDiffVirtualFile(pr.number.toInt(), cs, project, repository, diffVm, discussionsVm)
 
     private val changesComponent = GiteaPRChangesTreeComponentFactory.create(
-        cs, project, pr, repository,
+        cs, project, pr, repository, discussionsVm,
         selectedCommitFlow = detailsVm.changesVm.selectedCommit,
         onOpenChange = { relPath ->
             val list = diffVm.changes.value?.result?.getOrNull()?.selectedChanges?.list.orEmpty()

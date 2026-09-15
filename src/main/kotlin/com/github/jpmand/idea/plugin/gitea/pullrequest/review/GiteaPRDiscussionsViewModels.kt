@@ -40,7 +40,7 @@ import kotlinx.coroutines.withContext
  *
  * Responsibilities:
  * - Loads and groups review comments into synthetic [GiteaReviewThread]s
- * - Manages in-memory draft comments accumulated before review submission
+ * - Manages per-PR-persisted draft comments accumulated before review submission
  * - Provides resolve/unresolve operations (API call → automatic reload)
  *
  * Scoped to the PR panel lifetime (same scope as the diff VM).
@@ -168,31 +168,38 @@ class GiteaPRDiscussionsViewModels(
     override fun updateBranch() = Unit
 
     // ── Draft comments (not yet submitted) ──────────────────────────────────
-    // Purely local state: Gitea has no endpoint to add a comment to an already-created review
-    // (pending or otherwise), so the whole batch is built up here and submitted as one review —
-    // see GiteaPRRepository.submitReview.
+    // Gitea has no endpoint to add a comment to an already-created review (pending or otherwise),
+    // so the whole batch is built up here and submitted as one review — see
+    // GiteaPRRepository.submitReview. Persisted per-PR via GiteaPullRequestsSettings so drafts
+    // survive closing and reopening the diff/PR, not just in-memory for the panel's lifetime.
 
-    private val _draftComments = MutableStateFlow<List<GiteaPRDraftComment>>(emptyList())
+    private val _draftComments = MutableStateFlow(settings.draftComments(prNumber))
     val draftComments: StateFlow<List<GiteaPRDraftComment>> = _draftComments.asStateFlow()
 
-    private var nextDraftId = 0L
+    private var nextDraftId = (_draftComments.value.maxOfOrNull { it.localId } ?: -1L) + 1L
+
+    private fun updateDrafts(transform: (List<GiteaPRDraftComment>) -> List<GiteaPRDraftComment>) {
+        val next = transform(_draftComments.value)
+        _draftComments.value = next
+        settings.setDraftComments(prNumber, next)
+    }
 
     /** Creates a new draft comment and returns it (its [GiteaPRDraftComment.localId] is assigned
      * here). Purely local — no network call. */
     fun addDraft(path: String, newLine: Int?, oldLine: Int?, body: String): GiteaPRDraftComment {
         val draft = GiteaPRDraftComment(nextDraftId++, path, newLine, oldLine, body)
-        _draftComments.value += draft
+        updateDrafts { it + draft }
         return draft
     }
 
     /** Replaces a draft's body in place (identified by [GiteaPRDraftComment.localId]). */
     fun updateDraft(localId: Long, body: String) {
-        _draftComments.value = _draftComments.value.map { if (it.localId == localId) it.copy(body = body) else it }
+        updateDrafts { drafts -> drafts.map { if (it.localId == localId) it.copy(body = body) else it } }
     }
 
     /** Removes a not-yet-submitted draft comment. Purely local — no network call. */
     fun removeDraft(localId: Long) {
-        _draftComments.value = _draftComments.value.filterNot { it.localId == localId }
+        updateDrafts { drafts -> drafts.filterNot { it.localId == localId } }
     }
 
     /** Returns all current drafts for a specific file path. */
@@ -214,7 +221,7 @@ class GiteaPRDiscussionsViewModels(
                     prNumber,
                     CreatePullReviewOptions(body = body.ifBlank { null }, comments = comments.toTypedArray(), commitId = headSha, event = event),
                 )
-                _draftComments.value = emptyList()
+                updateDrafts { emptyList() }
                 reload()
                 reloadPendingReview()
             } catch (e: CancellationException) {
@@ -275,9 +282,11 @@ class GiteaPRDiscussionsViewModels(
         reload()
     }
 
-    /** Replies to the thread identified by [threadId] (its anchor comment's id) and reloads. */
-    suspend fun replyToThread(threadId: Long, body: String) {
-        repository.replyToComment(prNumber, threadId, body)
+    /** Replies to the given review comment — callers pass the *last* comment in the thread they
+     * mean to continue (see [GiteaPRThreadViewModel.lastCommentId]), not the anchor, so Gitea's
+     * reply endpoint threads the conversation correctly. */
+    suspend fun replyToThread(commentId: Long, body: String) {
+        repository.replyToComment(prNumber, commentId, body)
         reload()
     }
 

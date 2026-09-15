@@ -55,7 +55,7 @@ class GiteaPRDiffExtension : DiffExtension() {
                     launchNow {
                         ReviewInEditorUtil.showReviewToolbarWithActions(discussionsVm, editor, submitReviewAction(discussionsVm))
                     }
-                    GiteaPRDiffEditorModel(this, project, fileVm.file, side, discussionsVm, locationToLine, lineToLocation)
+                    GiteaPRDiffEditorModel(this, project, fileVm.file, side, discussionsVm, locationToLine, lineToLocation, editor)
                 },
                 rendererFactory = { inlayModel ->
                     GiteaPRInlayComponentsFactory.createRenderer(project, this, inlayModel, discussionsVm)

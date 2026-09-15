@@ -1,13 +1,18 @@
 package com.github.jpmand.idea.plugin.gitea.api.models
 
+import kotlinx.serialization.Serializable
+
 /**
  * A not-yet-submitted inline review comment, held entirely client-side until the whole batch is
  * submitted as one review (`POST .../pulls/{index}/reviews` — Gitea has no endpoint to add a
  * comment to an already-created review, pending or otherwise, so this must accumulate locally).
+ * Persisted per-PR in [com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPullRequestsSettings]
+ * so drafts survive closing and reopening the diff/PR — hence [Serializable].
  *
  * [localId] is assigned client-side (never a server id) — used only to address a draft for
  * later edit/removal before it's ever sent.
  */
+@Serializable
 data class GiteaPRDraftComment(
     val localId: Long,
     val path: String,

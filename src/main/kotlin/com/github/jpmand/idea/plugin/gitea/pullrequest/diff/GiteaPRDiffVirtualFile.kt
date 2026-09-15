@@ -28,7 +28,7 @@ class GiteaPRDiffVirtualFile(
     private val repository: GiteaPRRepository,
     private val vm: GiteaPRDiffViewModel,
     private val discussionsVm: GiteaPRDiscussionsViewModels,
-) : DiffViewerVirtualFile("gitea-pr-$prNumber") {
+) : DiffViewerVirtualFile("Diff for Pull Request #$prNumber") {
 
     override fun isValid(): Boolean = !project.isDisposed
 

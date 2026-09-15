@@ -15,6 +15,11 @@ class GiteaPRThreadViewModel(
     /** Synthetic thread ID — equals the anchor comment's server ID. */
     val id: Long get() = thread.id
 
+    /** The comment id to target when replying — Gitea's reply endpoint parents a reply to one
+     * specific comment, so continuing the conversation should target the most recent comment in
+     * the thread (not always the anchor) for the reply chain to thread correctly. */
+    val lastCommentId: Long get() = thread.comments.lastOrNull()?.id ?: id
+
     val path: String? get() = thread.path
 
     /** 1-indexed head-file line; null for base-only threads. */

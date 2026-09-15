@@ -15,14 +15,21 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import git4idea.branch.GitBrancher
 import git4idea.fetch.GitFetchSupport
+import git4idea.remote.hosting.GitCodeReviewUtils
+import git4idea.repo.GitRemote
+import git4idea.repo.GitRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlin.coroutines.resume
 
 /**
- * "Checkout" for the PR-details header: fetches the PR's head commit and checks out a local
- * branch for it, using git4idea's public [GitFetchSupport] / [GitBrancher] — no local git working
- * copy is touched until the user explicitly asks for this.
+ * "Checkout" for the PR-details header: fetches the PR's head commit (Gitea, like GitHub,
+ * maintains `refs/pull/<index>/head` in the base repository, kept in sync with the PR's current
+ * head commit — this works uniformly for same-repo and fork PRs alike, so there's no need to add
+ * the fork as a separate remote) and checks out a local branch for it, using
+ * [GitCodeReviewUtils.fetch] (the same review-ref fetch helper the bundled GitHub/GitLab plugins
+ * use) and git4idea's public [GitBrancher] — no local git working copy is touched until the user
+ * explicitly asks for this.
  */
 @Suppress("UnstableApiUsage")
 class GiteaPRBranchesViewModel(
@@ -46,38 +53,12 @@ class GiteaPRBranchesViewModel(
     val isResolvingConflicts: StateFlow<Boolean> = _isResolvingConflicts.asStateFlow()
 
     override fun fetchAndCheckoutRemoteBranch() {
-        val pr = prFlow.value
         val mapping = findRepositoryMapping()
         if (mapping == null) {
             notifyError(GiteaBundle.message("pull.request.branch.checkout.no.repository"))
             return
         }
-        val gitRepository = mapping.gitRepository
-        val remote = mapping.gitRemote
-
-        // Gitea (like GitHub) maintains `refs/pull/<index>/head` in the base repository, kept in
-        // sync with the PR's current head commit — this works uniformly for same-repo and fork
-        // PRs alike, so there's no need to add the fork as a separate remote.
-        val prRef = "refs/pull/${pr.number}/head"
-        val localRef = "refs/${pr.head.ref}/head"
-        val branchName = pr.head.ref
-
-        cs.launch {
-            val fetchResult = withContext(Dispatchers.IO) {
-                GitFetchSupport.fetchSupport(project).fetch(gitRepository, remote, "$prRef:$localRef")
-            }
-            if (!fetchResult.isSuccessful()) {
-                withContext(Dispatchers.EDT) { fetchResult.showNotificationIfFailed() }
-                return@launch
-            }
-            withContext(Dispatchers.EDT) {
-                GitBrancher.getInstance(project).checkoutNewBranchStartingFrom(
-                    branchName, localRef, listOf(gitRepository),
-                ) {
-                    _isCheckedOut.value = true
-                }
-            }
-        }
+        cs.launch { checkoutPrBranch(mapping, prFlow.value) }
     }
 
     override fun showBranches() {
@@ -132,13 +113,7 @@ class GiteaPRBranchesViewModel(
         val localRef = "refs/${pr.head.ref}/head"
         val branchName = pr.head.ref
 
-        val fetchResult = withContext(Dispatchers.IO) {
-            GitFetchSupport.fetchSupport(project).fetch(mapping.gitRepository, mapping.gitRemote, "$prRef:$localRef")
-        }
-        if (!fetchResult.isSuccessful()) {
-            withContext(Dispatchers.EDT) { fetchResult.showNotificationIfFailed() }
-            return false
-        }
+        if (!fetch(mapping.gitRepository, mapping.gitRemote, "$prRef:$localRef")) return false
 
         return suspendCancellableCoroutine { cont ->
             ApplicationManager.getApplication().invokeLater {
@@ -151,6 +126,24 @@ class GiteaPRBranchesViewModel(
             }
         }
     }
+
+    /**
+     * Fetches [refspec] via [GitCodeReviewUtils.fetch] — unlike [GitFetchSupport] (still used for
+     * the base-branch fetch in [resolveConflicts], which has no refspec to hand it), it only
+     * throws on failure rather than returning a result to check, so failures are turned into a
+     * plugin notification here instead.
+     */
+    private suspend fun fetch(gitRepository: GitRepository, remote: GitRemote, refspec: String): Boolean =
+        try {
+            GitCodeReviewUtils.fetch(gitRepository, remote, refspec)
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            val detail = e.message?.let { ":\n$it" } ?: ""
+            notifyError(GiteaBundle.message("pull.request.branch.checkout.fetch.failed", detail))
+            false
+        }
 
     /**
      * A one-time snapshot taken when the VM is created (or after a checkout this session) —

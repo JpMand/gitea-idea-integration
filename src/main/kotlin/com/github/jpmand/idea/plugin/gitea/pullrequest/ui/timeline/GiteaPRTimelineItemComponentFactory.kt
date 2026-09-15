@@ -274,7 +274,9 @@ class GiteaPRTimelineItemComponentFactory(
             diffHunkComponent(cs, thread.path, anchor?.diffHunk)?.let { add(it) }
             add(commentsPanel)
             // Outdated threads (anchored to a diff that's no longer current) can't be replied to.
-            if (!isOutdated) add(replyComposer(cs, thread.id))
+            // Reply targets the thread's last comment (not the anchor) so Gitea's reply chain
+            // threads correctly — see GiteaPRThreadViewModel.lastCommentId.
+            if (!isOutdated) add(replyComposer(cs, thread.comments.lastOrNull()?.id ?: thread.id))
         }
     }
 

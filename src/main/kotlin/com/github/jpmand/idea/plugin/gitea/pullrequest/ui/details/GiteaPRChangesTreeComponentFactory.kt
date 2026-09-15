@@ -4,6 +4,7 @@ import com.github.jpmand.idea.plugin.gitea.api.models.GiteaCommit
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.GiteaPRFileStatusEnum
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
+import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.LoadingLabel
 import com.intellij.collaboration.ui.codereview.CodeReviewProgressTreeModelFromDetails
@@ -44,6 +45,7 @@ object GiteaPRChangesTreeComponentFactory {
         project: Project,
         pr: GiteaPullRequest,
         repository: GiteaPRRepository,
+        discussionsVm: GiteaPRDiscussionsViewModels,
         selectedCommitFlow: Flow<GiteaCommit?>,
         onOpenChange: (String) -> Unit,
     ): JComponent {
@@ -69,6 +71,7 @@ object GiteaPRChangesTreeComponentFactory {
                         val before = Sha(beforeSha)
                         val after = Sha(afterSha)
                         val relPathByChange = LinkedHashMap<RefComparisonChange, String>()
+                        val previousRelPathByChange = LinkedHashMap<RefComparisonChange, String>()
                         val changes = files.map { file ->
                             val newPath = filePath(repoRoot, file.filename)
                             val oldPath = file.previousFilename?.let { filePath(repoRoot, it) } ?: newPath
@@ -80,11 +83,12 @@ object GiteaPRChangesTreeComponentFactory {
                                 else -> RefComparisonChange(before, newPath, after, newPath)
                             }
                             relPathByChange[change] = file.filename
+                            file.previousFilename?.let { previousRelPathByChange[change] = it }
                             change
                         }
                         val vm = GiteaPRChangesTreeViewModel(
-                            cs, project, pr.number.toInt(),
-                            CodeReviewChangeList(afterSha, changes), relPathByChange, onOpenChange,
+                            cs, project, pr.number.toInt(), CodeReviewChangeList(afterSha, changes),
+                            relPathByChange, previousRelPathByChange, discussionsVm, onOpenChange,
                         )
                         val progressModel = CodeReviewProgressTreeModelFromDetails(cs, vm)
                         val tree = CodeReviewChangeListComponentFactory.createIn(

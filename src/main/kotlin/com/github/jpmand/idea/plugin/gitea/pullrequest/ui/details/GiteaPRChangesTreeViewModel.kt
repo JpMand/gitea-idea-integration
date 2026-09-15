@@ -1,6 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details
 
 import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPullRequestsSettings
+import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.intellij.collaboration.ui.codereview.details.model.CodeReviewChangeDetails
 import com.intellij.collaboration.ui.codereview.details.model.CodeReviewChangeList
 import com.intellij.collaboration.ui.codereview.details.model.CodeReviewChangeListViewModel
@@ -18,7 +19,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 
 /**
@@ -26,7 +27,8 @@ import kotlinx.coroutines.flow.stateIn
  * interfaces directly (no internal `CodeReviewChangeListViewModelBase`): it is a plain selection
  * state holder plus [CodeReviewChangeListViewModel.WithGrouping] (directory tree, backed by
  * [GiteaPullRequestsSettings.changesGroupingState]) and [CodeReviewChangeListViewModel.WithViewedState]
- * (the per-file "viewed" checkbox, persisted per PR in [GiteaPullRequestsSettings.viewedPrFiles]).
+ * (the per-file "viewed" checkbox, persisted per PR in [GiteaPullRequestsSettings.viewedPrFiles],
+ * plus the per-file review-comment count badge, derived from [discussionsVm]).
  */
 @Suppress("UnstableApiUsage")
 class GiteaPRChangesTreeViewModel(
@@ -36,6 +38,11 @@ class GiteaPRChangesTreeViewModel(
     changeList: CodeReviewChangeList,
     /** repo-relative path per change — the stable persistence key for viewed state. */
     private val relPathByChange: Map<RefComparisonChange, String>,
+    /** the pre-rename path per change, present only for renamed/copied files — a comment can be
+     * anchored to either side of a rename (see [com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRNewCommentEditorViewModel.path]),
+     * so the badge count must sum both paths for those files. */
+    private val previousRelPathByChange: Map<RefComparisonChange, String>,
+    private val discussionsVm: GiteaPRDiscussionsViewModels,
     private val onOpenChange: (String) -> Unit,
 ) : CodeReviewChangeListViewModel.WithGrouping,
     CodeReviewChangeListViewModel.WithViewedState {
@@ -64,15 +71,23 @@ class GiteaPRChangesTreeViewModel(
     }
 
     override val detailsByChange: StateFlow<Map<RefComparisonChange, CodeReviewChangeDetails>> =
-        settings.viewedFilesState(prNumber)
-            .map { viewed -> changes.associateWith { CodeReviewChangeDetails(relPathByChange[it] in viewed, 0) } }
-            .stateIn(
-                cs,
-                SharingStarted.Eagerly,
-                changes.associateWith {
-                    CodeReviewChangeDetails(settings.isViewed(prNumber, relPathByChange[it].orEmpty()), 0)
-                },
-            )
+        combine(settings.viewedFilesState(prNumber), discussionsVm.threads) { viewed, threadsResult ->
+            val countsByPath = threadsResult?.result?.getOrNull().orEmpty()
+                .filter { it.path != null }
+                .groupBy { it.path!! }
+                .mapValues { (_, threads) -> threads.sumOf { it.commentVMs.size } }
+            changes.associateWith { change ->
+                val count = (relPathByChange[change]?.let { countsByPath[it] } ?: 0) +
+                    (previousRelPathByChange[change]?.let { countsByPath[it] } ?: 0)
+                CodeReviewChangeDetails(relPathByChange[change] in viewed, count)
+            }
+        }.stateIn(
+            cs,
+            SharingStarted.Eagerly,
+            changes.associateWith {
+                CodeReviewChangeDetails(settings.isViewed(prNumber, relPathByChange[it].orEmpty()), 0)
+            },
+        )
 
     @RequiresEdt
     override fun setViewedState(changes: Iterable<RefComparisonChange>, viewed: Boolean) {

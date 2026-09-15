@@ -7,6 +7,7 @@ import com.intellij.collaboration.ui.codereview.diff.DiscussionsViewOption
 import com.intellij.collaboration.ui.codereview.editor.CodeReviewEditorGutterControlsModel
 import com.intellij.collaboration.ui.codereview.editor.CodeReviewEditorModel
 import com.intellij.diff.util.Side
+import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import kotlinx.coroutines.CoroutineScope
@@ -33,14 +34,20 @@ class GiteaPRDiffEditorModel(
     private val discussionsVm: GiteaPRDiscussionsViewModels,
     private val locationToLine: (DiffLineLocation) -> Int?,
     private val lineToLocation: (Int) -> DiffLineLocation?,
+    private val editor: Editor,
 ) : CodeReviewEditorModel<GiteaPRInlayModel> {
 
     private val path: String get() = file.filename
 
     // ── Thread inlays (existing server-side review threads) ────────────────
 
+    /** Lines whose thread inlay is folded via the gutter comment icon (see [toggleComments]) —
+     * the inlay hides, but the gutter icon itself stays visible as a reference (driven
+     * unconditionally by [gutterControlsState], not this set). */
+    private val _collapsedLines = MutableStateFlow<Set<Int>>(emptySet())
+
     private val threadInlays: StateFlow<List<GiteaPRInlayModel.Thread>> =
-        combine(discussionsVm.threads, discussionsVm.discussionsViewOption) { result, viewOption ->
+        combine(discussionsVm.threads, discussionsVm.discussionsViewOption, _collapsedLines) { result, viewOption, collapsed ->
             if (viewOption == DiscussionsViewOption.DONT_SHOW) return@combine emptyList()
             val threadVms = result?.result?.getOrNull() ?: emptyList()
             threadVms.mapNotNull { vm ->
@@ -52,7 +59,7 @@ class GiteaPRDiffEditorModel(
                     null -> vm.newLine?.let { locationToLine(Pair(Side.RIGHT, it - 1)) }
                         ?: vm.oldLine?.let { locationToLine(Pair(Side.LEFT, it - 1)) }
                 } ?: return@mapNotNull null
-                GiteaPRInlayModel.Thread(vm, lineIdx)
+                GiteaPRInlayModel.Thread(vm, lineIdx, editor, MutableStateFlow(lineIdx !in collapsed))
             }
         }.stateIn(cs, SharingStarted.Eagerly, emptyList())
 
@@ -71,16 +78,16 @@ class GiteaPRDiffEditorModel(
             .stateIn(cs, SharingStarted.Eagerly, emptyList())
 
     // ── Gutter controls state ─────────────────────────────────────────────
-    // linesWithComments (which lines get a highlighted gutter marker) is gated by the
-    // "highlight lines with comments" setting. isLineCommentable is permissive — any line that
-    // maps to a real file line on either side is commentable; whether Gitea's server itself
-    // restricts to changed-only lines isn't determinable client-side (no unified-diff/hunk data
-    // is fetched here — see GiteaPRDiffFileViewModel, which diffs full file content instead).
+    // linesWithComments (which lines get the gutter comment icon) is unconditional — every line
+    // with a thread gets the icon, always, matching GitHub's behavior. isLineCommentable is
+    // permissive — any line that maps to a real file line on either side is commentable; whether
+    // Gitea's server itself restricts to changed-only lines isn't determinable client-side (no
+    // unified-diff/hunk data is fetched here — see GiteaPRDiffFileViewModel, which diffs full file
+    // content instead).
 
     override val gutterControlsState: StateFlow<CodeReviewEditorGutterControlsModel.ControlsState?> =
-        combine(threadInlays, discussionsVm.discussionsViewOption, discussionsVm.highlightDiffLines, _newCommentVms) {
-            threads, _, highlight, newComments ->
-            val linesWithComments = if (highlight) threads.mapNotNull { it.line.value }.toSet() else emptySet()
+        combine(threadInlays, discussionsVm.discussionsViewOption, _newCommentVms) { threads, _, newComments ->
+            val linesWithComments = threads.mapNotNull { it.line.value }.toSet()
             object : CodeReviewEditorGutterControlsModel.ControlsState {
                 override val linesWithComments: Set<Int> = linesWithComments
                 override val linesWithNewComments: Set<Int> = newComments.keys
@@ -106,8 +113,15 @@ class GiteaPRDiffEditorModel(
         _newCommentVms.value = _newCommentVms.value - lineIdx
     }
 
+    /** Folds/unfolds the thread inlay at [lineIdx] — triggered by clicking the gutter comment
+     * icon (see [gutterControlsState]'s `linesWithComments`, which stays unconditional so the
+     * icon itself remains visible as a reference even while folded). */
     @RequiresEdt
     override fun toggleComments(lineIdx: Int) {
-        // All comments always visible; toggleComments is a no-op.
+        _collapsedLines.value = if (lineIdx in _collapsedLines.value) {
+            _collapsedLines.value - lineIdx
+        } else {
+            _collapsedLines.value + lineIdx
+        }
     }
 }
