@@ -27,12 +27,15 @@ class GiteaPRThreadViewModel(
 
     /**
      * True if the anchor comment was made on an older commit than the current head.
-     * Outdated threads are visually distinguished and cannot be replied to.
+     * Outdated threads are visually distinguished and cannot be replied to. Matches the Timeline's
+     * definition ([com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineItemComponentFactory.threadPanel]) —
+     * "this comment's diff is not the PR's current diff" — not a comparison of the comment's own
+     * two commit-id fields to each other.
      */
     val isOutdated: Boolean
         get() {
             val anchor = thread.comments.firstOrNull() ?: return false
-            return anchor.originalCommitId != null && anchor.originalCommitId != anchor.commitId
+            return anchor.commitId != null && anchor.commitId != discussionsVm.headSha
         }
 
     val commentVMs: List<GiteaPRCommentViewModel> = thread.comments.map(::GiteaPRCommentViewModel)

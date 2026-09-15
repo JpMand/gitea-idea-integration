@@ -49,6 +49,7 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.repoCombinedStatus
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoGetSingleCommit
 import com.github.jpmand.idea.plugin.gitea.api.rest.repoListCollaborators
 import com.github.jpmand.idea.plugin.gitea.api.GITEA_PAGE_SIZE
+import com.github.jpmand.idea.plugin.gitea.api.GiteaApi
 import com.github.jpmand.idea.plugin.gitea.api.GiteaRepositoryCoordinates
 import com.github.jpmand.idea.plugin.gitea.api.giteaApiCall
 import com.github.jpmand.idea.plugin.gitea.api.loadAllGiteaPages
@@ -74,6 +75,14 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     /** The signed-in account this repository is scoped to — used for virtual-file identity so a
      * diff/timeline tab from a stale account context is never conflated with a fresh one. */
     val accountId: String get() = ctx.account.id
+
+    /** The signed-in account's login — gates inline-comment edit/delete/reply controls to a
+     * comment's own author (Gitea's API exposes no `viewerCanUpdate`-style flag). */
+    val accountLogin: String get() = ctx.account.name
+
+    /** The authenticated API client — used to build an avatar-icons loader for the diff-editor
+     * review UI, the one place that still needs raw API access outside this repository. */
+    val api: GiteaApi get() = ctx.api
 
     // ── Pull Requests ─────────────────────────────────────────────────────
 
