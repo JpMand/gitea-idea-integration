@@ -1,19 +1,11 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline
 
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewComment
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewState
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewThread
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaTimelineItem
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
+import com.github.jpmand.idea.plugin.gitea.api.models.*
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRCommentFieldFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRSubmittableTextViewModel
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.messages.CollaborationToolsBundle
-import com.intellij.collaboration.ui.CollaborationToolsUIUtil
-import com.intellij.collaboration.ui.EditableComponentFactory
-import com.intellij.collaboration.ui.HorizontalListPanel
-import com.intellij.collaboration.ui.SimpleHtmlPane
-import com.intellij.collaboration.ui.VerticalListPanel
+import com.intellij.collaboration.ui.*
 import com.intellij.collaboration.ui.codereview.CodeReviewChatItemUIUtil
 import com.intellij.collaboration.ui.codereview.CodeReviewChatItemUIUtil.ComponentType
 import com.intellij.collaboration.ui.codereview.CodeReviewTimelineUIUtil
@@ -56,7 +48,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.awt.datatransfer.StringSelection
-import java.util.Date
+import java.util.*
 import javax.swing.JComponent
 import javax.swing.JEditorPane
 
@@ -151,7 +143,7 @@ class GiteaPRTimelineItemComponentFactory(
             VerticalListPanel(4).apply { add(header); add(list) },
         ) {
             withHeader(
-                CodeReviewTimelineUIUtil.createTitleTextPane(actorName(item.actor), item.actor?.htmlUrl, item.timestamp),
+                CodeReviewTimelineUIUtil.createTitleTextPane(actorName(item.actor, item.rawActor), item.actor?.htmlUrl, item.timestamp),
                 null,
             )
         }
@@ -453,7 +445,8 @@ class GiteaPRTimelineItemComponentFactory(
         GiteaTimelineItem.Event.Kind.AUTO_MERGE_CANCELLED -> GiteaBundle.message("pull.request.timeline.event.auto.merge.cancelled")
     }
 
-    private fun actorName(user: GiteaUser?): String = user?.let { it.fullName ?: it.login } ?: "—"
+    private fun actorName(user: GiteaUser?, rawUser: String?): String = user?.let { it.fullName ?: it.login } ?: rawUser.orEmpty()
+    private fun actorName(user: GiteaUser?): String = user?.let { it.fullName ?: it.login }.orEmpty()
 
     private fun bodyHtml(body: String?): String =
         if (body.isNullOrBlank()) "<i>${esc(GiteaBundle.message("pull.request.timeline.no.body"))}</i>"

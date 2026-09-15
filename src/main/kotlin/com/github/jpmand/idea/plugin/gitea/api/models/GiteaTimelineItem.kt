@@ -1,6 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.api.models
 
-import java.util.Date
+import java.util.*
 
 /**
  * One entry in a PR's activity timeline (Conversation). Built by
@@ -28,6 +28,7 @@ sealed interface GiteaTimelineItem {
         override val id: Long,
         override val actor: GiteaUser?,
         override val timestamp: Date,
+        val rawAuthor: String?,
         val sha: String,
         val shortSha: String,
         val messageTitle: String,

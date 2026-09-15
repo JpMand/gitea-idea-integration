@@ -1,11 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline
 
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaLabel
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewState
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewThread
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaTimelineItem
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
-import java.util.Date
+import com.github.jpmand.idea.plugin.gitea.api.models.*
+import java.util.*
 
 /**
  * One rendered row of the PR activity timeline. Mirrors the bundled GitLab plugin's
@@ -34,6 +30,7 @@ sealed interface GiteaPRTimelineItemViewModel {
     ) : GiteaPRTimelineItemViewModel {
         override val actor: GiteaUser? get() = commits.firstOrNull()?.actor
         override val timestamp: Date get() = commits.last().timestamp
+        val rawActor : String? get() = commits.firstOrNull()?.rawAuthor
     }
 
     data class Review(

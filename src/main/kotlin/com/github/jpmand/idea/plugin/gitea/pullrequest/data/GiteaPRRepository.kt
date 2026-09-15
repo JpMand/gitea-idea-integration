@@ -1,62 +1,16 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.data
 
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaCommit
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaCommitStatus
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaLabel
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReview
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewComment
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewState
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewThread
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaTimelineItem
-import com.github.jpmand.idea.plugin.gitea.api.models.toDate
-import com.github.jpmand.idea.plugin.gitea.api.models.toThreads
-import com.github.jpmand.idea.plugin.gitea.api.models.toTimelineItemOrNull
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.TimelineComment
-import com.github.jpmand.idea.plugin.gitea.api.rest.pr.issueListTimeline
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreateIssueCommentOption
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreatePullReviewCommentReplyOptions
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreatePullReviewOptions
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.EditIssueCommentOption
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.EditPullRequestOption
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.MergePullRequestOption
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.SubmitPullReviewOptions
-import com.github.jpmand.idea.plugin.gitea.api.rest.decodeContent
-import com.github.jpmand.idea.plugin.gitea.api.rest.getFileContents
+import com.github.jpmand.idea.plugin.gitea.api.*
+import com.github.jpmand.idea.plugin.gitea.api.models.*
+import com.github.jpmand.idea.plugin.gitea.api.rest.*
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.*
+import com.github.jpmand.idea.plugin.gitea.api.rest.pr.*
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.toChangedFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineItemViewModel
-import com.github.jpmand.idea.plugin.gitea.api.rest.currentUser
-import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoCreatePullRequestComment
-import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoCreatePullRequestReview
-import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoCreatePullReviewCommentReply
-import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoDeletePullRequestComment
-import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoEditPullRequest
-import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoEditPullRequestComment
-import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoGetPullRequest
-import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoGetPullRequestReviewComments
-import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoListPullRequestCommits
-import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoListPullRequestFiles
-import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoListPullRequestReviews
-import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoListPullRequests
-import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoMergePullRequest
-import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoResolvePullRequestReviewComment
-import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoSubmitPullRequestReview
-import com.github.jpmand.idea.plugin.gitea.api.rest.pr.repoUnresolvePullRequestReviewComment
-import com.github.jpmand.idea.plugin.gitea.api.rest.pr.GiteaPullRequestSortEnum
-import com.github.jpmand.idea.plugin.gitea.api.rest.repoCombinedStatus
-import com.github.jpmand.idea.plugin.gitea.api.rest.repoGetSingleCommit
-import com.github.jpmand.idea.plugin.gitea.api.rest.repoListCollaborators
-import com.github.jpmand.idea.plugin.gitea.api.GITEA_PAGE_SIZE
-import com.github.jpmand.idea.plugin.gitea.api.GiteaApi
-import com.github.jpmand.idea.plugin.gitea.api.GiteaRepositoryCoordinates
-import com.github.jpmand.idea.plugin.gitea.api.giteaApiCall
-import com.github.jpmand.idea.plugin.gitea.api.loadAllGiteaPages
-import com.github.jpmand.idea.plugin.gitea.api.rest.repoListLabels
 import com.intellij.collaboration.api.HttpStatusErrorException
 import com.intellij.openapi.components.service
-import java.util.Date
+import java.util.*
 
 /**
  * Data-access layer for PR operations scoped to a single [GiteaPRDataContext].
@@ -311,6 +265,7 @@ fun mergeTimeline(
         items += GiteaTimelineItem.Commit(
             id = sha.hashCode().toLong(),
             actor = commit.author,
+            rawAuthor = commit.authorName,
             timestamp = ts,
             sha = sha,
             shortSha = sha.take(7),

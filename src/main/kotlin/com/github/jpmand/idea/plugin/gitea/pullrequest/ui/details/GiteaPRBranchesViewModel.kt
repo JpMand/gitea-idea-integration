@@ -15,20 +15,8 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import git4idea.branch.GitBrancher
 import git4idea.fetch.GitFetchSupport
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 import kotlin.coroutines.resume
 
 /**
@@ -71,8 +59,8 @@ class GiteaPRBranchesViewModel(
         // sync with the PR's current head commit — this works uniformly for same-repo and fork
         // PRs alike, so there's no need to add the fork as a separate remote.
         val prRef = "refs/pull/${pr.number}/head"
-        val localRef = "refs/gitea/pr/${pr.number}/head"
-        val branchName = "gitea/pr-${pr.number}"
+        val localRef = "refs/${pr.head.ref}/head"
+        val branchName = pr.head.ref
 
         cs.launch {
             val fetchResult = withContext(Dispatchers.IO) {
@@ -141,8 +129,8 @@ class GiteaPRBranchesViewModel(
 
     private suspend fun checkoutPrBranch(mapping: GiteaGitRepositoryMapping, pr: GiteaPullRequest): Boolean {
         val prRef = "refs/pull/${pr.number}/head"
-        val localRef = "refs/gitea/pr/${pr.number}/head"
-        val branchName = "gitea/pr-${pr.number}"
+        val localRef = "refs/${pr.head.ref}/head"
+        val branchName = pr.head.ref
 
         val fetchResult = withContext(Dispatchers.IO) {
             GitFetchSupport.fetchSupport(project).fetch(mapping.gitRepository, mapping.gitRemote, "$prRef:$localRef")
@@ -171,7 +159,7 @@ class GiteaPRBranchesViewModel(
      */
     private fun isCurrentlyCheckedOut(pr: GiteaPullRequest): Boolean {
         val gitRepository = findRepositoryMapping()?.gitRepository ?: return false
-        return gitRepository.currentBranch?.name == "gitea/pr-${pr.number}"
+        return gitRepository.currentBranch?.name == pr.head.ref
     }
 
     private fun findRepositoryMapping(): GiteaGitRepositoryMapping? {
