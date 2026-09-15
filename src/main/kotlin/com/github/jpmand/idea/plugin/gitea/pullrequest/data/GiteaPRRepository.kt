@@ -65,6 +65,10 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     /** The Gitea repo this PR belongs to — used to resolve the matching git4idea repository/remote. */
     val repositoryCoordinates: GiteaRepositoryCoordinates get() = ctx.repo
 
+    /** The signed-in account this repository is scoped to — used for virtual-file identity so a
+     * diff/timeline tab from a stale account context is never conflated with a fresh one. */
+    val accountId: String get() = ctx.account.id
+
     // ── Pull Requests ─────────────────────────────────────────────────────
 
     suspend fun loadPullRequests(
