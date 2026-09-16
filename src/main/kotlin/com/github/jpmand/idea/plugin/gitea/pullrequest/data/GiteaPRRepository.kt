@@ -124,6 +124,11 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     suspend fun submitPendingReview(prNumber: Int, reviewId: Long, body: SubmitPullReviewOptions): GiteaReview =
         GiteaReview.fromDto(ctx.api.repoSubmitPullRequestReview(owner, repo, prNumber, reviewId, body))
 
+    /** Permanently deletes a pending (not yet submitted) review and its comments — used to cancel
+     * a review-in-progress, whether started here or forgotten from another session. */
+    suspend fun deletePendingReview(prNumber: Int, reviewId: Long) =
+        ctx.api.repoDeletePullRequestReview(owner, repo, prNumber, reviewId)
+
     /** The signed-in account's own not-yet-submitted review for this PR, if any. */
     suspend fun findMyPendingReview(prNumber: Int): GiteaReview? =
         loadReviews(prNumber).firstOrNull { it.state == GiteaReviewState.PENDING && it.author?.login == ctx.account.name }

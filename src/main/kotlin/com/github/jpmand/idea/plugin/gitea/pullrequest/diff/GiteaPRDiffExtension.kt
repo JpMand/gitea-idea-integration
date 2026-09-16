@@ -6,6 +6,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPullRequestsSettings
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRDiffEditorModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRInlayComponentsFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.confirmAndCancelReview
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.async.launchNow
@@ -25,6 +26,7 @@ import com.intellij.diff.tools.util.base.DiffViewerBase
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.ex.EditorMarkupModel
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.util.Disposer
 import icons.CollaborationToolsIcons
@@ -58,7 +60,7 @@ class GiteaPRDiffExtension : DiffExtension() {
         cs.launchNow {
             viewer.showCodeReview(
                 modelFactory = { editor, side, locationToLine, lineToLocation, _ ->
-                    launchToolbar(editor, discussionsVm)
+                    launchToolbar(project, editor, discussionsVm)
                     GiteaPRDiffEditorModel(this, project, fileVm.file, side, discussionsVm, locationToLine, lineToLocation, editor)
                 },
                 rendererFactory = { inlayModel ->
@@ -80,7 +82,7 @@ class GiteaPRDiffExtension : DiffExtension() {
      * "Review Control sometimes doesn't show up at all"). A short poll-and-retry covers the same
      * race instead of letting the first attempt fail outright.
      */
-    private fun CoroutineScope.launchToolbar(editor: Editor, discussionsVm: GiteaPRDiscussionsViewModels) {
+    private fun CoroutineScope.launchToolbar(project: Project, editor: Editor, discussionsVm: GiteaPRDiscussionsViewModels) {
         val toolbarScope = CoroutineScope(coroutineContext + SupervisorJob(coroutineContext[Job]))
         toolbarScope.launchNow {
             try {
@@ -89,7 +91,7 @@ class GiteaPRDiffExtension : DiffExtension() {
                     delay(50)
                     attempt++
                 }
-                ReviewInEditorUtil.showReviewToolbarWithActions(discussionsVm, editor, submitReviewAction(discussionsVm))
+                ReviewInEditorUtil.showReviewToolbarWithActions(discussionsVm, editor, submitReviewAction(project, discussionsVm))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -105,7 +107,7 @@ class GiteaPRDiffExtension : DiffExtension() {
      * a quick-verdict popup that submits with an empty body — compose a body first in the Details
      * tab if you want one.
      */
-    private fun submitReviewAction(discussionsVm: GiteaPRDiscussionsViewModels): AnAction =
+    private fun submitReviewAction(project: Project, discussionsVm: GiteaPRDiscussionsViewModels): AnAction =
         object : AnAction() {
             override fun getActionUpdateThread() = ActionUpdateThread.BGT
 
@@ -122,6 +124,7 @@ class GiteaPRDiffExtension : DiffExtension() {
 
             override fun actionPerformed(e: AnActionEvent) {
                 val pending = discussionsVm.pendingReview.value
+                val cancelReview = verdictAction("pull.request.action.cancel.review") { confirmAndCancelReview(project, discussionsVm) }
                 val group = DefaultActionGroup(
                     if (pending == null) {
                         listOf(
@@ -130,6 +133,7 @@ class GiteaPRDiffExtension : DiffExtension() {
                             verdictAction("pull.request.action.request.changes") {
                                 discussionsVm.submitReview(CreatePullReviewOptions.Event.REQUESTCHANGES, "")
                             },
+                            cancelReview,
                         )
                     } else {
                         listOf(
@@ -138,6 +142,7 @@ class GiteaPRDiffExtension : DiffExtension() {
                             verdictAction("pull.request.action.request.changes") {
                                 discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.REQUESTCHANGES, "")
                             },
+                            cancelReview,
                         )
                     },
                 )

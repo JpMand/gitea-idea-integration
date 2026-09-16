@@ -254,6 +254,31 @@ class GiteaPRDiscussionsViewModels(
         }
     }
 
+    /**
+     * Discards the review-in-progress: local drafts are always cleared, and if a pending review
+     * already exists on the server (started here, or forgotten from another session — see the
+     * diff-review milestone's TODO note on this), it and its already-posted comments are permanently
+     * deleted, not just hidden.
+     */
+    fun cancelReview() {
+        val pending = pendingReview.value
+        cs.launch(Dispatchers.IO) {
+            _isSubmittingReview.value = true
+            try {
+                if (pending != null) repository.deletePendingReview(prNumber, pending.id)
+                updateDrafts { emptyList() }
+                reload()
+                reloadPendingReview()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                notifyError("pull.request.action.cancel.review.error")
+            } finally {
+                withContext(NonCancellable) { _isSubmittingReview.value = false }
+            }
+        }
+    }
+
     private suspend fun notifyError(bundleKey: String) {
         withContext(Dispatchers.Main) {
             NotificationGroupManager.getInstance()

@@ -6,6 +6,7 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.dto.MergePullRequestOption
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.SubmitPullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.giteaWriteActionNotImplemented
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.confirmAndCancelReview
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.ui.Either
@@ -175,9 +176,13 @@ class GiteaPRDetailsPanel(
             foreground = UIUtil.getContextHelpForeground()
             font = JBFont.small()
         }
+        val cancelButton = JButton(GiteaBundle.message("pull.request.action.cancel.review")).apply {
+            addActionListener { confirmAndCancelReview(project, discussionsVm) }
+        }
         cs.launch {
             discussionsVm.draftComments.collect { drafts ->
                 draftCountLabel.text = GiteaBundle.message("pull.request.review.composer.draft.count", drafts.size)
+                cancelButton.isVisible = drafts.isNotEmpty()
             }
         }
         val buttons = HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
@@ -193,6 +198,7 @@ class GiteaPRDetailsPanel(
             add(JButton(GiteaBundle.message("pull.request.review.save.pending")).apply {
                 addActionListener { discussionsVm.submitReview(CreatePullReviewOptions.Event.PENDING, textArea.text) }
             })
+            add(cancelButton)
         }
         bindBusyState(cs, discussionsVm, buttons)
         return VerticalListPanel(4).apply {
@@ -213,6 +219,9 @@ class GiteaPRDetailsPanel(
             })
             add(JButton(GiteaBundle.message("pull.request.action.request.changes")).apply {
                 addActionListener { discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.REQUESTCHANGES, textArea.text) }
+            })
+            add(JButton(GiteaBundle.message("pull.request.action.cancel.review")).apply {
+                addActionListener { confirmAndCancelReview(project, discussionsVm) }
             })
         }
         bindBusyState(cs, discussionsVm, buttons)
