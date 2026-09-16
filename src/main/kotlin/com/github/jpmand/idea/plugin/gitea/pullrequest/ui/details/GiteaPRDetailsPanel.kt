@@ -7,13 +7,13 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.dto.SubmitPullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.giteaWriteActionNotImplemented
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.ui.Either
 import com.intellij.collaboration.ui.HorizontalListPanel
 import com.intellij.collaboration.ui.SimpleHtmlPane
 import com.intellij.collaboration.ui.VerticalListPanel
 import com.intellij.collaboration.ui.codereview.details.*
 import com.intellij.ide.BrowserUtil
-import com.intellij.markdown.utils.convertMarkdownToHtml
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -22,12 +22,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NlsSafe
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.ScrollPaneFactory
-import com.intellij.ui.components.ActionLink
-import com.intellij.ui.components.JBCheckBox
-import com.intellij.ui.components.JBLabel
-import com.intellij.ui.components.JBOptionButton
-import com.intellij.ui.components.JBScrollPane
-import com.intellij.ui.components.JBTextArea
+import com.intellij.ui.components.*
 import com.intellij.ui.components.panels.Wrapper
 import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
@@ -333,8 +328,8 @@ class GiteaPRDetailsPanel(
     private fun com.github.jpmand.idea.plugin.gitea.api.models.GiteaCommit.toPresentation(): CommitPresentation {
         @NlsSafe val title = StringUtil.escapeXmlEntities(messageTitle)
         return CommitPresentation(
-            titleHtml = convertMarkdownToHtml(title),
-            descriptionHtml = convertMarkdownToHtml(messageBody.orEmpty()),
+            titleHtml = GiteaUtil.safeConvertMarkdownToHtml(title),
+            descriptionHtml = GiteaUtil.safeConvertMarkdownToHtml(messageBody.orEmpty()),
             author = authorName ?: author?.login.orEmpty(),
             committedDate = createdAt ?: Date(),
         )

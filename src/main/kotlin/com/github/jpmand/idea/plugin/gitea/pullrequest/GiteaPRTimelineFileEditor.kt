@@ -6,6 +6,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimeli
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineItemComponentFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow.GiteaPRCommitSelectionRequests
+import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.ui.icon.AsyncImageIconsProvider
 import com.intellij.collaboration.ui.icon.CachingIconsProvider
 import com.intellij.openapi.components.service
@@ -34,7 +35,7 @@ class GiteaPRTimelineFileEditor(
     private val avatarIconsProvider =
         CachingIconsProvider(AsyncImageIconsProvider<GiteaUser>(cs, GiteaImageLoader(file.ctx.api)))
     private val itemFactory = GiteaPRTimelineItemComponentFactory(
-        project, avatarIconsProvider, file.repository::renderMarkdown, headSha = file.pr.head.sha,
+        project, avatarIconsProvider, { m -> GiteaUtil.safeConvertMarkdownToHtml(m) }, headSha = file.pr.head.sha,
         currentUserLogin = file.ctx.account.name,
         onEditComment = { id, body -> file.repository.editComment(id, body); vm.reload() },
         onDeleteComment = { id -> file.repository.deleteComment(id); vm.reload() },

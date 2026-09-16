@@ -9,7 +9,6 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.toChangedFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineItemViewModel
 import com.intellij.collaboration.api.HttpStatusErrorException
-import com.intellij.openapi.components.service
 import java.util.*
 
 /**
@@ -197,15 +196,6 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
 
     suspend fun loadCombinedStatus(ref: String): List<GiteaCommitStatus> =
         ctx.api.repoCombinedStatus(owner, repo, ref).statuses.orEmpty().map { GiteaCommitStatus.fromDto(it) }
-
-    // ── Markdown ──────────────────────────────────────────────────────────
-
-    /**
-     * Renders a PR/issue/comment body to sanitized HTML via the server's markdown renderer.
-     * Returns null on any failure — callers keep showing their escaped-plain-text fallback.
-     */
-    suspend fun renderMarkdown(markdown: String): String? =
-        service<GiteaMarkdownService>().render(ctx.api, ctx.repo.repositoryPath.fullPath(), markdown)
 }
 
 /**

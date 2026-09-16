@@ -5,12 +5,12 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.dto.EditPullRequestOption
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.MergePullRequestOption
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.ui.codereview.details.data.ReviewRequestState
 import com.intellij.collaboration.ui.codereview.details.model.CodeReviewDetailsViewModel
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.text.StringUtil
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -33,18 +33,21 @@ class GiteaPRDetailsViewModel(
     override val number: String = "#${initialPr.number}"
     override val url: String = initialPr.htmlUrl
 
-    override val title: Flow<String> = _pr.map { it.title }
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override val title: Flow<String> = _pr.map { it.title }.transformLatest { markdown ->
+        emit(GiteaUtil.safeConvertMarkdownToHtml(markdown))
+    }
 
     /**
      * Null when the initial PR has no body — skips the description pane entirely. Otherwise
      * emits an escaped-plain-text fallback immediately, then the server-rendered markdown HTML
      * once it's back (or never, if rendering fails — the fallback stays).
      */
+    @OptIn(ExperimentalCoroutinesApi::class)
     override val description: Flow<String>? =
         if (initialPr.body.isNullOrBlank()) null
         else _pr.map { it.body ?: "" }.transformLatest { markdown ->
-            emit(escapedFallback(markdown))
-            repository.renderMarkdown(markdown)?.let { emit(it) }
+            emit(GiteaUtil.safeConvertMarkdownToHtml(markdown))
         }
 
     override val reviewRequestState: Flow<ReviewRequestState> = _pr.map { pr ->
@@ -85,9 +88,6 @@ class GiteaPRDetailsViewModel(
             }
         }
     }
-
-    private fun escapedFallback(markdown: String): String =
-        StringUtil.escapeXmlEntities(markdown).replace("\n", "<br>")
 
     // ── Close / Reopen ───────────────────────────────────────────────────
 
