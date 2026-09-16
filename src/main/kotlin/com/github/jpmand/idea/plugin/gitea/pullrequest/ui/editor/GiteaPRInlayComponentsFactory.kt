@@ -7,6 +7,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussions
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRThreadViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRCommentFieldFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRSubmittableTextViewModel
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.createThreadCommentsPanel
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.CollaborationToolsUIUtil
 import com.intellij.collaboration.ui.EditableComponentFactory
@@ -19,7 +20,6 @@ import com.intellij.collaboration.ui.codereview.comment.CodeReviewCommentUIUtil
 import com.intellij.collaboration.ui.codereview.comment.CodeReviewSubmittableTextViewModelBase
 import com.intellij.collaboration.ui.codereview.comment.CodeReviewTextEditingViewModel
 import com.intellij.collaboration.ui.codereview.editor.CodeReviewComponentInlayRenderer
-import com.intellij.collaboration.ui.codereview.timeline.thread.TimelineThreadCommentsPanel
 import com.intellij.diff.util.DiffDrawUtil
 import com.intellij.diff.util.TextDiffType
 import com.intellij.notification.NotificationGroupManager
@@ -28,7 +28,6 @@ import com.intellij.openapi.editor.ComponentInlayRenderer
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.markup.RangeHighlighter
 import com.intellij.openapi.project.Project
-import com.intellij.ui.CollectionListModel
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.panels.Wrapper
@@ -121,10 +120,9 @@ object GiteaPRInlayComponentsFactory {
         vm: GiteaPRThreadViewModel,
         discussionsVm: GiteaPRDiscussionsViewModels,
     ): JComponent {
-        val commentsPanel = TimelineThreadCommentsPanel(
-            CollectionListModel(vm.commentVMs),
-            { commentVm -> createCommentPanel(project, cs, discussionsVm, commentVm) },
-        )
+        val commentsPanel = createThreadCommentsPanel(vm.commentVMs) { commentVm ->
+            createCommentPanel(project, cs, discussionsVm, commentVm)
+        }
 
         // 4/CodeReviewCommentUIUtil.INLAY_PADDING(=10) matches ComponentType.COMPACT's own padding
         // insets, so these rows line up with the comment rows above them. The vertical gap between

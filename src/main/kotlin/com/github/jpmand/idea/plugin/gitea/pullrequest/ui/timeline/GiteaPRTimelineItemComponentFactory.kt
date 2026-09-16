@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline
 import com.github.jpmand.idea.plugin.gitea.api.models.*
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRCommentFieldFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRSubmittableTextViewModel
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.createThreadCommentsPanel
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.messages.CollaborationToolsBundle
 import com.intellij.collaboration.ui.*
@@ -15,7 +16,6 @@ import com.intellij.collaboration.ui.codereview.comment.CodeReviewTextEditingVie
 import com.intellij.collaboration.ui.codereview.timeline.StatusMessageComponentFactory
 import com.intellij.collaboration.ui.codereview.timeline.StatusMessageType
 import com.intellij.collaboration.ui.codereview.timeline.TimelineDiffComponentFactory
-import com.intellij.collaboration.ui.codereview.timeline.thread.TimelineThreadCommentsPanel
 import com.intellij.collaboration.ui.icon.IconsProvider
 import com.intellij.diff.util.LineRange
 import com.intellij.icons.AllIcons
@@ -32,7 +32,6 @@ import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.text.StringUtil
-import com.intellij.ui.CollectionListModel
 import com.intellij.ui.PopupHandler
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
@@ -120,7 +119,10 @@ class GiteaPRTimelineItemComponentFactory(
         if (markdown.isBlank()) return
         cs.launch {
             val html = renderMarkdown(markdown) ?: return@launch
-            withContext(Dispatchers.EDT) { pane.text = html }
+            withContext(Dispatchers.EDT) {
+                pane.text = html
+                pane.contentType = "text/html"
+            }
         }
     }
 
@@ -265,10 +267,7 @@ class GiteaPRTimelineItemComponentFactory(
                 add(CollaborationToolsUIUtil.createTagLabel(CollaborationToolsBundle.message("review.thread.outdated.tag")))
             }
         }
-        val commentsPanel = TimelineThreadCommentsPanel(
-            CollectionListModel(thread.comments),
-            { c -> threadCommentRow(cs, c) },
-        )
+        val commentsPanel = createThreadCommentsPanel(thread.comments) { c -> threadCommentRow(cs, c) }
         return VerticalListPanel(2).apply {
             add(locationRow)
             diffHunkComponent(cs, thread.path, anchor?.diffHunk)?.let { add(it) }

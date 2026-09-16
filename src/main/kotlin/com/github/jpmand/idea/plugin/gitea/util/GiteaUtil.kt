@@ -10,11 +10,8 @@ object GiteaUtil {
   const val SERVICE_NAME = "Gitea"
   const val SERVICE_DISPLAY_NAME = "Gitea"
 
-
+  //Known issue: \n is considered soft break in CommonMark, this in turn causes html not to render new line for it.
   fun safeConvertMarkdownToHtml(markdown: String): String {
-    //TODO: Fix newline issue
-    // for some reason sometimes \n is kept as is instead of being converted into <p> paragraphs. (e.g "test\nwith\nnewlines" becomes <p>test\nwith\nnewlines</p> instead of <p>test</p><p>with</p><p>newlines</p>)
-    val unixNormalized = markdown.replace("\r\n", "\n")
-    return convertMarkdownToHtml(unixNormalized)
+    return convertMarkdownToHtml(markdown)
   }
 }

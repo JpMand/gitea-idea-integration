@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /**
  * Per-editor view model that drives gutter controls (thread bubble icons, the "+" new-comment
@@ -66,6 +67,21 @@ class GiteaPRDiffEditorModel(
     // ── New-comment composer/draft inlays ───────────────────────────────────
 
     private val _newCommentVms = MutableStateFlow<Map<Int, GiteaPRNewCommentEditorViewModel>>(emptyMap())
+
+    init {
+        // A finalized composer (draft.value != null) whose draft got dropped from the source of
+        // truth — e.g. a bulk clear on review submit, see GiteaPRDiscussionsViewModels.submitReview
+        // — must lose its inlay immediately, not linger until the diff is closed and reopened.
+        cs.launch {
+            discussionsVm.draftComments.collect { drafts ->
+                val liveIds = drafts.map { it.localId }.toSet()
+                _newCommentVms.value = _newCommentVms.value.filterValues { vm ->
+                    val id = vm.draft.value?.localId
+                    id == null || id in liveIds
+                }
+            }
+        }
+    }
 
     private val newCommentInlays: StateFlow<List<GiteaPRInlayModel.NewComment>> =
         _newCommentVms.map { byLine -> byLine.map { (lineIdx, vm) -> GiteaPRInlayModel.NewComment(vm, lineIdx) } }

@@ -7,6 +7,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRDiffEdit
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRInlayComponentsFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.async.launchNow
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
@@ -22,12 +23,17 @@ import com.intellij.diff.FrameDiffTool
 import com.intellij.diff.requests.DiffRequest
 import com.intellij.diff.tools.util.base.DiffViewerBase
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.editor.ex.EditorMarkupModel
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.util.Disposer
 import icons.CollaborationToolsIcons
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 
 /**
  * DiffExtension that wires gutter controls and inline review inlays into any
@@ -52,15 +58,43 @@ class GiteaPRDiffExtension : DiffExtension() {
         cs.launchNow {
             viewer.showCodeReview(
                 modelFactory = { editor, side, locationToLine, lineToLocation, _ ->
-                    launchNow {
-                        ReviewInEditorUtil.showReviewToolbarWithActions(discussionsVm, editor, submitReviewAction(discussionsVm))
-                    }
+                    launchToolbar(editor, discussionsVm)
                     GiteaPRDiffEditorModel(this, project, fileVm.file, side, discussionsVm, locationToLine, lineToLocation, editor)
                 },
                 rendererFactory = { inlayModel ->
                     GiteaPRInlayComponentsFactory.createRenderer(project, this, inlayModel, discussionsVm)
                 }
             )
+        }
+    }
+
+    /**
+     * Shows the review toolbar in its own [SupervisorJob], isolated from the sibling gutter-controls
+     * and inlay-rendering coroutines that [showCodeReview] launches in the same per-editor
+     * `coroutineScope`. [ReviewInEditorUtil.showReviewToolbarWithActions] throws
+     * (`"Editor markup model is not available"`) if `editor.markupModel` isn't yet an
+     * `EditorMarkupModel` — most often true for the very first file's editor, right when it's
+     * created. Left as a plain sibling coroutine, that throw would cancel the whole per-editor
+     * scope via structured concurrency, silently killing gutter controls and inlays along with the
+     * toolbar (this plugin's bug, not the platform's — see the diff-review TODO memory note for
+     * "Review Control sometimes doesn't show up at all"). A short poll-and-retry covers the same
+     * race instead of letting the first attempt fail outright.
+     */
+    private fun CoroutineScope.launchToolbar(editor: Editor, discussionsVm: GiteaPRDiscussionsViewModels) {
+        val toolbarScope = CoroutineScope(coroutineContext + SupervisorJob(coroutineContext[Job]))
+        toolbarScope.launchNow {
+            try {
+                var attempt = 0
+                while (editor.markupModel !is EditorMarkupModel && attempt < 20) {
+                    delay(50)
+                    attempt++
+                }
+                ReviewInEditorUtil.showReviewToolbarWithActions(discussionsVm, editor, submitReviewAction(discussionsVm))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                GiteaUtil.LOG.warn("Failed to show PR review toolbar", e)
+            }
         }
     }
 
