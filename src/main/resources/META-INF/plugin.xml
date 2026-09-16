@@ -33,6 +33,7 @@
         <applicationService serviceInterface="com.github.jpmand.idea.plugin.gitea.GiteaServersManager"
                             serviceImplementation="com.github.jpmand.idea.plugin.gitea.CachingGiteaServersManager"/>
         <diff.DiffExtension implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffExtension"/>
+        <editorFactoryListener implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.editor.GiteaPRReviewInEditorController"/>
         <fileEditorProvider implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPRTimelineEditorProvider"/>
         <fileIconProvider implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPRVirtualFileIconProvider"/>
         <!-- language="any": the comment editor is Markdown-typed when the bundled Markdown plugin
