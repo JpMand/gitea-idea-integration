@@ -1,6 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.dto
 
 import com.fasterxml.jackson.annotation.JsonEnumDefaultValue
+import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.OffsetDateTime
 
 /**
@@ -46,16 +47,16 @@ data class PullReview(
      */
     enum class State(val value: String) {
 
-        APPROVED("APPROVED"),
+        @JsonProperty("APPROVED") APPROVED("APPROVED"),
 
         @JsonEnumDefaultValue
-        PENDING("PENDING"),
+        @JsonProperty("PENDING") PENDING("PENDING"),
 
-        COMMENT("COMMENT"),
+        @JsonProperty("COMMENT") COMMENT("COMMENT"),
 
-        REQUESTCHANGES("REQUEST_CHANGES"),
+        @JsonProperty("REQUEST_CHANGES") REQUESTCHANGES("REQUEST_CHANGES"),
 
-        REQUESTREVIEW("REQUEST_REVIEW");
+        @JsonProperty("REQUEST_REVIEW") REQUESTREVIEW("REQUEST_REVIEW");
 
     }
 

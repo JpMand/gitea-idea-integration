@@ -111,11 +111,9 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         return mergeTimeline(timeline, reviewsById, threadsByReviewId, commits)
     }
 
-    suspend fun resolveComment(commentId: Long): GiteaReviewComment =
-        GiteaReviewComment.fromDto(ctx.api.repoResolvePullRequestReviewComment(owner, repo, commentId))
+    suspend fun resolveComment(commentId: Long) = ctx.api.repoResolvePullRequestReviewComment(owner, repo, commentId)
 
-    suspend fun unresolveComment(commentId: Long): GiteaReviewComment =
-        GiteaReviewComment.fromDto(ctx.api.repoUnresolvePullRequestReviewComment(owner, repo, commentId))
+    suspend fun unresolveComment(commentId: Long) = ctx.api.repoUnresolvePullRequestReviewComment(owner, repo, commentId)
 
     suspend fun submitReview(prNumber: Int, body: CreatePullReviewOptions): GiteaReview =
         GiteaReview.fromDto(ctx.api.repoCreatePullRequestReview(owner, repo, prNumber, body))

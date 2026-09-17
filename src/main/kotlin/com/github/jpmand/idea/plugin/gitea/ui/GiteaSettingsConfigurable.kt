@@ -23,7 +23,6 @@ import com.intellij.openapi.ui.DialogPanel
 import com.intellij.ui.dsl.builder.*
 import kotlinx.coroutines.Dispatchers
 import org.jetbrains.annotations.ApiStatus
-import javax.swing.JCheckBox
 
 @Suppress("UnstableApiUsage")
 internal class GiteaSettingsConfigurable internal constructor(private val project: Project) :
@@ -82,19 +81,12 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
             { giteaSettings.cloneWithSsh = it })
       }
 
-      lateinit var editorReviewEnabledCheckBox: Cell<JCheckBox>
       row {
-        editorReviewEnabledCheckBox = checkBox(message("settings.editor.review.enabled"))
+        checkBox(message("settings.editor.review.enabled"))
           .bindSelected(
             { prSettings.editorReviewEnabled },
             { prSettings.editorReviewEnabled = it })
       }
-      row {
-        checkBox(message("settings.editor.review.highlight.lines"))
-          .bindSelected(
-            { prSettings.highlightDiffLinesInEditor },
-            { prSettings.highlightDiffLinesInEditor = it })
-      }.enabledIf(editorReviewEnabledCheckBox.selected)
 
       addWarningForMemoryOnlyPasswordSafeAndGet(
         scope,

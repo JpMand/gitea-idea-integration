@@ -25,7 +25,6 @@ internal class GiteaPullRequestsSettings :
     @Serializable
     data class State(
         val selectedUrlAndAccountId: Pair<String, String>? = null,
-        val highlightDiffLinesInEditor: Boolean = false,
         val editorReviewEnabled: Boolean = true,
         val changesGrouping: Set<String> = setOf(
             ChangesGroupingSupport.DIRECTORY_GROUPING,
@@ -46,16 +45,6 @@ internal class GiteaPullRequestsSettings :
                 it.copy(selectedUrlAndAccountId = value)
             }
         }
-
-    var highlightDiffLinesInEditor: Boolean
-        get() = state.highlightDiffLinesInEditor
-        set(value) {
-            updateStateAndEmit {
-                it.copy(highlightDiffLinesInEditor = value)
-            }
-        }
-
-    val highlightDiffLinesInEditorState: StateFlow<Boolean> = stateFlow.mapState { it.highlightDiffLinesInEditor }
 
     var editorReviewEnabled: Boolean
         get() = state.editorReviewEnabled

@@ -58,9 +58,6 @@ class GiteaPRDiscussionsViewModels(
 
     private val settings: GiteaPullRequestsSettings get() = project.service()
 
-    /** Whether the diff editor should highlight lines that carry review comments. */
-    val highlightDiffLines: StateFlow<Boolean> = settings.highlightDiffLinesInEditorState
-
     /** The signed-in account's login — gates inline-comment edit/delete/reply controls to a
      * comment's own author, same as the Timeline's `currentUserLogin`. */
     val currentUserLogin: String get() = repository.accountLogin

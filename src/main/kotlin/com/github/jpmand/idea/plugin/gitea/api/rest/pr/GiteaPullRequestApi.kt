@@ -330,26 +330,22 @@ suspend fun GiteaApi.repoMergePullRequest(
 
 // ── Comment resolve / unresolve ───────────────────────────────────────────
 
-/** POST /repos/{owner}/{repo}/pulls/comments/{id}/resolve — mark comment as resolved. */
+/** POST /repos/{owner}/{repo}/pulls/comments/{id}/resolve — mark comment as resolved. Gitea's own
+ * swagger spec documents this as returning 204 with an empty body on success — loadOptionalJsonValue
+ * (not loadJsonValue, which requires a body and would throw on the empty 204, misreporting a
+ * successful resolve as a failure). */
 @Suppress("UnstableApiUsage")
-suspend fun GiteaApi.repoResolvePullRequestReviewComment(
-  owner: String,
-  repo: String,
-  commentId: Long,
-): PullReviewComment {
+suspend fun GiteaApi.repoResolvePullRequestReviewComment(owner: String, repo: String, commentId: Long) {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/comments/$commentId/resolve")
   val request = request(uri).POST(HttpRequest.BodyPublishers.noBody()).build()
-  return rest.loadJsonValue<PullReviewComment>(request).body()
+  rest.loadOptionalJsonValue<Unit>(request)
 }
 
-/** POST /repos/{owner}/{repo}/pulls/comments/{id}/unresolve — un-resolve a resolved comment. */
+/** POST /repos/{owner}/{repo}/pulls/comments/{id}/unresolve — un-resolve a resolved comment. Same
+ * empty-204-body contract as [repoResolvePullRequestReviewComment] above. */
 @Suppress("UnstableApiUsage")
-suspend fun GiteaApi.repoUnresolvePullRequestReviewComment(
-  owner: String,
-  repo: String,
-  commentId: Long,
-): PullReviewComment {
+suspend fun GiteaApi.repoUnresolvePullRequestReviewComment(owner: String, repo: String, commentId: Long) {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/comments/$commentId/unresolve")
   val request = request(uri).POST(HttpRequest.BodyPublishers.noBody()).build()
-  return rest.loadJsonValue<PullReviewComment>(request).body()
+  rest.loadOptionalJsonValue<Unit>(request)
 }

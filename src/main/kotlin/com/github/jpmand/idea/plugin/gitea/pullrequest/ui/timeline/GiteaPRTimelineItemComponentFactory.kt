@@ -20,6 +20,8 @@ import com.intellij.collaboration.ui.icon.IconsProvider
 import com.intellij.diff.util.LineRange
 import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -32,20 +34,21 @@ import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.text.StringUtil
+import com.intellij.ui.ColorUtil
+import com.intellij.ui.JBColor
 import com.intellij.ui.PopupHandler
+import com.intellij.ui.RoundedLineBorder
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.panels.Wrapper
+import com.intellij.util.text.DateFormatUtil
 import com.intellij.util.ui.JBFont
+import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
-import icons.CollaborationToolsIcons
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.awt.datatransfer.StringSelection
 import java.util.*
 import javax.swing.JComponent
@@ -78,6 +81,9 @@ class GiteaPRTimelineItemComponentFactory(
     private val onOpenCommit: (sha: String) -> Unit,
     /** Replies to an existing review-comment thread, identified by its anchor comment id. */
     private val onReplyToThread: suspend (threadId: Long, body: String) -> Unit,
+    /** Resolves/unresolves a review-comment thread, identified by its anchor comment id. */
+    private val onResolveThread: suspend (threadId: Long) -> Unit,
+    private val onUnresolveThread: suspend (threadId: Long) -> Unit,
     /** The signed-in account's own profile — used for the reply composer's avatar; `null` while
      * still loading (the composer stays hidden until it resolves). */
     private val currentUser: StateFlow<GiteaUser?>,
@@ -100,15 +106,23 @@ class GiteaPRTimelineItemComponentFactory(
             actionsPanel, edited = item.edited)
     }
 
+    /**
+     * A review's verdict (Comment/Approved/Request Changes) plus its inline comment threads are
+     * rendered as one visually grouped, colored unit — a border tinted to the verdict, matching
+     * [reviewStateChip]'s accent bar — so it reads as clearly distinct from a plain top-level
+     * comment or a non-comment activity event, not just indentation.
+     */
     private fun review(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel.Review): JComponent {
+        val statusType = reviewStatusType(item.state)
         val content = VerticalListPanel(4).apply {
-            add(reviewStateChip(item.state))
+            add(reviewStateLabel(item.state))
             if (!item.body.isNullOrBlank()) {
                 val pane = SimpleHtmlPane(bodyHtml(item.body))
                 renderMarkdownInto(cs, pane, item.body)
                 add(pane)
             }
             item.threads.forEach { thread -> add(threadPanel(cs, thread)) }
+            border = JBUI.Borders.compound(RoundedLineBorder(reviewAccentColor(statusType), 8, 1), JBUI.Borders.empty(8))
         }
         return chatItem(item, content,
             urlActions(item.htmlUrl, "pull.request.action.open.comment.in.browser", "pull.request.action.copy.comment.link"))
@@ -127,10 +141,8 @@ class GiteaPRTimelineItemComponentFactory(
     }
 
     private fun commits(item: GiteaPRTimelineItemViewModel.Commits): JComponent {
-        val list = VerticalListPanel(2).apply {
-            item.commits.forEach { c ->
-                add(ActionLink("${c.shortSha}  ${c.messageTitle}") { onOpenCommit(c.sha) })
-            }
+        val list = VerticalListPanel(4).apply {
+            item.commits.forEach { c -> add(commitRow(c)) }
         }
         val header = JBLabel(
             GiteaBundle.message(
@@ -149,6 +161,23 @@ class GiteaPRTimelineItemComponentFactory(
                 null,
             )
         }
+    }
+
+    /** One commit: hash (linked, opens the commit) + message title (plain text, not a link) on
+     * the first row, committer + commit timestamp on a second — same blue accent bar the review
+     * verdict's border uses for [StatusMessageType.INFO], since a commit is informational the
+     * same way a plain review comment is. */
+    private fun commitRow(c: GiteaTimelineItem.Commit): JComponent {
+        val titleRow = HorizontalListPanel(6).apply {
+            add(ActionLink(c.shortSha) { onOpenCommit(c.sha) })
+            add(JBLabel(c.messageTitle))
+        }
+        val metaRow = JBLabel("${actorName(c.actor, c.rawAuthor)} ${DateFormatUtil.formatDateTime(c.timestamp)}").apply {
+            foreground = UIUtil.getContextHelpForeground()
+            font = JBFont.small()
+        }
+        val row = VerticalListPanel(0).apply { add(titleRow); add(metaRow) }
+        return StatusMessageComponentFactory.create(row, StatusMessageType.INFO)
     }
 
     private fun event(item: GiteaPRTimelineItemViewModel.Event): JComponent {
@@ -241,42 +270,58 @@ class GiteaPRTimelineItemComponentFactory(
     }
 
     /**
-     * Renders a review thread like GitHub's inline-comment cards: the file:line location, the
-     * surrounding diff-hunk context (from the anchor comment's
+     * Renders a review thread like GitHub's inline-comment cards: the surrounding diff-hunk
+     * context (from the anchor comment's
      * [com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewComment.diffHunk]) so the
-     * comment doesn't require opening the diff viewer to understand, an "Outdated" badge when the
-     * anchor's [com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewComment.commitId] no
-     * longer matches [headSha], then the comments themselves.
+     * comment doesn't require opening the diff viewer to understand — its own header already
+     * shows the file path, so no separate file:line label is needed here — an "Outdated" badge
+     * when the anchor's [com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewComment.commitId]
+     * no longer matches [headSha], then the comments themselves.
      */
     private fun threadPanel(cs: CoroutineScope, thread: GiteaReviewThread): JComponent {
         val anchor = thread.comments.firstOrNull()
         val isOutdated = anchor?.commitId != null && anchor.commitId != headSha
 
-        val location = buildString {
-            append(thread.path ?: "")
-            (thread.newLine ?: thread.oldLine)?.let { append(":").append(it) }
-        }
-        val locationRow = HorizontalListPanel(6).apply {
-            add(JBLabel(location).apply {
-                foreground = UIUtil.getContextHelpForeground()
-                font = JBFont.small()
-            })
+        val commentsPanel = createThreadCommentsPanel(thread.comments) { c -> threadCommentRow(cs, c) }
+        return VerticalListPanel(2).apply {
+            diffHunkComponent(cs, thread.path, anchor?.diffHunk)?.let { add(it) }
             if (isOutdated) {
                 // Reuses the platform's own tag component + bundled string — the same "OUTDATED"
                 // pill the bundled GitHub plugin's review-thread timeline shows.
                 add(CollaborationToolsUIUtil.createTagLabel(CollaborationToolsBundle.message("review.thread.outdated.tag")))
             }
-        }
-        val commentsPanel = createThreadCommentsPanel(thread.comments) { c -> threadCommentRow(cs, c) }
-        return VerticalListPanel(2).apply {
-            add(locationRow)
-            diffHunkComponent(cs, thread.path, anchor?.diffHunk)?.let { add(it) }
             add(commentsPanel)
+            add(resolveRow(cs, thread).apply { border = JBUI.Borders.empty(2, 0) })
             // Outdated threads (anchored to a diff that's no longer current) can't be replied to.
             // Reply targets the thread's last comment (not the anchor) so Gitea's reply chain
             // threads correctly — see GiteaPRThreadViewModel.lastCommentId.
             if (!isOutdated) add(replyComposer(cs, thread.comments.lastOrNull()?.id ?: thread.id))
         }
+    }
+
+    /** Resolve/unresolve toggle for a review thread — mirrors the diff-editor's
+     * `GiteaPRInlayComponentsFactory.createResolveRow`, just driven by [GiteaReviewThread.isResolved]
+     * directly instead of a `GiteaPRThreadViewModel` (the Timeline has no [GiteaPRDiscussionsViewModels]
+     * of its own). Available regardless of [isOutdated] — resolving doesn't require replying. */
+    private fun resolveRow(cs: CoroutineScope, thread: GiteaReviewThread): JComponent {
+        val row = HorizontalListPanel(0)
+        val labelKey = if (thread.isResolved) "pull.request.action.unresolve.thread" else "pull.request.action.resolve.thread"
+        val errorKey = if (thread.isResolved) "pull.request.action.unresolve.thread.error" else "pull.request.action.resolve.thread.error"
+        row.add(ActionLink(GiteaBundle.message(labelKey)) {
+            cs.launch {
+                try {
+                    if (thread.isResolved) onUnresolveThread(thread.id) else onResolveThread(thread.id)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    NotificationGroupManager.getInstance()
+                        .getNotificationGroup("Gitea")
+                        .createNotification(GiteaBundle.message(labelKey), GiteaBundle.message(errorKey), NotificationType.ERROR)
+                        .notify(project)
+                }
+            }
+        })
+        return row
     }
 
     private fun threadCommentRow(cs: CoroutineScope, comment: GiteaReviewComment): JComponent {
@@ -371,15 +416,33 @@ class GiteaPRTimelineItemComponentFactory(
         return TimelineDiffComponentFactory.createDiffWithHeader(cs, path, flowOf(null), diffComponent)
     }
 
-    private fun reviewStateChip(state: GiteaReviewState): JComponent {
-        val (icon, key) = when (state) {
-            GiteaReviewState.APPROVED ->
-                com.intellij.icons.AllIcons.RunConfigurations.TestPassed to "pull.request.timeline.review.approved"
-            GiteaReviewState.REQUEST_CHANGES ->
-                com.intellij.icons.AllIcons.General.Warning to "pull.request.timeline.review.changes"
-            else -> CollaborationToolsIcons.Review.CommentUnread to "pull.request.timeline.review.commented"
+    /** The verdict text — Approved/Request Changes/Comment. Plain text, no icon and no accent
+     * bar of its own: the whole review's border ([review]) is already tinted to the same verdict
+     * color via [reviewAccentColor], so a second, redundant color indicator here isn't needed. */
+    private fun reviewStateLabel(state: GiteaReviewState): JComponent {
+        val key = when (state) {
+            GiteaReviewState.APPROVED -> "pull.request.timeline.review.approved"
+            GiteaReviewState.REQUEST_CHANGES -> "pull.request.timeline.review.changes"
+            else -> "pull.request.timeline.review.commented"
         }
-        return JBLabel(GiteaBundle.message(key), icon, JBLabel.LEADING)
+        return JBLabel(GiteaBundle.message(key)).apply { font = JBFont.label().asBold() }
+    }
+
+    private fun reviewStatusType(state: GiteaReviewState): StatusMessageType = when (state) {
+        GiteaReviewState.APPROVED -> StatusMessageType.SUCCESS
+        GiteaReviewState.REQUEST_CHANGES -> StatusMessageType.WARNING
+        else -> StatusMessageType.INFO
+    }
+
+    /** The exact named colors [StatusMessageComponentFactory] paints its accent bar with, reused
+     * here so a review's border matches its verdict's bar instead of an arbitrary neutral gray —
+     * same named-color keys the platform itself registers, so light/dark theming stays automatic. */
+    private fun reviewAccentColor(type: StatusMessageType): JBColor = when (type) {
+        StatusMessageType.SUCCESS -> JBColor.namedColor("Review.MetaInfo.StatusLine.Green", ColorUtil.fromHex("62B543B3"))
+        StatusMessageType.WARNING, StatusMessageType.ERROR ->
+            JBColor.namedColor("Review.MetaInfo.StatusLine.Orange", ColorUtil.fromHex("F26522B3"))
+        StatusMessageType.INFO -> JBColor.namedColor("Review.MetaInfo.StatusLine.Blue", ColorUtil.fromHex("40B6E0B2"))
+        StatusMessageType.SECONDARY_INFO -> JBColor.namedColor("Review.MetaInfo.StatusLine.Gray", ColorUtil.fromHex("9AA7B0B3"))
     }
 
     private fun urlActions(url: String?, openKey: String, copyKey: String): List<AnAction> {

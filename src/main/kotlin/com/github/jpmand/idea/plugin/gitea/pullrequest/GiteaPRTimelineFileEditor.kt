@@ -20,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import java.beans.PropertyChangeListener
+import java.util.Date
 import javax.swing.JComponent
 
 /** Editor tab rendering a PR's activity timeline (Conversation). */
@@ -37,14 +38,28 @@ class GiteaPRTimelineFileEditor(
     private val itemFactory = GiteaPRTimelineItemComponentFactory(
         project, avatarIconsProvider, { m -> GiteaUtil.safeConvertMarkdownToHtml(m) }, headSha = file.pr.head.sha,
         currentUserLogin = file.ctx.account.name,
-        onEditComment = { id, body -> file.repository.editComment(id, body); vm.reload() },
-        onDeleteComment = { id -> file.repository.deleteComment(id); vm.reload() },
+        onEditComment = { id, body ->
+            file.repository.editComment(id, body)
+            vm.updateCommentBody(id, body, Date())
+        },
+        onDeleteComment = { id ->
+            file.repository.deleteComment(id)
+            vm.removeComment(id)
+        },
         onOpenCommit = { sha ->
             project.service<GiteaPRCommitSelectionRequests>().request(file.pr, file.repository, file.ctx, sha)
         },
         onReplyToThread = { threadId, body ->
-            file.repository.replyToComment(file.pr.number.toInt(), threadId, body)
-            vm.reload()
+            val reply = file.repository.replyToComment(file.pr.number.toInt(), threadId, body)
+            vm.appendReply(threadId, reply)
+        },
+        onResolveThread = { threadId ->
+            file.repository.resolveComment(threadId)
+            vm.updateThreadResolved(threadId, resolved = true)
+        },
+        onUnresolveThread = { threadId ->
+            file.repository.unresolveComment(threadId)
+            vm.updateThreadResolved(threadId, resolved = false)
         },
         currentUser = vm.currentUser,
         mentionCandidates = vm.mentionCandidates,

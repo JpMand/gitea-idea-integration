@@ -68,7 +68,7 @@ object GiteaPRInlayComponentsFactory {
         when (model) {
             is GiteaPRInlayModel.Thread -> {
                 val card = CodeReviewCommentUIUtil.createEditorInlayPanel(createThreadPanel(project, cs, model.vm, discussionsVm))
-                installHoverAnchorHighlight(card, model.editor, model.editorLineIdx, discussionsVm.highlightDiffLines)
+                installHoverAnchorHighlight(card, model.editor, model.editorLineIdx)
                 CodeReviewComponentInlayRenderer(withInlayMargin(card))
             }
             is GiteaPRInlayModel.NewComment -> CodeReviewComponentInlayRenderer(
@@ -82,19 +82,19 @@ object GiteaPRInlayComponentsFactory {
         Wrapper(card).apply { border = JBUI.Borders.empty(CodeReviewChatItemUIUtil.THREAD_TOP_MARGIN, 0) }
 
     /**
-     * While [enabled] and the card is hovered, highlights [lineIdx] in [editor] the same way
+     * While the card is hovered, highlights [lineIdx] in [editor] the same way
      * [com.intellij.collaboration.ui.codereview.timeline.TimelineDiffComponentFactory]'s own
      * diff-hunk preview highlights its anchor line (`AnchorLine`, same named color) — via
      * [DiffDrawUtil.createHighlighter], the public/stable diff API, disposing the highlighter on
      * hover-out.
      */
-    private fun installHoverAnchorHighlight(card: JComponent, editor: Editor, lineIdx: Int, enabled: StateFlow<Boolean>) {
+    private fun installHoverAnchorHighlight(card: JComponent, editor: Editor, lineIdx: Int) {
         object : HoverStateListener() {
             private var highlighters: List<RangeHighlighter> = emptyList()
 
             override fun hoverChanged(component: Component, hovered: Boolean) {
                 highlighters.forEach { it.dispose() }
-                highlighters = if (hovered && enabled.value) {
+                highlighters = if (hovered) {
                     DiffDrawUtil.createHighlighter(editor, lineIdx, lineIdx + 1, CommentAnchorLineType, false)
                 } else {
                     emptyList()
