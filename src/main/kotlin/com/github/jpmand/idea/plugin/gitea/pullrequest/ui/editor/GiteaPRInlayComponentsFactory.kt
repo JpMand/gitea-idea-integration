@@ -5,9 +5,11 @@ import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRCommentViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRThreadViewModel
+import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaSuggestionUtil
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRCommentFieldFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRSubmittableTextViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.createThreadCommentsPanel
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.withSuggestion
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.CollaborationToolsUIUtil
 import com.intellij.collaboration.ui.EditableComponentFactory
@@ -296,11 +298,14 @@ object GiteaPRInlayComponentsFactory {
         discussionsVm: GiteaPRDiscussionsViewModels,
         vm: GiteaPRCommentViewModel,
     ): JComponent {
-        val (bodyComponent, actionsPanel) = commentBodyAndActions(project, cs, discussionsVm, vm)
+        val suggestion = vm.body?.let { GiteaSuggestionUtil.detect(it) }
+        val displayBody = suggestion?.let { GiteaSuggestionUtil.stripSuggestion(vm.body!!) } ?: vm.body
+        val (bodyComponent, actionsPanel) = commentBodyAndActions(project, cs, discussionsVm, vm, displayBody)
+        val content = withSuggestion(cs, project, bodyComponent, displayBody.isNullOrBlank(), suggestion)
         return CodeReviewChatItemUIUtil.build(
             ComponentType.COMPACT,
             { size -> discussionsVm.avatars.getIcon(vm.author, size) },
-            bodyComponent,
+            content,
         ) {
             withHeader(titleTextPane(authorName(vm.author), vm.author?.htmlUrl, vm.createdAt, vm.comment.isEdited), actionsPanel)
         }
@@ -333,8 +338,9 @@ object GiteaPRInlayComponentsFactory {
         cs: CoroutineScope,
         discussionsVm: GiteaPRDiscussionsViewModels,
         vm: GiteaPRCommentViewModel,
+        displayBody: String? = vm.body,
     ): Pair<JComponent, JComponent?> {
-        val bodyArea = JTextArea(vm.body ?: "").apply {
+        val bodyArea = JTextArea(displayBody ?: "").apply {
             isEditable = false
             lineWrap = true
             wrapStyleWord = true

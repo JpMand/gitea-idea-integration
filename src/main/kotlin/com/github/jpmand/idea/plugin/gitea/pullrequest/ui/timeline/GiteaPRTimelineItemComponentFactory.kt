@@ -1,9 +1,11 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline
 
 import com.github.jpmand.idea.plugin.gitea.api.models.*
+import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaSuggestionUtil
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRCommentFieldFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRSubmittableTextViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.createThreadCommentsPanel
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.withSuggestion
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.messages.CollaborationToolsBundle
 import com.intellij.collaboration.ui.*
@@ -325,11 +327,14 @@ class GiteaPRTimelineItemComponentFactory(
     }
 
     private fun threadCommentRow(cs: CoroutineScope, comment: GiteaReviewComment): JComponent {
-        val (bodyComponent, actionsPanel) = commentBodyAndActions(cs, comment.id, comment.author?.login, comment.body)
+        val suggestion = comment.body?.let { GiteaSuggestionUtil.detect(it) }
+        val displayBody = suggestion?.let { GiteaSuggestionUtil.stripSuggestion(comment.body) } ?: comment.body
+        val (bodyComponent, actionsPanel) = commentBodyAndActions(cs, comment.id, comment.author?.login, displayBody)
+        val content = withSuggestion(cs, project, bodyComponent, displayBody.isNullOrBlank(), suggestion)
         return CodeReviewChatItemUIUtil.build(
             ComponentType.COMPACT,
             { size -> avatars.getIcon(comment.author, size) },
-            bodyComponent,
+            content,
         ) {
             withHeader(titleTextPane(actorName(comment.author), comment.author?.htmlUrl, comment.createdAt, comment.isEdited), actionsPanel)
         }
