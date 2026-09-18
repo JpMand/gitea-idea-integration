@@ -3,30 +3,68 @@
     <id>com.github.jpmand.idea.plugin.gitea</id>
     <name>Gitea</name>
     <vendor>JpMand</vendor>
-    <version>0.0.1</version>
-    <idea-version since-build="253"/>
+    <!-- version and idea-version are patched in from gradle.properties by the Gradle plugin. -->
 
-    <depends>com.intellij.modules.platform</depends>
-    <depends>Git4Idea</depends>
+    <!-- Bundled platform content modules used at runtime. Two-sided with `platformBundledModules`
+         in gradle.properties: Gradle puts them on the compile classpath, these entries wire them
+         onto the plugin classloader. Without them, classes such as
+         com.intellij.collaboration.auth.DefaultAccountHolder fail at load time. -->
+    <dependencies>
+        <module name="intellij.platform.collaborationTools"/>
+        <module name="intellij.platform.vcs.impl"/>
+        <module name="intellij.platform.vcs.dvcs"/>
+        <module name="intellij.platform.vcs.dvcs.impl"/>
+        <plugin id="Git4Idea"/>
+        <plugin id="com.intellij.modules.platform"/>
+    </dependencies>
 
     <resource-bundle>messages.GiteaBundle</resource-bundle>
 
     <extensions defaultExtensionNs="com.intellij">
-        <applicationService serviceImplementation="com.github.jpmand.idea.plugin.gitea.authentication.account.GitePersistentAccounts"/>
-        <applicationService serviceInterface="com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager"
-                            serviceImplementation="com.github.jpmand.idea.plugin.gitea.authentication.account.PersistentGiteaAccountManager"/>
+        <applicationService
+                serviceImplementation="com.github.jpmand.idea.plugin.gitea.authentication.account.GitePersistentAccounts"/>
+        <applicationService
+                serviceInterface="com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager"
+                serviceImplementation="com.github.jpmand.idea.plugin.gitea.authentication.account.PersistentGiteaAccountManager"/>
         <applicationService serviceInterface="com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager"
                             serviceImplementation="com.github.jpmand.idea.plugin.gitea.api.GiteaApiManagerImpl"/>
         <projectService serviceInterface="com.github.jpmand.idea.plugin.gitea.GiteaRepositoriesManager"
                         serviceImplementation="com.github.jpmand.idea.plugin.gitea.GiteaRepositoriesManagerImpl"/>
+        <applicationService serviceInterface="com.github.jpmand.idea.plugin.gitea.GiteaServersManager"
+                            serviceImplementation="com.github.jpmand.idea.plugin.gitea.CachingGiteaServersManager"/>
+        <diff.DiffExtension implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffExtension"/>
+        <editorFactoryListener implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.editor.GiteaPRReviewInEditorController"/>
+        <fileEditorProvider implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPRTimelineEditorProvider"/>
+        <fileIconProvider implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPRVirtualFileIconProvider"/>
+        <!-- language="any": the comment editor is Markdown-typed when the bundled Markdown plugin
+             is enabled, plain text otherwise, so the language can't be pinned statically — scoping
+             is done entirely via GITEA_MENTION_CANDIDATES_KEY on the editor. -->
+        <completion.contributor language="any"
+            implementationClass="com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.mention.GiteaMentionCompletionContributor"/>
+        <toolWindow id="Gitea Pull Requests"
+                    anchor="left"
+                    secondary="false"
+                    canCloseContents="true"
+                    factoryClass="com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow.GiteaPRToolWindowFactory"
+                    icon="/images/giteaLogo.svg"/>
         <!--suppress PluginXmlI18n Name Gitea should not be translated-->
-        <projectConfigurable parentId="project.propVCSSupport.Mappings" groupWeight="-600"
+        <projectConfigurable id="settings.gitea"
+                             parentId="project.propVCSSupport.Mappings" groupWeight="-600"
                              instance="com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable"
                              displayName="Gitea"/>
+        <vcsAnnotationGutterActionProvider
+                implementation="com.github.jpmand.idea.plugin.gitea.extensions.GiteaAnnotationGutterActionProvider"/>
+
+        <openapi.vcs.ui.cloneDialog.VcsCloneDialogExtension
+            id="com.github.jpmand.idea.plugin.gitea.ui.clone.GiteaCloneDialogExtension"
+            implementation="com.github.jpmand.idea.plugin.gitea.ui.clone.GiteaCloneDialogExtension"
+            order="last"/>
+
+        <notificationGroup id="Gitea" displayType="BALLOON"/>
     </extensions>
     <extensions defaultExtensionNs="Git4Idea">
         <GitHttpAuthDataProvider id="Gitea.Silent"
-                                 implementation="com.github.jpmand.idea.plugin.gitea.authentication.extensions.GiteaSilentHttpAuthDataProvider" />
+                                 implementation="com.github.jpmand.idea.plugin.gitea.authentication.extensions.GiteaSilentHttpAuthDataProvider"/>
         <GitHttpAuthDataProvider id="Gitea"
                                  implementation="com.github.jpmand.idea.plugin.gitea.authentication.extensions.GiteaHttpAuthDataProvider"/>
     </extensions>
@@ -34,7 +72,7 @@
     <actions>
         <!--suppress PluginXmlCapitalization -->
         <action id="Gitea.Open.Settings"
-                class="com.github.jpmand.idea.plugin.gitea.GiteaOpenSettingsAction"
+                class="com.github.jpmand.idea.plugin.gitea.ui.action.GiteaOpenSettingsAction"
                 icon="/images/giteaLogo.svg">
             <!--suppress PluginXmlCapitalization -->
             <override-text place="MainMenu"/>
@@ -43,8 +81,25 @@
             <synonym key="action.Gitea.Add.Account.synonym"/>
         </action>
 
-        <group id="Gitea.PullRequest.ToolWindow"
-               class="com.intellij.openapi.actionSystem.DefaultActionGroup">
+        <group id="Gitea.Open.In.Browser"
+               class="com.github.jpmand.idea.plugin.gitea.ui.action.GiteaOpenInBrowserActionGroup">
+            <override-text place="GoToAction"/>
+            <override-text place="EditorTabPopup"/>
+            <override-text place="ProjectViewPopup" use-text-of-place="EditorTabPopup"/>
+            <override-text place="EditorPopup" use-text-of-place="EditorTabPopup"/>
+            <override-text place="BookmarksPopup" use-text-of-place="EditorTabPopup"/>
+            <add-to-group group-id="Git.Hosting.Open.In.Browser.Group"/>
         </group>
+        <group id="Gitea.Copy.Link"
+               class="com.github.jpmand.idea.plugin.gitea.ui.action.GiteaCopyLinkActionGroup">
+            <override-text place="CopyReferencePopup"/>
+            <add-to-group group-id="Git.Hosting.Copy.Link.Group"/>
+        </group>
+        <action id="Gitea.Clone"
+                class="com.github.jpmand.idea.plugin.gitea.ui.clone.GiteaCloneAction"
+                icon="com.github.jpmand.idea.plugin.gitea.GiteaIcons.Logo">
+            <override-text place="MainMenu"/>
+            <override-text place="popup@GoToAction"/>
+        </action>
     </actions>
 </idea-plugin>

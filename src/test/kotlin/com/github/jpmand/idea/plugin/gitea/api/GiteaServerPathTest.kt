@@ -141,4 +141,55 @@ class GiteaServerPathTest {
     val p2 = GiteaServerPath.from("https://gitea.example.com:3000")
     assertEquals(p1.hashCode(), p2.hashCode())
   }
+
+  @Test
+  fun `trailing slash on the context path is ignored`() {
+    val withSlash = GiteaServerPath.from("https://example.com/gitea/")
+    val withoutSlash = GiteaServerPath.from("https://example.com/gitea")
+    assertEquals("/gitea", withSlash.getPath())
+    assertEquals(withoutSlash, withSlash)
+    assertEquals(withoutSlash.hashCode(), withSlash.hashCode())
+    assertEquals("https://example.com/gitea/api/v1/", withSlash.restApiUri().toString())
+  }
+
+  @Test
+  fun `default port equals no port`() {
+    assertEquals(
+      GiteaServerPath.from("https://gitea.example.com"),
+      GiteaServerPath.from("https://gitea.example.com:443"),
+    )
+    assertEquals(
+      GiteaServerPath.from("http://gitea.example.com"),
+      GiteaServerPath.from("http://gitea.example.com:80"),
+    )
+  }
+
+  @Test
+  fun `host comparison is case insensitive`() {
+    assertEquals(
+      GiteaServerPath.from("https://gitea.example.com"),
+      GiteaServerPath.from("https://GITEA.Example.COM"),
+    )
+  }
+
+  @Test
+  fun `ignoreProtocol treats default ports of each scheme as the same server`() {
+    val https = GiteaServerPath.from("https://gitea.example.com")
+    val httpWithPort = GiteaServerPath.from("http://gitea.example.com:80")
+    assertTrue(https.equals(httpWithPort, ignoreProtocol = true))
+  }
+
+  @Test
+  fun `explicit non-default port still distinguishes servers under ignoreProtocol`() {
+    val a = GiteaServerPath.from("https://gitea.example.com:3000")
+    val b = GiteaServerPath.from("http://gitea.example.com")
+    assertFalse(a.equals(b, ignoreProtocol = true))
+  }
+
+  @Test
+  fun `fromOrNull returns null for malformed or unsupported urls`() {
+    assertNull(GiteaServerPath.fromOrNull("ftp://gitea.example.com"))
+    assertNull(GiteaServerPath.fromOrNull("not a url"))
+    assertNull(GiteaServerPath.fromOrNull("https://"))
+  }
 }

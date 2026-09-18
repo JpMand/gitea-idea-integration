@@ -20,6 +20,7 @@ import git4idea.remote.hosting.GitHostingUrlUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+@Suppress("UnstableApiUsage")
 class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
 
   @RequiresBackgroundThread
@@ -74,7 +75,7 @@ class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
 
     return withContext(Dispatchers.EDT + ModalityState.any().asContextElement()) {
       GiteLoginUtil.logInViaToken(
-        project, null, server, login, "git", ::isAccountUnique
+        project, null, server, login, ::isAccountUnique
       )
     }
   }
@@ -85,7 +86,7 @@ class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
     login: String? = null
   ): LoginResult = withContext(Dispatchers.EDT + ModalityState.any().asContextElement()) {
     GiteLoginUtil.updateToken(
-      project, null, account, login, "git", ::isAccountUnique
+      project, null, account, login, ::isAccountUnique
     )
   }
 
@@ -100,7 +101,7 @@ class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
       ?: return@withContext LoginResult.Failure
     val token = accountsWithToken[account]
     if (token == null) {
-      GiteLoginUtil.updateToken(project, null, account, login, "git", ::isAccountUnique)
+      GiteLoginUtil.updateToken(project, null, account, login, ::isAccountUnique)
     } else {
       LoginResult.Success(account, token)
     }

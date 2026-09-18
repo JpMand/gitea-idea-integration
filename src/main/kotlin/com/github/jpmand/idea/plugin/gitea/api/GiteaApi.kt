@@ -14,6 +14,7 @@ import java.net.http.HttpRequest
 
 private val LOG: Logger = logger<GiteaApi>()
 
+@Suppress("UnstableApiUsage")
 interface GiteaApi : HttpApiHelper {
   val server: GiteaServerPath
   val rest: Rest
@@ -21,6 +22,7 @@ interface GiteaApi : HttpApiHelper {
   interface Rest : JsonHttpApiHelper, GiteaApi
 }
 
+@Suppress("UnstableApiUsage")
 internal class GiteaApiImpl(
   override val server: GiteaServerPath,
   httpHelper: HttpApiHelper
@@ -40,22 +42,27 @@ internal class GiteaApiImpl(
 
   private inner class RestImpl(helper: JsonHttpApiHelper) : GiteaApi by this, GiteaApi.Rest, JsonHttpApiHelper by helper
 }
-
+@Suppress("UnstableApiUsage")
 private fun httpHelper(server: GiteaServerPath, tokenSupplier: () -> String): HttpApiHelper {
   val authConfigurer = object : HttpRequestConfigurer {
 
-    override fun configure(builder: HttpRequest.Builder): HttpRequest.Builder {
+    override suspend fun configureSuspend(builder: HttpRequest.Builder): HttpRequest.Builder {
       val uri = builder.build().uri()
       if (server.isAuthorizedUrl(uri)) {
         val token = tokenSupplier()
-        val headerValue = HttpSecurityUtil.createBearerAuthHeaderValue(token)
+        val headerValue = createTokenAuthHearerValue(token)
         return builder.header(HttpSecurityUtil.AUTHORIZATION_HEADER_NAME, headerValue)
       } else {
         return builder
       }
     }
+
   }
-  val requestConfigurer = CompoundRequestConfigurer(RequestTimeoutConfigurer(), authConfigurer)
+  val requestConfigurer =
+    CompoundRequestConfigurer(RequestTimeoutConfigurer(), GiteaHeaderConfigurer(), authConfigurer)
+  // No explicit clientFactory: the collaboration-tools default routes through the IDE proxy
+  // settings and CertificateManager, so self-signed / internal-CA Gitea servers prompt the user
+  // to trust the certificate rather than failing with an opaque SSLHandshakeException.
   return HttpApiHelper(
     logger = logger<GiteaApi>(),
     requestConfigurer = requestConfigurer
@@ -83,7 +90,7 @@ private fun GiteaServerPath.isAuthorizedUrl(targetUri: URI): Boolean {
   return true
 }
 
-
+@Suppress("UnstableApiUsage")
 private fun httpHelper(): HttpApiHelper {
   val requestConfigurer = CompoundRequestConfigurer(RequestTimeoutConfigurer(), GiteaHeaderConfigurer())
   return HttpApiHelper(logger = logger<GiteaApi>(), requestConfigurer = requestConfigurer)
@@ -92,8 +99,10 @@ private fun httpHelper(): HttpApiHelper {
 private const val PLUGIN_USER_AGENT_NAME = "GiteaIdeaIntegration"
 
 private class GiteaHeaderConfigurer : HttpRequestConfigurer {
-  override fun configure(builder: HttpRequest.Builder): HttpRequest.Builder =
+  override suspend fun configureSuspend(builder: HttpRequest.Builder): HttpRequest.Builder =
     builder.apply {
       header(HttpClientUtil.USER_AGENT_HEADER, HttpClientUtil.getUserAgentValue(PLUGIN_USER_AGENT_NAME))
     }
 }
+
+private fun createTokenAuthHearerValue(token: String) = "token $token"
