@@ -1,5 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 
 /**
  * MergePullRequestForm form for merging Pull Request
@@ -31,17 +33,17 @@ data class MergePullRequestOption(
     enum class Do(val value: kotlin.String)
     {
 
-        MERGE("merge"),
+        @JsonProperty("merge") MERGE("merge"),
 
-        REBASE("rebase"),
+        @JsonProperty("rebase") REBASE("rebase"),
 
-        REBASEMERGE("rebase-merge"),
+        @JsonProperty("rebase-merge") REBASEMERGE("rebase-merge"),
 
-        SQUASH("squash"),
+        @JsonProperty("squash") SQUASH("squash"),
 
-        FASTFORWARDONLY("fast-forward-only"),
+        @JsonProperty("fast-forward-only") FASTFORWARDONLY("fast-forward-only"),
 
-        MANUALLYMERGED("manually-merged")
+        @JsonProperty("manually-merged") MANUALLYMERGED("manually-merged")
 
     }
 

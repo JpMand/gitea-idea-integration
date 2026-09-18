@@ -40,11 +40,12 @@ import java.util.*
 import javax.swing.*
 
 /**
- * Read-only PR-details tool-window tab, laid out like the bundled GitLab plugin's
+ * PR-details tool-window tab, laid out like the bundled GitLab plugin's
  * `GitLabMergeRequestDetailsComponentFactory`: title → nav bar → commits/branch → selected-commit
- * info → changes tree → status → write-action bar. Write actions are Milestone-2 stubs
- * (see [giteaWriteActionNotImplemented]); the changed-files tree and the conversation timeline
- * (opened via [onShowTimeline]) are the working surfaces.
+ * info → changes tree → status → write-action bar → review composer. Every action in the
+ * write-action bar (open in browser, close/reopen, ready-for-review, merge) and the review
+ * composer are wired to real API calls; [giteaWriteActionNotImplemented] is only the fallback
+ * [stubActionSwing] takes when a caller doesn't pass an action, kept around for any future stub.
  */
 @Suppress("UnstableApiUsage")
 class GiteaPRDetailsPanel(
@@ -253,7 +254,7 @@ class GiteaPRDetailsPanel(
     private fun createActionsComponent(): JComponent {
         val openInBrowser = stubActionSwing("pull.request.action.open.in.browser") { BrowserUtil.browse(vm.url) }
         val reopen = stubActionSwing("pull.request.action.reopen") { vm.reopenPullRequest() }
-        val readyForReview = stubActionSwing("pull.request.action.ready.for.review")
+        val readyForReview = stubActionSwing("pull.request.action.ready.for.review") { vm.markReadyForReview() }
         val closeButton = actionButton("pull.request.action.close") { vm.closePullRequest() }
         val (mergeControl, mergeOptionButton) = createMergeControl()
 
@@ -269,6 +270,7 @@ class GiteaPRDetailsPanel(
                 closeButton.isEnabled = !busy
                 mergeOptionButton.isEnabled = !busy
                 reopen.isEnabled = !busy
+                readyForReview.isEnabled = !busy
             }
         }
 

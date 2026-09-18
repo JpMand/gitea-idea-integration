@@ -485,7 +485,7 @@ class GiteaPRTimelineItemComponentFactory(
         GiteaTimelineItem.Event.Kind.REVIEW_REQUEST_REMOVED ->
             GiteaBundle.message("pull.request.timeline.event.review.request.removed", item.user?.login ?: "")
         GiteaTimelineItem.Event.Kind.REVIEW_DISMISSED -> GiteaBundle.message("pull.request.timeline.event.review.dismissed")
-        GiteaTimelineItem.Event.Kind.TITLE_CHANGED -> GiteaBundle.message("pull.request.timeline.event.title.changed")
+        GiteaTimelineItem.Event.Kind.TITLE_CHANGED -> GiteaBundle.message("pull.request.timeline.event.title.changed", item.oldValue ?: "n/a", item.newValue ?: "n/a")
         GiteaTimelineItem.Event.Kind.BASE_BRANCH_CHANGED ->
             GiteaBundle.message("pull.request.timeline.event.base.changed", item.oldValue ?: "", item.newValue ?: "")
         GiteaTimelineItem.Event.Kind.HEAD_BRANCH_DELETED -> GiteaBundle.message("pull.request.timeline.event.head.deleted")

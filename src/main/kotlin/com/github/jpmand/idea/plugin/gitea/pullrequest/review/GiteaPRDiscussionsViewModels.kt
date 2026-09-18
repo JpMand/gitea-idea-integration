@@ -54,6 +54,10 @@ class GiteaPRDiscussionsViewModels(
      * means the diff it was anchored to is no longer the latest one, i.e. it's "outdated". */
     val headSha: String,
     private val repository: GiteaPRRepository,
+    /** Merged into [mentionCandidates] alongside repo collaborators — repo-wide collaborator
+     * status isn't the only reason someone is mentionable on *this* PR specifically (e.g. a
+     * requested reviewer, or the PR's own author, who may not be an explicit collaborator). */
+    private val additionalMentionCandidates: List<GiteaUser> = emptyList(),
 ) : CodeReviewInEditorViewModel {
 
     private val settings: GiteaPullRequestsSettings get() = project.service()
@@ -76,7 +80,8 @@ class GiteaPRDiscussionsViewModels(
     private val _currentUser = MutableStateFlow<GiteaUser?>(null)
     val currentUser: StateFlow<GiteaUser?> = _currentUser.asStateFlow()
 
-    /** Repo collaborators, loaded once for `@`-mention completion in reply composers — see
+    /** Repo collaborators plus [additionalMentionCandidates], loaded once for `@`-mention
+     * completion in reply composers — see
      * [com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.mention.GiteaMentionCompletionContributor]. */
     private val _mentionCandidates = MutableStateFlow<List<GiteaUser>>(emptyList())
     val mentionCandidates: StateFlow<List<GiteaUser>> = _mentionCandidates.asStateFlow()
@@ -121,13 +126,15 @@ class GiteaPRDiscussionsViewModels(
             }
         }
         cs.launch(Dispatchers.IO) {
-            try {
-                _mentionCandidates.value = repository.loadPossibleAuthors()
+            val collaborators = try {
+                repository.loadPossibleAuthors()
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                // Best-effort — a failed lookup just means no mention completion, not an error banner.
+                // Best-effort — a failed lookup still leaves additionalMentionCandidates usable.
+                emptyList()
             }
+            _mentionCandidates.value = (collaborators + additionalMentionCandidates).distinctBy { it.login }
         }
         reloadPendingReview()
     }

@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewComment
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
+import com.github.jpmand.idea.plugin.gitea.api.models.mentionCandidates
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRSubmittableTextViewModel
 import com.intellij.collaboration.util.ComputedResult
@@ -70,13 +71,15 @@ class GiteaPRTimelineViewModel(
     init {
         reload()
         cs.launch(Dispatchers.IO) {
-            try {
-                _mentionCandidates.value = repository.loadPossibleAuthors()
+            val collaborators = try {
+                repository.loadPossibleAuthors()
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                // Best-effort — a failed lookup just means no mention completion, not an error banner.
+                // Best-effort — a failed lookup still leaves pr.mentionCandidates() usable.
+                emptyList()
             }
+            _mentionCandidates.value = (collaborators + pr.mentionCandidates()).distinctBy { it.login }
         }
         cs.launch(Dispatchers.IO) {
             try {

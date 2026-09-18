@@ -12,8 +12,12 @@ import com.intellij.psi.PsiElement
  * Set on a comment editor's [com.intellij.openapi.editor.Editor] user data to both provide the
  * candidate list and scope [GiteaMentionCompletionContributor] to that editor — see
  * [com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRCommentFieldFactory].
- * Candidates are repo collaborators only (`GiteaPRRepository.loadPossibleAuthors()`), loaded once
- * per PR session and filtered client-side here — no live per-keystroke server search.
+ * Candidates are repo collaborators (`GiteaPRRepository.loadPossibleAuthors()`) plus the current
+ * PR's own author and requested reviewers (`GiteaPullRequest.mentionCandidates()`) — someone
+ * clearly relevant to *this* PR specifically isn't necessarily an explicit repo collaborator.
+ * Loaded once per PR session and filtered client-side here — no live per-keystroke server search
+ * (Gitea's `/users/search` could support one, but every user on the instance being a completion
+ * candidate is a much bigger surface than this PR's own participants).
  */
 val GITEA_MENTION_CANDIDATES_KEY: Key<List<GiteaUser>> = Key.create("Gitea.Mention.Candidates")
 

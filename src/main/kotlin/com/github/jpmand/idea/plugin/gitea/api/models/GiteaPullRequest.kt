@@ -75,3 +75,12 @@ class GiteaPullRequest(
         )
     }
 }
+
+/**
+ * People worth offering as `@`-mention candidates on this specific PR beyond whatever the repo's
+ * generic collaborator list already covers — the author and requested reviewers are exactly the
+ * people a comment on this PR is most likely to address, whether or not either happens to also be
+ * an explicit repo collaborator.
+ */
+fun GiteaPullRequest.mentionCandidates(): List<GiteaUser> =
+    (requestedReviewers + author).filter { it.login.isNotBlank() }

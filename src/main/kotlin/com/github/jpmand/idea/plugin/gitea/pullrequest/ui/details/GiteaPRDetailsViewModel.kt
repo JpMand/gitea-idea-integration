@@ -110,6 +110,33 @@ class GiteaPRDetailsViewModel(
         }
     }
 
+    // ── Ready for review ─────────────────────────────────────────────────
+
+    /**
+     * Gitea has no dedicated "draft" flag to flip — the server derives [GiteaPullRequest.draft]
+     * from a configurable title prefix (confirmed against `gitea-swagger-v2-spec.json`:
+     * [EditPullRequestOption] has no `draft` field, and there is no separate toggle endpoint).
+     * Gitea's own web UI does the same thing this does: edit the title to strip the prefix. Only
+     * the two prefixes Gitea ships by default (`WIP:`, `[WIP]`, matched case-insensitively) are
+     * recognized — a server configured with a custom prefix isn't knowable from the REST API, so
+     * this silently does nothing on the title in that case (the PR stays a draft).
+     */
+    fun markReadyForReview() {
+        val newTitle = DRAFT_PREFIX_RE.replaceFirst(_pr.value.title, "")
+        cs.launch(Dispatchers.IO) {
+            _isActionInProgress.value = true
+            try {
+                _pr.value = repository.editPullRequest(prNumber, EditPullRequestOption(title = newTitle))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                notifyError("pull.request.action.ready.for.review.error")
+            } finally {
+                withContext(NonCancellable) { _isActionInProgress.value = false }
+            }
+        }
+    }
+
     // ── Merge ────────────────────────────────────────────────────────────
 
     fun mergePullRequest(method: MergePullRequestOption.Do, deleteBranch: Boolean) {
@@ -135,5 +162,10 @@ class GiteaPRDetailsViewModel(
                 .createNotification(GiteaBundle.message(bundleKey), NotificationType.ERROR)
                 .notify(project)
         }
+    }
+
+    private companion object {
+        /** Gitea's two default work-in-progress title prefixes (`repository.pull-request.WORK_IN_PROGRESS_PREFIXES`). */
+        private val DRAFT_PREFIX_RE = Regex("""^\s*(WIP:|\[WIP])\s*""", RegexOption.IGNORE_CASE)
     }
 }

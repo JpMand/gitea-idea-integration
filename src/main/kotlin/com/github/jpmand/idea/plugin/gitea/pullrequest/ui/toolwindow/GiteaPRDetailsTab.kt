@@ -1,6 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
+import com.github.jpmand.idea.plugin.gitea.api.models.mentionCandidates
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffVirtualFile
@@ -35,7 +36,7 @@ class GiteaPRDetailsTab(
     private val detailsVm = GiteaPRDetailsViewModel(project, cs, pr, repository)
     private val statusVm = GiteaPRStatusViewModel(cs, pr, repository)
     private val diffVm = GiteaPRDiffViewModel(cs, project, pr, repository)
-    private val discussionsVm = GiteaPRDiscussionsViewModels(project, cs, pr.number.toInt(), pr.head.sha, repository)
+    private val discussionsVm = GiteaPRDiscussionsViewModels(project, cs, pr.number.toInt(), pr.head.sha, repository, pr.mentionCandidates())
     private val diffFile = GiteaPRDiffVirtualFile(pr.number.toInt(), cs, project, repository, diffVm, discussionsVm)
 
     private val changesComponent = GiteaPRChangesTreeComponentFactory.create(

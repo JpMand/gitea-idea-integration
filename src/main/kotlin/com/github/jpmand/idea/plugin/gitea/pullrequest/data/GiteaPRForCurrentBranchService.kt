@@ -2,6 +2,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.data
 
 import com.github.jpmand.idea.plugin.gitea.GiteaRepositoriesManager
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
+import com.github.jpmand.idea.plugin.gitea.api.models.mentionCandidates
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.intellij.openapi.components.Service
@@ -113,7 +114,7 @@ class GiteaPRForCurrentBranchService(private val project: Project, private val c
 
         val prJob = SupervisorJob(cs.coroutineContext[Job])
         val prCs = CoroutineScope(cs.coroutineContext + prJob)
-        val discussionsVm = GiteaPRDiscussionsViewModels(project, prCs, pr.number.toInt(), pr.head.sha, repository)
+        val discussionsVm = GiteaPRDiscussionsViewModels(project, prCs, pr.number.toInt(), pr.head.sha, repository, pr.mentionCandidates())
         setCurrent(GiteaPRForCurrentBranch(ctx, pr, repository, discussionsVm, changedFiles, repositoryRoot), prJob)
     }
 
