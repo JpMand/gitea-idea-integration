@@ -53,6 +53,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
 import java.awt.datatransfer.StringSelection
 import java.util.*
+import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JEditorPane
 
@@ -309,17 +310,19 @@ class GiteaPRTimelineItemComponentFactory(
         val row = HorizontalListPanel(0)
         val labelKey = if (thread.isResolved) "pull.request.action.unresolve.thread" else "pull.request.action.resolve.thread"
         val errorKey = if (thread.isResolved) "pull.request.action.unresolve.thread.error" else "pull.request.action.resolve.thread.error"
-        row.add(ActionLink(GiteaBundle.message(labelKey)) {
-            cs.launch {
-                try {
-                    if (thread.isResolved) onUnresolveThread(thread.id) else onResolveThread(thread.id)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    NotificationGroupManager.getInstance()
-                        .getNotificationGroup("Gitea")
-                        .createNotification(GiteaBundle.message(labelKey), GiteaBundle.message(errorKey), NotificationType.ERROR)
-                        .notify(project)
+        row.add(JButton(GiteaBundle.message(labelKey)).apply {
+            addActionListener {
+                cs.launch {
+                    try {
+                        if (thread.isResolved) onUnresolveThread(thread.id) else onResolveThread(thread.id)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        NotificationGroupManager.getInstance()
+                            .getNotificationGroup("Gitea")
+                            .createNotification(GiteaBundle.message(labelKey), GiteaBundle.message(errorKey), NotificationType.ERROR)
+                            .notify(project)
+                    }
                 }
             }
         })
@@ -327,10 +330,10 @@ class GiteaPRTimelineItemComponentFactory(
     }
 
     private fun threadCommentRow(cs: CoroutineScope, comment: GiteaReviewComment): JComponent {
-        val suggestion = comment.body?.let { GiteaSuggestionUtil.detect(it) }
-        val displayBody = suggestion?.let { GiteaSuggestionUtil.stripSuggestion(comment.body) } ?: comment.body
+        val suggestion = if (comment.path != null) comment.body?.let { GiteaSuggestionUtil.detect(it) } else null
+        val displayBody = suggestion?.let { GiteaSuggestionUtil.stripSuggestion(comment.body!!) } ?: comment.body
         val (bodyComponent, actionsPanel) = commentBodyAndActions(cs, comment.id, comment.author?.login, displayBody)
-        val content = withSuggestion(cs, project, bodyComponent, displayBody.isNullOrBlank(), suggestion)
+        val content = withSuggestion(cs, project, comment.path, bodyComponent, displayBody.isNullOrBlank(), suggestion)
         return CodeReviewChatItemUIUtil.build(
             ComponentType.COMPACT,
             { size -> avatars.getIcon(comment.author, size) },

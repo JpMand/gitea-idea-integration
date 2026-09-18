@@ -1,6 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui
 
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaSuggestion
+import com.github.jpmand.idea.plugin.gitea.pullrequest.review.applySuggestion
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.VerticalListPanel
 import com.intellij.collaboration.ui.codereview.timeline.TimelineDiffComponentFactory
@@ -8,10 +9,11 @@ import com.intellij.openapi.diff.impl.patch.PatchHunk
 import com.intellij.openapi.diff.impl.patch.PatchLine
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.project.Project
-import com.intellij.ui.components.ActionLink
 import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
+import javax.swing.JButton
 import javax.swing.JComponent
 
 /**
@@ -42,29 +44,31 @@ fun createSuggestionComponent(cs: CoroutineScope, project: Project, suggestion: 
     return VerticalListPanel(4).apply {
         border = JBUI.Borders.empty(4, 0)
         add(diffBox)
-        add(ActionLink(GiteaBundle.message("pull.request.action.apply.suggestion")) { onApply() })
+        add(JButton(GiteaBundle.message("pull.request.action.apply.suggestion")).apply {
+            addActionListener { onApply() }
+        })
     }
 }
 
 /**
  * Combines a comment's already-rendered body with its "Suggested change" box (or returns
- * [bodyComponent] unchanged when [suggestion] is `null`) — shared so the Timeline and diff-editor
- * comment factories render a suggestion identically. [bodyComponent] is omitted entirely when
- * [bodyIsBlank] — the whole comment was just the suggestion, no explanation text of its own.
- * Apply logic isn't wired up yet (TODO); the action currently just says so
- * ([applySuggestionNotImplementedYet]).
+ * [bodyComponent] unchanged when [suggestion] or [path] is `null`) — shared so the Timeline and
+ * diff-editor comment factories render a suggestion identically. [bodyComponent] is omitted
+ * entirely when [bodyIsBlank] — the whole comment was just the suggestion, no explanation text of
+ * its own.
  */
 @Suppress("UnstableApiUsage")
 fun withSuggestion(
     cs: CoroutineScope,
     project: Project,
+    path: String?,
     bodyComponent: JComponent,
     bodyIsBlank: Boolean,
     suggestion: GiteaSuggestion?,
 ): JComponent {
-    if (suggestion == null) return bodyComponent
+    if (suggestion == null || path == null) return bodyComponent
     return VerticalListPanel(4).apply {
         if (!bodyIsBlank) add(bodyComponent)
-        add(createSuggestionComponent(cs, project, suggestion) { applySuggestionNotImplementedYet(project, suggestion) })
+        add(createSuggestionComponent(cs, project, suggestion) { cs.launch { applySuggestion(cs, project, path, suggestion) } })
     }
 }

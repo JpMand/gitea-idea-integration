@@ -275,17 +275,19 @@ object GiteaPRInlayComponentsFactory {
         row.isOpaque = false
         val labelKey = if (vm.isResolved) "pull.request.action.unresolve.thread" else "pull.request.action.resolve.thread"
         val errorKey = if (vm.isResolved) "pull.request.action.unresolve.thread.error" else "pull.request.action.resolve.thread.error"
-        row.add(ActionLink(GiteaBundle.message(labelKey)) {
-            cs.launch {
-                try {
-                    if (vm.isResolved) vm.unresolve() else vm.resolve()
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    NotificationGroupManager.getInstance()
-                        .getNotificationGroup("Gitea")
-                        .createNotification(GiteaBundle.message(labelKey), GiteaBundle.message(errorKey), NotificationType.ERROR)
-                        .notify(project)
+        row.add(JButton(GiteaBundle.message(labelKey)).apply {
+            addActionListener {
+                cs.launch {
+                    try {
+                        if (vm.isResolved) vm.unresolve() else vm.resolve()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        NotificationGroupManager.getInstance()
+                            .getNotificationGroup("Gitea")
+                            .createNotification(GiteaBundle.message(labelKey), GiteaBundle.message(errorKey), NotificationType.ERROR)
+                            .notify(project)
+                    }
                 }
             }
         })
@@ -298,10 +300,10 @@ object GiteaPRInlayComponentsFactory {
         discussionsVm: GiteaPRDiscussionsViewModels,
         vm: GiteaPRCommentViewModel,
     ): JComponent {
-        val suggestion = vm.body?.let { GiteaSuggestionUtil.detect(it) }
+        val suggestion = if (vm.comment.path != null) vm.body?.let { GiteaSuggestionUtil.detect(it) } else null
         val displayBody = suggestion?.let { GiteaSuggestionUtil.stripSuggestion(vm.body!!) } ?: vm.body
         val (bodyComponent, actionsPanel) = commentBodyAndActions(project, cs, discussionsVm, vm, displayBody)
-        val content = withSuggestion(cs, project, bodyComponent, displayBody.isNullOrBlank(), suggestion)
+        val content = withSuggestion(cs, project, vm.comment.path, bodyComponent, displayBody.isNullOrBlank(), suggestion)
         return CodeReviewChatItemUIUtil.build(
             ComponentType.COMPACT,
             { size -> discussionsVm.avatars.getIcon(vm.author, size) },
