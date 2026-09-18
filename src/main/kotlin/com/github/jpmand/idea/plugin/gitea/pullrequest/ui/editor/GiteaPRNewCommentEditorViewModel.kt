@@ -60,6 +60,14 @@ class GiteaPRNewCommentEditorViewModel(
     /** Cancels an in-progress (not yet finalized) composer. */
     fun cancel() = onDismissed()
 
+    /** Reflects an edited draft's new body — called after [GiteaPRDiscussionsViewModels.updateDraft]
+     * (the central store this inlay's own [draft] was seeded from, but never re-reads afterward)
+     * succeeds, so the compact draft row this inlay renders shows the edit instead of reverting to
+     * the pre-edit text on the next unrelated recomposition. */
+    fun updateDraftBody(body: String) {
+        _draft.value = _draft.value?.copy(body = body)
+    }
+
     /** Removes an already-finalized draft — this inlay disappears with it. */
     fun removeDraft() {
         _draft.value?.let { discussionsVm.removeDraft(it.localId) }

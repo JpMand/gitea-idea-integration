@@ -34,10 +34,15 @@ internal class GiteaRepositoriesManagerImpl(project: Project, cs: CoroutineScope
     }.distinctUntilChanged()
 
     val discoveredServersFlow = gitRemotesFlow.discoverServers(accountsServersFlow) { remote ->
-      // Heuristic: treat the remote's host (over https) as a Gitea server. A server hosted on a
-      // sub-path is only discovered once the user configures an account for it (accountsServersFlow).
-      GitHostingUrlUtil.getUriFromRemoteUrl(remote.url)?.host
-        ?.let { host -> runCatching { GiteaServerPath.from("https://$host") }.getOrNull() }
+      // Heuristic: treat the remote's host as a Gitea server. Prefer the remote URL's own scheme
+      // when it's explicitly http/https — an http-only self-hosted instance must not be guessed
+      // at as https — and fall back to https only when the remote gives no such signal (e.g. an
+      // ssh/scp-style git remote, which says nothing about the web-facing scheme the same host
+      // serves Gitea's own UI/API over). A server hosted on a sub-path is only discovered once
+      // the user configures an account for it (accountsServersFlow).
+      val uri = GitHostingUrlUtil.getUriFromRemoteUrl(remote.url)
+      val scheme = uri?.scheme?.takeIf { it == "http" || it == "https" } ?: "https"
+      uri?.host?.let { host -> runCatching { GiteaServerPath.from("$scheme://$host") }.getOrNull() }
     }.runningFold(emptySet<GiteaServerPath>()) { acc, value ->
       acc + value
     }.distinctUntilChanged()

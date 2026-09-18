@@ -28,6 +28,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
@@ -68,7 +69,7 @@ class GiteaPRReviewInEditorController : EditorFactoryListener {
             project.service<GiteaPRForCurrentBranchService>().current.collectLatest { current ->
                 if (current == null) return@collectLatest
                 val changedFile = matchFile(current, virtualFile) ?: return@collectLatest
-                wireReview(cs, project, editor, current, changedFile)
+                wireReview(project, editor, current, changedFile)
             }
         }
     }
@@ -85,12 +86,15 @@ class GiteaPRReviewInEditorController : EditorFactoryListener {
 
     /**
      * Suspends until the enclosing `collectLatest` moves to a new value (branch/PR changed, or
-     * this editor no longer matches) — same per-editor lifecycle shape as
-     * [com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffExtension.onViewerCreated]'s
-     * `showCodeReview` call for a diff viewer.
+     * this editor no longer matches). Everything wired up in here runs inside its own
+     * [coroutineScope], not the editor's own long-lived scope — a re-emission of [current] that
+     * still matches the same file (e.g. an unrelated account/token refresh) re-runs this whole
+     * function, and only a scope owned by *this* call gets torn down when `collectLatest` cancels
+     * it for the next one; anything launched on the outer, never-cancelled scope would keep
+     * running and duplicate itself (a second toolbar, a second suggestion-gutter collector) on
+     * every re-emission instead.
      */
     private suspend fun wireReview(
-        cs: CoroutineScope,
         project: Project,
         editor: EditorEx,
         current: GiteaPRForCurrentBranch,
@@ -105,23 +109,27 @@ class GiteaPRReviewInEditorController : EditorFactoryListener {
             return
         }
 
-        val sync = GiteaPRLiveDiffSync(cs, headContent, editor.document)
-        // Always Side.RIGHT: the live document descends from the head-SHA snapshot plus local
-        // edits, so it only ever has a "new side" — see the class doc on base-side comments.
-        val locationToLine: (DiffLineLocation) -> Int? = { (side, anchorLine) ->
-            if (side == Side.RIGHT) sync.anchorToLive(anchorLine) else null
-        }
-        val lineToLocation: (Int) -> DiffLineLocation? = { liveLine ->
-            sync.liveToAnchor(liveLine)?.let { Pair(Side.RIGHT, it) }
-        }
+        coroutineScope {
+            val sync = GiteaPRLiveDiffSync(this, headContent, editor.document)
+            // Always Side.RIGHT: the live document descends from the head-SHA snapshot plus
+            // local edits, so it only ever has a "new side" — see the class doc on base-side
+            // comments.
+            val locationToLine: (DiffLineLocation) -> Int? = { (side, anchorLine) ->
+                if (side == Side.RIGHT) sync.anchorToLive(anchorLine) else null
+            }
+            val lineToLocation: (Int) -> DiffLineLocation? = { liveLine ->
+                sync.liveToAnchor(liveLine)?.let { Pair(Side.RIGHT, it) }
+            }
 
-        cs.launchReviewToolbar(project, editor, current.discussionsVm)
-        val model = GiteaPRDiffEditorModel(
-            cs, project, changedFile, Side.RIGHT, current.discussionsVm, locationToLine, lineToLocation, editor,
-        )
-        cs.installSuggestionGutterIcons(editor, sync, headContent, model)
-        editor.showCodeReview(model) { inlayModel ->
-            GiteaPRInlayComponentsFactory.createRenderer(project, cs, inlayModel, current.discussionsVm)
+            launchReviewToolbar(project, editor, current.discussionsVm)
+            val model = GiteaPRDiffEditorModel(
+                this, project, changedFile, Side.RIGHT, current.discussionsVm, locationToLine, lineToLocation, editor,
+            )
+            installSuggestionGutterIcons(editor, sync, headContent, model)
+            val scope = this
+            editor.showCodeReview(model) { inlayModel ->
+                GiteaPRInlayComponentsFactory.createRenderer(project, scope, inlayModel, current.discussionsVm)
+            }
         }
     }
 }

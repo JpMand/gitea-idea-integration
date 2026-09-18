@@ -80,6 +80,16 @@ class GiteaVersionTest {
   }
 
   @Test
+  fun `error page with digits is not mistaken for a version`() {
+    // Digits appearing after leading text (e.g. an HTTP error page from a proxy, not a real
+    // Gitea /version response) must not be parsed out as the major version.
+    val v = GiteaVersion.fromString("Bad Gateway 502")
+    assertEquals(0, v.major)
+    assertTrue(v < floor)
+    assertNull(GiteaVersion.fromStringOrNull("Bad Gateway 502"))
+  }
+
+  @Test
   fun `fromStringOrNull returns null for unparseable input`() {
     assertNull(GiteaVersion.fromStringOrNull(""))
     assertNull(GiteaVersion.fromStringOrNull("nginx"))

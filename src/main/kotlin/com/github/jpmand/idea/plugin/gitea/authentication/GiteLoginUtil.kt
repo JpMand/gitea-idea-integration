@@ -43,7 +43,7 @@ object GiteLoginUtil {
     parentComponent: JComponent?,
     account: GiteaAccount,
     uniqueAccountPredicate: (GiteaServerPath, String) -> Boolean
-  ): LoginResult = updateToken(project, parentComponent, account, null, uniqueAccountPredicate)
+  ): LoginResult = updateToken(project, parentComponent, account, account.name, uniqueAccountPredicate)
 
   @RequiresEdt
   internal fun logInViaToken(

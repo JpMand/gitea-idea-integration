@@ -51,16 +51,45 @@ object GiteaPRTimelineComponentFactory {
         )
 
         val itemsPanel = VerticalListPanel(0)
+        // Reused across emissions so an unrelated in-place update (see the "In-place updates"
+        // section of GiteaPRTimelineViewModel) doesn't rebuild every item's component from
+        // scratch — that would destroy, e.g., a reply composer's in-progress draft text on a
+        // thread nobody touched. Each in-place update returns items.map { ... else item }, so an
+        // untouched item is the exact same (`==`) value as its previous emission and its
+        // already-built component is reused as-is; only items whose value actually changed get a
+        // new component, and the panel's children are patched in place rather than torn down.
+        val itemComponents = mutableMapOf<GiteaPRTimelineItemViewModel, JComponent>()
+
+        fun renderItems(items: List<GiteaPRTimelineItemViewModel>) {
+            itemComponents.keys.retainAll(items.toSet())
+            items.forEachIndexed { index, item ->
+                val component = itemComponents.getOrPut(item) { itemFactory.create(cs, item) }
+                if (index >= itemsPanel.componentCount || itemsPanel.getComponent(index) !== component) {
+                    if (index < itemsPanel.componentCount) itemsPanel.remove(index)
+                    itemsPanel.add(component, index)
+                }
+            }
+            while (itemsPanel.componentCount > items.size) {
+                itemsPanel.remove(itemsPanel.componentCount - 1)
+            }
+        }
 
         cs.launch {
             vm.items.collect { computed ->
-                itemsPanel.removeAll()
                 val res = computed?.result
                 when {
-                    res == null -> itemsPanel.add(info(GiteaBundle.message("pull.request.timeline.loading")))
+                    res == null -> {
+                        itemComponents.clear()
+                        itemsPanel.removeAll()
+                        itemsPanel.add(info(GiteaBundle.message("pull.request.timeline.loading")))
+                    }
                     else -> res.fold(
-                        onSuccess = { items -> items.forEach { itemsPanel.add(itemFactory.create(cs, it)) } },
-                        onFailure = { itemsPanel.add(info(GiteaBundle.message("pull.request.timeline.error"))) },
+                        onSuccess = { items -> renderItems(items) },
+                        onFailure = {
+                            itemComponents.clear()
+                            itemsPanel.removeAll()
+                            itemsPanel.add(info(GiteaBundle.message("pull.request.timeline.error")))
+                        },
                     )
                 }
                 itemsPanel.revalidate()

@@ -74,15 +74,21 @@ private fun addSuggestionGutterBar(
         startOffset, endOffset, HighlighterLayer.ERROR + 1, null, HighlighterTargetArea.LINES_IN_RANGE,
     )
     highlighter.lineMarkerRenderer = SuggestionGutterBarRenderer {
-        val oldLines = headLines.subList(range.start1, range.end1)
+        // Coerced defensively: headLines comes from Kotlin's own String.lines() while
+        // range.start1/end1 come from the platform's Document-based diff Range — a mismatch at a
+        // trailing-newline boundary between the two line-splitting conventions would otherwise
+        // throw IndexOutOfBoundsException synchronously on the EDT from this click handler.
+        val start1 = range.start1.coerceIn(0, headLines.size)
+        val end1 = range.end1.coerceIn(start1, headLines.size)
+        val oldLines = headLines.subList(start1, end1)
         val newLines = (range.start2 until range.end2).map { line ->
             document.getText(TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line)))
         }
-        val suggestion = GiteaSuggestion(range.start1, oldLines, newLines)
+        val suggestion = GiteaSuggestion(start1, oldLines, newLines)
         // The range's before-side boundary (a real head-SHA line — always present, unlike any
         // live line inside the edit itself) doubles as the comment's anchor: the last replaced
         // line when there is one, otherwise the line right before a pure insertion.
-        val anchorLine = if (range.start1 < range.end1) range.end1 - 1 else (range.start1 - 1).coerceAtLeast(0)
+        val anchorLine = if (start1 < end1) end1 - 1 else (start1 - 1).coerceAtLeast(0)
         model.requestSuggestion(range.end2 - 1, Side.RIGHT, anchorLine, suggestion)
     }
     return highlighter

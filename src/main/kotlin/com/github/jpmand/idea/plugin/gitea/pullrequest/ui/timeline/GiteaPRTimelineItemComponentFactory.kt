@@ -414,8 +414,10 @@ class GiteaPRTimelineItemComponentFactory(
 
         // Bounds leading context to DIFF_CONTEXT_SIZE lines before the anchor, matching the
         // platform's own default (can't reference TimelineDiffComponentFactory.DIFF_CONTEXT_SIZE
-        // directly — it's @ApiStatus.Internal).
-        val truncatedHunk = PatchHunkUtil.truncateHunkBefore(hunk, hunk.lines.lastIndex - DIFF_CONTEXT_SIZE)
+        // directly — it's @ApiStatus.Internal). Coerced to 0: a hunk with DIFF_CONTEXT_SIZE lines
+        // or fewer (e.g. a minimal-context hunk near the start of a file) would otherwise compute
+        // a negative truncation index.
+        val truncatedHunk = PatchHunkUtil.truncateHunkBefore(hunk, (hunk.lines.lastIndex - DIFF_CONTEXT_SIZE).coerceAtLeast(0))
         val anchorRange = LineRange(truncatedHunk.lines.lastIndex, truncatedHunk.lines.size)
 
         val diffComponent = TimelineDiffComponentFactory.createDiffComponentIn(

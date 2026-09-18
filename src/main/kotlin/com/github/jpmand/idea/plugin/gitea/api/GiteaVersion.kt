@@ -31,8 +31,10 @@ data class GiteaVersion(
         // Tolerant: optional leading `v`, `-` or `+` before the build/pre-release tail, and
         // trailing junk after the numeric prefix are all accepted. Gitea reports plain
         // `1.26.4`; dev builds `1.27.0+dev-651-gcb08549242`; RCs `1.26.0-rc0`; Forgejo
-        // `11.0.1+gitea-1.22.0`.
-        private val VERSION_REGEX = Regex("""v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:[-+](.+))?""")
+        // `11.0.1+gitea-1.22.0`. Anchored to the start (`^`) so a non-version response with
+        // digits anywhere in it (an error page, a proxy's "Bad Gateway 502") doesn't get its
+        // digits parsed out as a version instead of falling through to the unsupported fallback.
+        private val VERSION_REGEX = Regex("""^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:[-+](.+))?""")
 
         /**
          * Parses a Gitea/Forgejo `/version` string. **Never throws** for a non-blank input: an

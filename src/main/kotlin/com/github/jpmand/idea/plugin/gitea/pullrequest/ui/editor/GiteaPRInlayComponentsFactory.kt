@@ -271,7 +271,7 @@ object GiteaPRInlayComponentsFactory {
 
         val actionsPanel = HorizontalListPanel(CodeReviewCommentUIUtil.Actions.HORIZONTAL_GAP).apply {
             add(CodeReviewCommentUIUtil.createEditButton {
-                val editVm = DraftEditViewModel(project, cs, draft.body, draft.localId, discussionsVm) { editVmFlow.value = null }
+                val editVm = DraftEditViewModel(project, cs, draft.body, draft.localId, discussionsVm, vm::updateDraftBody) { editVmFlow.value = null }
                 editVmFlow.value = editVm
                 editVm.requestFocus()
             })
@@ -293,11 +293,17 @@ object GiteaPRInlayComponentsFactory {
         initialText: String,
         private val localId: Long,
         private val discussionsVm: GiteaPRDiscussionsViewModels,
+        /** [GiteaPRNewCommentEditorViewModel.updateDraftBody] — the composing inlay's own
+         * [GiteaPRNewCommentEditorViewModel.draft] is what [createDraftRow] actually renders from,
+         * and it's seeded once from [discussionsVm] but never re-reads it afterward, so an edit
+         * needs to update both or the row keeps showing the pre-edit body. */
+        private val onBodyUpdated: (String) -> Unit,
         private val onDone: () -> Unit,
     ) : CodeReviewSubmittableTextViewModelBase(project, cs, initialText), CodeReviewTextEditingViewModel {
         override fun save() {
             submit { newBody ->
                 discussionsVm.updateDraft(localId, newBody)
+                onBodyUpdated(newBody)
                 onDone()
             }
         }

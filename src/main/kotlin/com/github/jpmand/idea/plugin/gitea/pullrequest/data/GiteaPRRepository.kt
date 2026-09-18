@@ -52,40 +52,46 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     }
 
     /** Repository labels, for the PR-list "Label" filter. */
-    suspend fun loadLabels(): List<GiteaLabel> =
+    suspend fun loadLabels(): List<GiteaLabel> = giteaApiCall {
         loadAllGiteaPages { page -> ctx.api.repoListLabels(owner, repo, page = page, limit = GITEA_PAGE_SIZE) }
             .map { GiteaLabel.fromDto(it) }
+    }
 
     /**
      * Candidate PR authors for the "Author" filter — the repo's collaborators. Returns an empty
      * list (rather than throwing) only on 403, i.e. when the token lacks permission to enumerate
-     * collaborators; any other failure propagates.
+     * collaborators; any other failure gets the friendly [GiteaHttpError] treatment.
      */
-    suspend fun loadPossibleAuthors(): List<GiteaUser> =
+    suspend fun loadPossibleAuthors(): List<GiteaUser> = giteaApiCall {
         try {
             ctx.api.repoListCollaborators(owner, repo, page = null, limit = 100).map { GiteaUser.fromDto(it) }
         } catch (e: HttpStatusErrorException) {
             if (e.statusCode == 403) emptyList() else throw e
         }
+    }
 
     suspend fun loadPullRequest(number: Int): GiteaPullRequest = giteaApiCall {
         GiteaPullRequest.fromDto(ctx.api.repoGetPullRequest(owner, repo, number))
     }
 
-    suspend fun editPullRequest(number: Int, body: EditPullRequestOption): GiteaPullRequest =
+    suspend fun editPullRequest(number: Int, body: EditPullRequestOption): GiteaPullRequest = giteaApiCall {
         GiteaPullRequest.fromDto(ctx.api.repoEditPullRequest(owner, repo, number, body))
+    }
 
-    suspend fun mergePullRequest(number: Int, body: MergePullRequestOption) =
+    suspend fun mergePullRequest(number: Int, body: MergePullRequestOption) = giteaApiCall {
         ctx.api.repoMergePullRequest(owner, repo, number, body)
+    }
 
     // ── Reviews & Comments ────────────────────────────────────────────────
 
-    suspend fun loadReviews(prNumber: Int): List<GiteaReview> =
+    suspend fun loadReviews(prNumber: Int): List<GiteaReview> = giteaApiCall {
         ctx.api.repoListPullRequestReviews(owner, repo, prNumber).map { GiteaReview.fromDto(it) }
+    }
 
-    suspend fun loadReviewComments(prNumber: Int, reviewId: Long): List<GiteaReviewComment> =
+    suspend fun loadReviewComments(prNumber: Int, reviewId: Long): List<GiteaReviewComment> = giteaApiCall {
         ctx.api.repoGetPullRequestReviewComments(owner, repo, prNumber, reviewId)
             .map { GiteaReviewComment.fromDto(it) }
+    }
 
     /** Convenience: load comments from all reviews in one call. */
     suspend fun loadAllReviewComments(prNumber: Int): List<GiteaReviewComment> =
@@ -111,30 +117,37 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         return mergeTimeline(timeline, reviewsById, threadsByReviewId, commits)
     }
 
-    suspend fun resolveComment(commentId: Long) = ctx.api.repoResolvePullRequestReviewComment(owner, repo, commentId)
+    suspend fun resolveComment(commentId: Long) = giteaApiCall {
+        ctx.api.repoResolvePullRequestReviewComment(owner, repo, commentId)
+    }
 
-    suspend fun unresolveComment(commentId: Long) = ctx.api.repoUnresolvePullRequestReviewComment(owner, repo, commentId)
+    suspend fun unresolveComment(commentId: Long) = giteaApiCall {
+        ctx.api.repoUnresolvePullRequestReviewComment(owner, repo, commentId)
+    }
 
-    suspend fun submitReview(prNumber: Int, body: CreatePullReviewOptions): GiteaReview =
+    suspend fun submitReview(prNumber: Int, body: CreatePullReviewOptions): GiteaReview = giteaApiCall {
         GiteaReview.fromDto(ctx.api.repoCreatePullRequestReview(owner, repo, prNumber, body))
+    }
 
     /** Submits (finishes) a review that was previously created with `event = PENDING`. */
-    suspend fun submitPendingReview(prNumber: Int, reviewId: Long, body: SubmitPullReviewOptions): GiteaReview =
+    suspend fun submitPendingReview(prNumber: Int, reviewId: Long, body: SubmitPullReviewOptions): GiteaReview = giteaApiCall {
         GiteaReview.fromDto(ctx.api.repoSubmitPullRequestReview(owner, repo, prNumber, reviewId, body))
+    }
 
     /** Permanently deletes a pending (not yet submitted) review and its comments — used to cancel
      * a review-in-progress, whether started here or forgotten from another session. */
-    suspend fun deletePendingReview(prNumber: Int, reviewId: Long) =
+    suspend fun deletePendingReview(prNumber: Int, reviewId: Long) = giteaApiCall {
         ctx.api.repoDeletePullRequestReview(owner, repo, prNumber, reviewId)
+    }
 
     /** The signed-in account's own not-yet-submitted review for this PR, if any. */
     suspend fun findMyPendingReview(prNumber: Int): GiteaReview? =
         loadReviews(prNumber).firstOrNull { it.state == GiteaReviewState.PENDING && it.author?.login == ctx.account.name }
 
     /** Posts a new top-level (non-inline) timeline comment. */
-    suspend fun createComment(prNumber: Int, body: String): GiteaPRTimelineItemViewModel.Comment {
+    suspend fun createComment(prNumber: Int, body: String): GiteaPRTimelineItemViewModel.Comment = giteaApiCall {
         val comment = ctx.api.repoCreatePullRequestComment(owner, repo, prNumber, CreateIssueCommentOption(body))
-        return GiteaPRTimelineItemViewModel.Comment(
+        GiteaPRTimelineItemViewModel.Comment(
             comment.id ?: 0L,
             comment.user?.let { GiteaUser.fromDto(it) },
             comment.createdAt?.toDate() ?: Date(),
@@ -145,60 +158,67 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     }
 
     /** The signed-in account's own profile — used for the "leave a comment" avatar. */
-    suspend fun currentUser(): GiteaUser = ctx.api.currentUser()
+    suspend fun currentUser(): GiteaUser = giteaApiCall { ctx.api.currentUser() }
 
     /**
      * Edits an existing comment's body. Gitea uses the same endpoint for both top-level timeline
      * comments and inline review-thread comments — no distinction is needed here.
      */
-    suspend fun editComment(commentId: Long, body: String) {
+    suspend fun editComment(commentId: Long, body: String) = giteaApiCall {
         ctx.api.repoEditPullRequestComment(owner, repo, commentId, EditIssueCommentOption(body))
     }
 
     /** Deletes a comment (top-level or inline review-thread). */
-    suspend fun deleteComment(commentId: Long) {
+    suspend fun deleteComment(commentId: Long) = giteaApiCall {
         ctx.api.repoDeletePullRequestComment(owner, repo, commentId)
     }
 
     /** Replies to an existing (already-submitted) inline review comment — always immediate,
      * unrelated to review-batch submission. */
-    suspend fun replyToComment(prNumber: Int, commentId: Long, body: String): GiteaReviewComment =
+    suspend fun replyToComment(prNumber: Int, commentId: Long, body: String): GiteaReviewComment = giteaApiCall {
         GiteaReviewComment.fromDto(
             ctx.api.repoCreatePullReviewCommentReply(owner, repo, prNumber, commentId, CreatePullReviewCommentReplyOptions(body)),
         )
+    }
 
     // ── Files & Commits ───────────────────────────────────────────────────
 
     /** Returns domain models for files changed in the given PR (base..head). */
-    suspend fun loadChangedFiles(prNumber: Int): List<GiteaPRChangedFile> =
+    suspend fun loadChangedFiles(prNumber: Int): List<GiteaPRChangedFile> = giteaApiCall {
         loadAllGiteaPages { page -> ctx.api.repoListPullRequestFiles(owner, repo, prNumber, page = page, limit = GITEA_PAGE_SIZE) }
             .map { it.toChangedFile() }
+    }
 
     /** Returns domain models for files changed by a single commit. */
-    suspend fun loadCommitChangedFiles(sha: String): List<GiteaPRChangedFile> =
+    suspend fun loadCommitChangedFiles(sha: String): List<GiteaPRChangedFile> = giteaApiCall {
         ctx.api.repoGetSingleCommit(owner, repo, sha).files.orEmpty().map { it.toChangedFile() }
+    }
 
     /**
      * Fetches the raw text content of a file at a specific ref (branch name, tag, or SHA).
      * Returns an empty string only when the file genuinely does not exist at that ref (404 — the
      * normal case for the base side of an added file or the head side of a deleted one). Any other
-     * failure propagates, so a transient error is not silently rendered as a whole-file add/delete.
+     * failure gets the friendly [GiteaHttpError] treatment, so a transient error is not silently
+     * rendered as a whole-file add/delete.
      */
-    suspend fun loadFileContent(path: String, ref: String): String =
+    suspend fun loadFileContent(path: String, ref: String): String = giteaApiCall {
         try {
             ctx.api.getFileContents(owner, repo, path, ref).decodeContent() ?: ""
         } catch (e: HttpStatusErrorException) {
             if (e.statusCode == 404) "" else throw e
         }
+    }
 
-    suspend fun loadCommits(prNumber: Int): List<GiteaCommit> =
+    suspend fun loadCommits(prNumber: Int): List<GiteaCommit> = giteaApiCall {
         loadAllGiteaPages { page -> ctx.api.repoListPullRequestCommits(owner, repo, prNumber, page = page, limit = GITEA_PAGE_SIZE) }
             .map { GiteaCommit.fromDto(it) }
+    }
 
     // ── CI Status ─────────────────────────────────────────────────────────
 
-    suspend fun loadCombinedStatus(ref: String): List<GiteaCommitStatus> =
+    suspend fun loadCombinedStatus(ref: String): List<GiteaCommitStatus> = giteaApiCall {
         ctx.api.repoCombinedStatus(owner, repo, ref).statuses.orEmpty().map { GiteaCommitStatus.fromDto(it) }
+    }
 }
 
 /**
@@ -207,8 +227,9 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
  * a live API.
  *
  * The timeline endpoint is the source of truth for ordering, events and conversation comments;
- * reviews are joined in by id (de-duplicated), and commits come only from the commits endpoint
- * (the timeline's own `commit_ref`/`pull_push` rows are skipped to avoid duplicates).
+ * reviews are joined in by id (de-duplicated), and pushed commits come only from the commits
+ * endpoint (the timeline's own `pull_push` rows are skipped to avoid duplicates) — `commit_ref`
+ * is kept, since it's a reference to this PR from an unrelated commit, not a duplicate.
  */
 fun mergeTimeline(
     timeline: List<TimelineComment>,
@@ -245,9 +266,11 @@ fun mergeTimeline(
                     items += GiteaTimelineItem.Comment(tc.id ?: 0L, actor, ts, tc.body, tc.htmlUrl, tc.updatedAt?.toDate())
                 }
             "review" -> if (reviewId != null) reviewItem(reviewId, actor, ts, tc.body)
-            // Inline review comments live inside their review; commits come from the commits
-            // endpoint; skip the timeline's own duplicates.
-            "code", "pull_push", "commit_ref" -> Unit
+            // Inline review comments live inside their review; commits themselves come from the
+            // commits endpoint (skip that duplicate) — but "commit_ref" is a *reference* to this
+            // PR from an unrelated commit elsewhere, not a duplicate of a pushed commit, so it
+            // falls through to toTimelineItemOrNull()'s own REFERENCED_FROM_COMMIT mapping.
+            "code", "pull_push" -> Unit
             else -> tc.toTimelineItemOrNull()?.let { items += it }
         }
     }
