@@ -3,6 +3,8 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPRDraftComment
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
+import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaSuggestion
+import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaSuggestionUtil
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRSubmittableTextViewModel
 import com.intellij.diff.util.Side
 import com.intellij.openapi.project.Project
@@ -29,6 +31,12 @@ class GiteaPRNewCommentEditorViewModel(
     /** 1-indexed file line, matching Gitea's `CreatePullReviewComment.newPosition`/`oldPosition`. */
     val line: Int,
     private val discussionsVm: GiteaPRDiscussionsViewModels,
+    /** Set when this composer was opened from the suggested-change gutter bar — the caller wants
+     * a read-only diff preview shown alongside the composer, and the encoded marker+fence block
+     * appended to whatever the user types (or posted on its own if they type nothing — GitHub
+     * itself allows a suggestion with no comment text), never exposed as raw editable text; see
+     * [com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRInlayComponentsFactory]. */
+    val suggestion: GiteaSuggestion? = null,
     /** Called once this composer's inlay should disappear entirely — either the user cancelled
      * before finalizing, or removed the draft after finalizing. */
     private val onDismissed: () -> Unit,
@@ -39,10 +47,14 @@ class GiteaPRNewCommentEditorViewModel(
     private val _draft = MutableStateFlow<GiteaPRDraftComment?>(null)
     val draft: StateFlow<GiteaPRDraftComment?> = _draft.asStateFlow()
 
-    val textVm = GiteaPRSubmittableTextViewModel(project, cs) { body ->
+    val textVm = GiteaPRSubmittableTextViewModel(project, cs, requireNonBlank = suggestion == null) { body ->
+        val fullBody = suggestion?.let {
+            val encoded = GiteaSuggestionUtil.encode(it.oldStartLine, it.oldLines, it.newLines)
+            if (body.isBlank()) encoded else "$body\n\n$encoded"
+        } ?: body
         val newLine = if (side == Side.RIGHT) line else null
         val oldLine = if (side == Side.LEFT) line else null
-        _draft.value = discussionsVm.addDraft(path, newLine, oldLine, body)
+        _draft.value = discussionsVm.addDraft(path, newLine, oldLine, fullBody)
     }
 
     /** Cancels an in-progress (not yet finalized) composer. */

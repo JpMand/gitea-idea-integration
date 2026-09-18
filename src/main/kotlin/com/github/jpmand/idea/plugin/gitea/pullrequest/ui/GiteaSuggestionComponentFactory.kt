@@ -17,16 +17,17 @@ import javax.swing.JButton
 import javax.swing.JComponent
 
 /**
- * A "Suggested change" box — the exact same diff-box chrome an ordinary comment's diff-hunk
- * preview already uses
+ * The "Suggested change" diff box on its own — the exact same diff-box chrome an ordinary
+ * comment's diff-hunk preview already uses
  * ([com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineItemComponentFactory.diffHunkComponent],
- * both built on [TimelineDiffComponentFactory.createDiffWithHeader]/`createDiffComponentIn`), with
- * an "Apply suggestion" row below it — matching how "Resolve conversation"/"Reply" are already
- * their own rows in this codebase, not crammed into the box's header — instead of showing the raw
- * marker+fence text a [GiteaSuggestion] is encoded as.
+ * both built on [TimelineDiffComponentFactory.createDiffWithHeader]/`createDiffComponentIn`) —
+ * shared between [createSuggestionComponent] (a posted comment, with an Apply action) and the
+ * suggested-change composer (no Apply action yet — nothing's been posted), so both show the same
+ * rendered diff instead of ever exposing the raw marker+fence text a [GiteaSuggestion] is encoded
+ * as.
  */
 @Suppress("UnstableApiUsage")
-fun createSuggestionComponent(cs: CoroutineScope, project: Project, suggestion: GiteaSuggestion, onApply: () -> Unit): JComponent {
+fun createSuggestionDiffBox(cs: CoroutineScope, project: Project, suggestion: GiteaSuggestion): JComponent {
     val hunk = PatchHunk(
         suggestion.oldStartLine,
         suggestion.oldStartLine + suggestion.oldLines.size,
@@ -37,13 +38,22 @@ fun createSuggestionComponent(cs: CoroutineScope, project: Project, suggestion: 
         suggestion.newLines.forEach { addLine(PatchLine(PatchLine.Type.ADD, it)) }
     }
     val diffComponent = TimelineDiffComponentFactory.createDiffComponentIn(cs, project, EditorFactory.getInstance(), hunk, null)
-    val diffBox = TimelineDiffComponentFactory.createDiffWithHeader(
+    return TimelineDiffComponentFactory.createDiffWithHeader(
         cs, GiteaBundle.message("pull.request.suggestion.header"), flowOf(null), diffComponent,
     )
+}
 
+/**
+ * [createSuggestionDiffBox] plus an "Apply suggestion" row below it — matching how "Resolve
+ * conversation"/"Reply" are already their own rows in this codebase, not crammed into the box's
+ * header. Used for an already-posted comment; the composer (nothing posted yet, so nothing to
+ * apply) uses [createSuggestionDiffBox] directly instead.
+ */
+@Suppress("UnstableApiUsage")
+fun createSuggestionComponent(cs: CoroutineScope, project: Project, suggestion: GiteaSuggestion, onApply: () -> Unit): JComponent {
     return VerticalListPanel(4).apply {
         border = JBUI.Borders.empty(4, 0)
-        add(diffBox)
+        add(createSuggestionDiffBox(cs, project, suggestion))
         add(JButton(GiteaBundle.message("pull.request.action.apply.suggestion")).apply {
             addActionListener { onApply() }
         })

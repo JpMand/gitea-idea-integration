@@ -8,6 +8,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRThreadViewM
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaSuggestionUtil
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRCommentFieldFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRSubmittableTextViewModel
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.createSuggestionDiffBox
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.createThreadCommentsPanel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.withSuggestion
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
@@ -203,9 +204,7 @@ object GiteaPRInlayComponentsFactory {
                 wrapper.setContent(
                     when {
                         draft != null -> createDraftRow(project, cs, discussionsVm, vm, draft, user)
-                        user != null -> GiteaPRCommentFieldFactory.create(
-                            cs, vm.textVm, discussionsVm.avatars, user, discussionsVm.mentionCandidates, onCancel = vm::cancel,
-                        )
+                        user != null -> createComposerPanel(project, cs, vm, discussionsVm, user)
                         else -> null
                     },
                 )
@@ -216,6 +215,27 @@ object GiteaPRInlayComponentsFactory {
         return wrapper
     }
 
+    /** The composer itself — a plain [GiteaPRCommentFieldFactory] field for an ordinary new
+     * comment, or (when [GiteaPRNewCommentEditorViewModel.suggestion] is set) that same field for
+     * an optional explanation with the suggestion's own read-only diff preview above it, so the
+     * raw marker+fence text it submits as is never shown to the user. */
+    private fun createComposerPanel(
+        project: Project,
+        cs: CoroutineScope,
+        vm: GiteaPRNewCommentEditorViewModel,
+        discussionsVm: GiteaPRDiscussionsViewModels,
+        user: GiteaUser,
+    ): JComponent {
+        val commentField = GiteaPRCommentFieldFactory.create(
+            cs, vm.textVm, discussionsVm.avatars, user, discussionsVm.mentionCandidates, onCancel = vm::cancel,
+        )
+        val suggestion = vm.suggestion ?: return commentField
+        return VerticalListPanel(4).apply {
+            add(createSuggestionDiffBox(cs, project, suggestion))
+            add(commentField)
+        }
+    }
+
     private fun createDraftRow(
         project: Project,
         cs: CoroutineScope,
@@ -224,7 +244,14 @@ object GiteaPRInlayComponentsFactory {
         draft: GiteaPRDraftComment,
         user: GiteaUser?,
     ): JComponent {
-        val bodyArea = JTextArea(draft.body).apply {
+        // Same detect-and-strip as an already-posted comment (see createCommentPanel) — the
+        // finalized draft's body carries the encoded suggestion block the same way a real comment
+        // would, so it gets the same rendered-diff treatment instead of showing raw marker+fence
+        // text. No Apply button here though: this composer only exists because a local edit made
+        // it, so the suggested change is already applied to the working copy by definition.
+        val suggestion = GiteaSuggestionUtil.detect(draft.body)
+        val displayBody = suggestion?.let { GiteaSuggestionUtil.stripSuggestion(draft.body) } ?: draft.body
+        val bodyArea = JTextArea(displayBody).apply {
             isEditable = false
             lineWrap = true
             wrapStyleWord = true
@@ -232,7 +259,15 @@ object GiteaPRInlayComponentsFactory {
             border = JBUI.Borders.empty(4, 0)
         }
         val editVmFlow = MutableStateFlow<CodeReviewTextEditingViewModel?>(null)
-        val bodyComponent = EditableComponentFactory.wrapTextComponent(cs, bodyArea, editVmFlow)
+        val textComponent = EditableComponentFactory.wrapTextComponent(cs, bodyArea, editVmFlow)
+        val bodyComponent = if (suggestion == null) {
+            textComponent
+        } else {
+            VerticalListPanel(4).apply {
+                if (displayBody.isNotBlank()) add(textComponent)
+                add(createSuggestionDiffBox(cs, project, suggestion))
+            }
+        }
 
         val actionsPanel = HorizontalListPanel(CodeReviewCommentUIUtil.Actions.HORIZONTAL_GAP).apply {
             add(CodeReviewCommentUIUtil.createEditButton {

@@ -119,6 +119,7 @@ class GiteaPRReviewInEditorController : EditorFactoryListener {
         val model = GiteaPRDiffEditorModel(
             cs, project, changedFile, Side.RIGHT, current.discussionsVm, locationToLine, lineToLocation, editor,
         )
+        cs.installSuggestionGutterIcons(editor, sync, headContent, model)
         editor.showCodeReview(model) { inlayModel ->
             GiteaPRInlayComponentsFactory.createRenderer(project, cs, inlayModel, current.discussionsVm)
         }

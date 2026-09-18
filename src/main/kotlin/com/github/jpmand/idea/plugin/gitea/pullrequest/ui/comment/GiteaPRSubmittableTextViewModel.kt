@@ -29,11 +29,15 @@ import javax.swing.JComponent
 class GiteaPRSubmittableTextViewModel(
     project: Project,
     cs: CoroutineScope,
+    /** `false` for the suggested-change composer, where the typed text is only an optional
+     * explanation on top of an already-nonempty suggestion block — GitHub itself allows posting a
+     * suggestion with no comment text at all. */
+    private val requireNonBlank: Boolean = true,
     private val onSubmit: suspend (String) -> Unit,
 ) : CodeReviewSubmittableTextViewModelBase(project, cs, "") {
 
     fun submitComment() {
-        if (text.value.isBlank()) return
+        if (requireNonBlank && text.value.isBlank()) return
         submit { body ->
             onSubmit(body)
             text.value = ""

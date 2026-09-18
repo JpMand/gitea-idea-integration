@@ -2,6 +2,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor
 
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
+import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaSuggestion
 import com.intellij.collaboration.ui.codereview.diff.DiffLineLocation
 import com.intellij.collaboration.ui.codereview.diff.DiscussionsViewOption
 import com.intellij.collaboration.ui.codereview.editor.CodeReviewEditorGutterControlsModel
@@ -115,13 +116,32 @@ class GiteaPRDiffEditorModel(
 
     @RequiresEdt
     override fun requestNewComment(lineIdx: Int) {
-        val proj = project ?: return
-        if (_newCommentVms.value.containsKey(lineIdx)) return
         val (commentSide, zeroIndexedLine) = lineToLocation(lineIdx) ?: return
+        createNewCommentVm(lineIdx, commentSide, zeroIndexedLine, suggestion = null)
+    }
+
+    /** Same as [requestNewComment], but attaches [suggestion] (rendered as a read-only diff
+     * preview instead of raw editable text — see [GiteaPRNewCommentEditorViewModel]) and takes the
+     * comment's anchor ([commentSide]/[zeroIndexedAnchorLine]) explicitly rather than deriving it
+     * from [lineToLocation] — used by the suggested-change gutter bar, whose [displayLineIdx] is a
+     * *live* line that's part of the local edit itself and therefore has no head-SHA counterpart
+     * ([lineToLocation] would return `null` for it, same as [GiteaPRLiveDiffSync.liveToAnchor]'s
+     * own doc comment explains). [suggestion]'s own `oldStartLine` already carries a real head-SHA
+     * line, so the caller passes that straight through instead. Not part of
+     * [CodeReviewEditorModel]'s fixed interface, so it's a plain sibling method rather than an
+     * overload of [requestNewComment]. */
+    @RequiresEdt
+    fun requestSuggestion(displayLineIdx: Int, commentSide: Side, zeroIndexedAnchorLine: Int, suggestion: GiteaSuggestion) {
+        createNewCommentVm(displayLineIdx, commentSide, zeroIndexedAnchorLine, suggestion)
+    }
+
+    private fun createNewCommentVm(displayLineIdx: Int, commentSide: Side, zeroIndexedLine: Int, suggestion: GiteaSuggestion?) {
+        val proj = project ?: return
+        if (_newCommentVms.value.containsKey(displayLineIdx)) return
         val vm = GiteaPRNewCommentEditorViewModel(
-            proj, cs, file, commentSide, zeroIndexedLine + 1, discussionsVm,
-        ) { cancelNewComment(lineIdx) }
-        _newCommentVms.value = _newCommentVms.value + (lineIdx to vm)
+            proj, cs, file, commentSide, zeroIndexedLine + 1, discussionsVm, suggestion,
+        ) { cancelNewComment(displayLineIdx) }
+        _newCommentVms.value = _newCommentVms.value + (displayLineIdx to vm)
     }
 
     @RequiresEdt

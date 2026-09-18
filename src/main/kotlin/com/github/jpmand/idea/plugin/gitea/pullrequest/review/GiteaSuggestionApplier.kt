@@ -5,7 +5,8 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRLiveDiff
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
-import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.application.readAction
+import com.intellij.openapi.command.writeCommandAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
@@ -28,6 +29,7 @@ import kotlinx.coroutines.cancel
  * verifies the current content still looks like [GiteaSuggestion.oldLines], and replaces it with
  * [GiteaSuggestion.newLines].
  */
+@Suppress("UnstableApiUsage")
 suspend fun applySuggestion(cs: CoroutineScope, project: Project, path: String, suggestion: GiteaSuggestion) {
     val current = project.service<GiteaPRForCurrentBranchService>().current.value
     val changedFile = current?.changedFiles?.firstOrNull { it.filename == path }
@@ -37,7 +39,7 @@ suspend fun applySuggestion(cs: CoroutineScope, project: Project, path: String, 
     }
 
     val virtualFile = current.gitRepositoryRoot.findFileByRelativePath(path)
-    val document = virtualFile?.let { FileDocumentManager.getInstance().getDocument(it) }
+    val document = virtualFile?.let { vf -> readAction { FileDocumentManager.getInstance().getDocument(vf) } }
     if (document == null) {
         notifyApplyFailure(project, "pull.request.action.apply.suggestion.error.no.file")
         return
@@ -58,8 +60,10 @@ suspend fun applySuggestion(cs: CoroutineScope, project: Project, path: String, 
         val liveStart = sync.anchorToLive(suggestion.oldStartLine)
         val liveEnd = sync.anchorToLive(suggestion.oldStartLine + suggestion.oldLines.size)
 
-        val currentLines = (liveStart until liveEnd).map { line ->
-            document.getText(TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line)))
+        val currentLines = readAction {
+            (liveStart until liveEnd).map { line ->
+                document.getText(TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line)))
+            }
         }
         if (currentLines != suggestion.oldLines) {
             val proceed = MessageDialogBuilder.yesNo(
@@ -69,11 +73,10 @@ suspend fun applySuggestion(cs: CoroutineScope, project: Project, path: String, 
             if (!proceed) return
         }
 
-        val startOffset = document.getLineStartOffset(liveStart)
-        val endOffset = if (liveEnd < document.lineCount) document.getLineStartOffset(liveEnd) else document.textLength
         val replacement = if (suggestion.newLines.isEmpty()) "" else suggestion.newLines.joinToString("\n") + "\n"
-
-        WriteCommandAction.runWriteCommandAction(project) {
+        writeCommandAction(project, GiteaBundle.message("pull.request.action.apply.suggestion")) {
+            val startOffset = document.getLineStartOffset(liveStart)
+            val endOffset = if (liveEnd < document.lineCount) document.getLineStartOffset(liveEnd) else document.textLength
             document.replaceString(startOffset, endOffset, replacement)
         }
         FileEditorManager.getInstance(project).openTextEditor(OpenFileDescriptor(project, virtualFile, liveStart, 0), true)
