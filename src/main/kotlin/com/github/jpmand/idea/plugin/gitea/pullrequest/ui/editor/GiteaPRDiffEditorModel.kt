@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor
 
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPRDraftComment
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaSuggestion
@@ -70,6 +71,14 @@ class GiteaPRDiffEditorModel(
     private val _newCommentVms = MutableStateFlow<Map<Int, GiteaPRNewCommentEditorViewModel>>(emptyMap())
 
     init {
+        // Persisted drafts (GiteaPullRequestsSettings-backed) survive closing and reopening the
+        // diff/live editor, but _newCommentVms — the actual source of the draft-row inlays — used
+        // to start empty every time and was only ever populated interactively (requestNewComment/
+        // requestSuggestion), so a real draft with no live composer instance simply had no inlay to
+        // render until the user recreated it. Seed one composer per already-persisted draft on
+        // this file/side up front so the draft rows reappear immediately on open.
+        seedExistingDrafts()
+
         // A finalized composer (draft.value != null) whose draft got dropped from the source of
         // truth — e.g. a bulk clear on review submit, see GiteaPRDiscussionsViewModels.submitReview
         // — must lose its inlay immediately, not linger until the diff is closed and reopened.
@@ -135,13 +144,43 @@ class GiteaPRDiffEditorModel(
         createNewCommentVm(displayLineIdx, commentSide, zeroIndexedAnchorLine, suggestion)
     }
 
-    private fun createNewCommentVm(displayLineIdx: Int, commentSide: Side, zeroIndexedLine: Int, suggestion: GiteaSuggestion?) {
+    private fun createNewCommentVm(
+        displayLineIdx: Int,
+        commentSide: Side,
+        zeroIndexedLine: Int,
+        suggestion: GiteaSuggestion?,
+        initialDraft: GiteaPRDraftComment? = null,
+    ) {
         val proj = project ?: return
         if (_newCommentVms.value.containsKey(displayLineIdx)) return
         val vm = GiteaPRNewCommentEditorViewModel(
-            proj, cs, file, commentSide, zeroIndexedLine + 1, discussionsVm, suggestion,
+            proj, cs, file, commentSide, zeroIndexedLine + 1, discussionsVm, suggestion, initialDraft,
         ) { cancelNewComment(displayLineIdx) }
         _newCommentVms.value = _newCommentVms.value + (displayLineIdx to vm)
+    }
+
+    /** Seeds one already-finalized [GiteaPRNewCommentEditorViewModel] per persisted draft that
+     * belongs to this file/side, so draft rows render immediately on open — see the [init] block's
+     * comment. A unified ([side] `null`) editor shows both sides, so both are checked; a
+     * side-specific editor only checks its own. Renamed files: a base-side (LEFT) draft was stored
+     * under the old filename (see [GiteaPRNewCommentEditorViewModel.path]), so that's what's looked
+     * up for [Side.LEFT], not [GiteaPRChangedFile.filename]. */
+    private fun seedExistingDrafts() {
+        if (project == null) return
+        val sidesToSeed = when (side) {
+            Side.RIGHT -> listOf(Side.RIGHT)
+            Side.LEFT -> listOf(Side.LEFT)
+            null -> listOf(Side.LEFT, Side.RIGHT)
+        }
+        for (draftSide in sidesToSeed) {
+            val draftPath = if (draftSide == Side.LEFT) file.previousFilename ?: file.filename else file.filename
+            for (draft in discussionsVm.draftsForPath(draftPath)) {
+                val line = (if (draftSide == Side.RIGHT) draft.newLine else draft.oldLine) ?: continue
+                val zeroIndexedLine = line - 1
+                val displayLineIdx = locationToLine(draftSide to zeroIndexedLine) ?: continue
+                createNewCommentVm(displayLineIdx, draftSide, zeroIndexedLine, suggestion = null, initialDraft = draft)
+            }
+        }
     }
 
     @RequiresEdt

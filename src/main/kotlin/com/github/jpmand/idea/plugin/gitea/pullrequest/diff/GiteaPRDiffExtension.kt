@@ -6,7 +6,6 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRInlayCom
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.REVIEW_UI_INSTALL_RETRY_ATTEMPTS
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.REVIEW_UI_INSTALL_RETRY_DELAY_MS
-import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.launchReviewToolbar
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.async.launchNow
 import com.intellij.openapi.components.service
@@ -57,8 +56,12 @@ class GiteaPRDiffExtension : DiffExtension() {
             while (true) {
                 try {
                     viewer.showCodeReview(
+                        // The review-submit control itself is wired into the diff header via
+                        // DiffUserDataKeys.CONTEXT_ACTIONS (GiteaPRDiffVirtualFile.createViewer) —
+                        // this factory only wires gutter controls/inlays, mirroring the bundled
+                        // GitHub plugin's split between GHPRReviewDiffExtension (gutter/inlays) and
+                        // GHPRDiffService.createDiffContext (header toolbar).
                         modelFactory = { editor, side, locationToLine, lineToLocation, _ ->
-                            launchReviewToolbar(project, editor, discussionsVm)
                             GiteaPRDiffEditorModel(this, project, fileVm.file, side, discussionsVm, locationToLine, lineToLocation, editor)
                         },
                         rendererFactory = { inlayModel ->

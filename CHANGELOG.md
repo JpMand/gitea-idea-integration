@@ -52,6 +52,11 @@
   immediately
 - Checking out a PR whose local branch already exists now fetches and updates that branch (with
   git's native conflict resolution) instead of erroring, and offers to fix a mismatched upstream
+- The review-submit control in the diff viewer now lives in the diff header's own toolbar
+  (GitHub-plugin style) instead of a floating overlay in the corner of the editor
+- Composing a brand-new inline comment now offers "Send Single Comment Review" alongside "Start
+  Review" (as one split button) when no other draft is already in progress, to post that single
+  comment as its own review immediately instead of always staging it as a draft
 
 ### Fixed
 
@@ -84,6 +89,9 @@
   Commit/CommitStatus DTO reaching UI code instead of a domain model
 - Review gutter controls and pre-existing draft comments could silently fail to appear on the
   very first diff viewer shown (most reproducible on single-commit, single-file PRs)
+- Draft comments no longer disappear from the diff/live editor after closing and reopening the
+  file — they were persisted correctly all along, just never redrawn until re-created
+- Resolve/Unresolve reverted from a button back to a link (read better that way)
 
 ## [0.0.1] - 2026-03-13
 

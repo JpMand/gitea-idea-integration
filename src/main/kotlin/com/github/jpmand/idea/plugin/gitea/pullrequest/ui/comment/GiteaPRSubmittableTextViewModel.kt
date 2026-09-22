@@ -48,6 +48,13 @@ class GiteaPRSubmittableTextViewModel(
 @Suppress("UnstableApiUsage")
 object GiteaPRCommentFieldFactory {
 
+    /** A secondary, immediately-firing option next to the primary submit button — rendered as a
+     * dropdown entry on the same [com.intellij.ui.components.JBOptionButton] the platform's
+     * [CommentInputActionsComponentFactory] already builds from [CommentInputActionsComponentFactory.Config.secondaryActions].
+     * Unlike the merge/review-verdict split buttons elsewhere in this plugin, there's no
+     * select-then-confirm step here — each option is already a complete, independent action. */
+    data class SecondaryAction(val labelKey: String, val onSubmit: () -> Unit)
+
     fun create(
         cs: CoroutineScope,
         vm: GiteaPRSubmittableTextViewModel,
@@ -58,10 +65,20 @@ object GiteaPRCommentFieldFactory {
         /** Adds a "Cancel" action next to Submit — used by dismissible composers (e.g. a new
          * inline-comment inlay); `null` (the default) omits it, matching every existing caller. */
         onCancel: (() -> Unit)? = null,
+        /** Bundle key for the primary submit button's label — defaults to "Comment". */
+        primaryActionLabelKey: String = "pull.request.action.comment",
+        /** An optional extra option in the primary button's dropdown — `null` (the default) omits
+         * it, matching every existing caller. */
+        secondaryAction: SecondaryAction? = null,
     ): JComponent {
-        val submitAction = object : AbstractAction(GiteaBundle.message("pull.request.action.comment")) {
+        val submitAction = object : AbstractAction(GiteaBundle.message(primaryActionLabelKey)) {
             override fun actionPerformed(e: ActionEvent?) = vm.submitComment()
         }
+        val secondaryActions = secondaryAction?.let { action ->
+            listOf(object : AbstractAction(GiteaBundle.message(action.labelKey)) {
+                override fun actionPerformed(e: ActionEvent?) = action.onSubmit()
+            })
+        }.orEmpty()
         val cancelAction = onCancel?.let { cancel ->
             object : AbstractAction(GiteaBundle.message("pull.request.action.cancel")) {
                 override fun actionPerformed(e: ActionEvent?) = cancel()
@@ -69,7 +86,7 @@ object GiteaPRCommentFieldFactory {
         }
         val config = CommentInputActionsComponentFactory.Config(
             primaryAction = MutableStateFlow(submitAction),
-            secondaryActions = MutableStateFlow(emptyList()),
+            secondaryActions = MutableStateFlow(secondaryActions),
             additionalActions = MutableStateFlow(emptyList()),
             cancelAction = MutableStateFlow(cancelAction),
             submitHint = MutableStateFlow(GiteaBundle.message("pull.request.timeline.comment.placeholder")),

@@ -3,10 +3,12 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.diff
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.GiteaPRFileStatusEnum
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.submitReviewAction
 import com.intellij.collaboration.ui.codereview.diff.AsyncDiffRequestProcessorFactory
 import com.intellij.collaboration.util.KeyValuePair
 import com.intellij.diff.editor.DiffViewerVirtualFile
 import com.intellij.diff.impl.DiffEditorViewer
+import com.intellij.diff.util.DiffUserDataKeys
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vcs.FileStatus
 import com.intellij.openapi.vcs.LocalFilePath
@@ -49,11 +51,24 @@ class GiteaPRDiffVirtualFile(
         return result
     }
 
+    // GitHub-style placement (GHPRDiffService.createDiffContext): the review-submit control lands
+    // in the diff header's own toolbar via DiffUserDataKeys.CONTEXT_ACTIONS, not in a floating
+    // per-editor overlay (that mechanism — ReviewInEditorUtil.showReviewToolbarWithActions, via
+    // GiteaReviewToolbar.launchReviewToolbar — stays reserved for the regular-editor surface, which
+    // has no diff header to place it in). No separate GHPRDiffService-style service class is
+    // needed here: this is the only createViewer/processor-construction call site in the plugin,
+    // so the extra responsibilities that class carries (combined-diff toggle, sharing one scope
+    // across multiple call sites) don't apply.
     override fun createViewer(project: Project): DiffEditorViewer =
         AsyncDiffRequestProcessorFactory.createIn(
             cs, project,
             flowOf(vm),
-            createContext = { listOf(KeyValuePair(GiteaPRDiscussionsViewModels.CONTEXT_KEY, discussionsVm)) },
+            createContext = {
+                listOf(
+                    KeyValuePair(GiteaPRDiscussionsViewModels.CONTEXT_KEY, discussionsVm),
+                    KeyValuePair(DiffUserDataKeys.CONTEXT_ACTIONS, listOf(submitReviewAction(project, discussionsVm))),
+                )
+            },
             changePresenter = { fileVm ->
                 object : PresentableChange {
                     override fun getFilePath() = LocalFilePath(fileVm.file.filename, false)

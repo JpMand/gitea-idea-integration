@@ -310,19 +310,17 @@ class GiteaPRTimelineItemComponentFactory(
         val row = HorizontalListPanel(0)
         val labelKey = if (thread.isResolved) "pull.request.action.unresolve.thread" else "pull.request.action.resolve.thread"
         val errorKey = if (thread.isResolved) "pull.request.action.unresolve.thread.error" else "pull.request.action.resolve.thread.error"
-        row.add(JButton(GiteaBundle.message(labelKey)).apply {
-            addActionListener {
-                cs.launch {
-                    try {
-                        if (thread.isResolved) onUnresolveThread(thread.id) else onResolveThread(thread.id)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        NotificationGroupManager.getInstance()
-                            .getNotificationGroup("Gitea")
-                            .createNotification(GiteaBundle.message(labelKey), GiteaBundle.message(errorKey), NotificationType.ERROR)
-                            .notify(project)
-                    }
+        row.add(ActionLink(GiteaBundle.message(labelKey)) {
+            cs.launch {
+                try {
+                    if (thread.isResolved) onUnresolveThread(thread.id) else onResolveThread(thread.id)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    NotificationGroupManager.getInstance()
+                        .getNotificationGroup("Gitea")
+                        .createNotification(GiteaBundle.message(labelKey), GiteaBundle.message(errorKey), NotificationType.ERROR)
+                        .notify(project)
                 }
             }
         })

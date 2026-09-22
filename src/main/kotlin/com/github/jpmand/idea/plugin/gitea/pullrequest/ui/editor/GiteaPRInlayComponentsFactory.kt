@@ -228,6 +228,10 @@ object GiteaPRInlayComponentsFactory {
     ): JComponent {
         val commentField = GiteaPRCommentFieldFactory.create(
             cs, vm.textVm, discussionsVm.avatars, user, discussionsVm.mentionCandidates, onCancel = vm::cancel,
+            primaryActionLabelKey = "pull.request.action.start.review",
+            secondaryAction = if (vm.canSendAsSingleCommentReview) {
+                GiteaPRCommentFieldFactory.SecondaryAction("pull.request.action.send.single.comment.review", vm::submitAsSingleCommentReview)
+            } else null,
         )
         val suggestion = vm.suggestion ?: return commentField
         return VerticalListPanel(4).apply {
@@ -316,19 +320,17 @@ object GiteaPRInlayComponentsFactory {
         row.isOpaque = false
         val labelKey = if (vm.isResolved) "pull.request.action.unresolve.thread" else "pull.request.action.resolve.thread"
         val errorKey = if (vm.isResolved) "pull.request.action.unresolve.thread.error" else "pull.request.action.resolve.thread.error"
-        row.add(JButton(GiteaBundle.message(labelKey)).apply {
-            addActionListener {
-                cs.launch {
-                    try {
-                        if (vm.isResolved) vm.unresolve() else vm.resolve()
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        NotificationGroupManager.getInstance()
-                            .getNotificationGroup("Gitea")
-                            .createNotification(GiteaBundle.message(labelKey), GiteaBundle.message(errorKey), NotificationType.ERROR)
-                            .notify(project)
-                    }
+        row.add(ActionLink(GiteaBundle.message(labelKey)) {
+            cs.launch {
+                try {
+                    if (vm.isResolved) vm.unresolve() else vm.resolve()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    NotificationGroupManager.getInstance()
+                        .getNotificationGroup("Gitea")
+                        .createNotification(GiteaBundle.message(labelKey), GiteaBundle.message(errorKey), NotificationType.ERROR)
+                        .notify(project)
                 }
             }
         })
