@@ -32,11 +32,13 @@ internal class GiteaApiImpl(
 
   override val rest: GiteaApi.Rest =
     RestImpl(
-      JsonHttpApiHelper(
-        logger<GiteaApi>(),
-        this,
-        GiteaJsonDeSerializer,
-        GiteaJsonDeSerializer
+      GiteaApiRequestLogging(
+        JsonHttpApiHelper(
+          logger<GiteaApi>(),
+          this,
+          GiteaJsonDeSerializer,
+          GiteaJsonDeSerializer
+        )
       )
     )
 
