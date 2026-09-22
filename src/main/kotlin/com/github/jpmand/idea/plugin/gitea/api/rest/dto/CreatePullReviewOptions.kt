@@ -1,5 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 /**
  * CreatePullReviewOptions are options to create a pull request review
  * @param body
@@ -21,15 +23,15 @@ data class CreatePullReviewOptions(
      */
     enum class Event(val value: String) {
 
-        APPROVED("APPROVED"),
+        @JsonProperty("APPROVED") APPROVED("APPROVED"),
 
-        PENDING("PENDING"),
+        @JsonProperty("PENDING") PENDING("PENDING"),
 
-        COMMENT("COMMENT"),
+        @JsonProperty("COMMENT") COMMENT("COMMENT"),
 
-        REQUESTCHANGES("REQUEST_CHANGES"),
+        @JsonProperty("REQUEST_CHANGES") REQUESTCHANGES("REQUEST_CHANGES"),
 
-        REQUESTREVIEW("REQUEST_REVIEW");
+        @JsonProperty("REQUEST_REVIEW") REQUESTREVIEW("REQUEST_REVIEW");
 
     }
 

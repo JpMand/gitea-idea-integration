@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.OffsetDateTime
 
 /**
@@ -51,59 +52,59 @@ data class Activity(
      */
     enum class OpType(val value: String) {
 
-        CREATEREPO("create_repo"),
+        @JsonProperty("create_repo") CREATEREPO("create_repo"),
 
-        RENAMEREPO("rename_repo"),
+        @JsonProperty("rename_repo") RENAMEREPO("rename_repo"),
 
-        STARREPO("star_repo"),
+        @JsonProperty("star_repo") STARREPO("star_repo"),
 
-        WATCHREPO("watch_repo"),
+        @JsonProperty("watch_repo") WATCHREPO("watch_repo"),
 
-        COMMITREPO("commit_repo"),
+        @JsonProperty("commit_repo") COMMITREPO("commit_repo"),
 
-        CREATEISSUE("create_issue"),
+        @JsonProperty("create_issue") CREATEISSUE("create_issue"),
 
-        CREATEPULLREQUEST("create_pull_request"),
+        @JsonProperty("create_pull_request") CREATEPULLREQUEST("create_pull_request"),
 
-        TRANSFERREPO("transfer_repo"),
+        @JsonProperty("transfer_repo") TRANSFERREPO("transfer_repo"),
 
-        PUSHTAG("push_tag"),
+        @JsonProperty("push_tag") PUSHTAG("push_tag"),
 
-        COMMENTISSUE("comment_issue"),
+        @JsonProperty("comment_issue") COMMENTISSUE("comment_issue"),
 
-        MERGEPULLREQUEST("merge_pull_request"),
+        @JsonProperty("merge_pull_request") MERGEPULLREQUEST("merge_pull_request"),
 
-        CLOSEISSUE("close_issue"),
+        @JsonProperty("close_issue") CLOSEISSUE("close_issue"),
 
-        REOPENISSUE("reopen_issue"),
+        @JsonProperty("reopen_issue") REOPENISSUE("reopen_issue"),
 
-        CLOSEPULLREQUEST("close_pull_request"),
+        @JsonProperty("close_pull_request") CLOSEPULLREQUEST("close_pull_request"),
 
-        REOPENPULLREQUEST("reopen_pull_request"),
+        @JsonProperty("reopen_pull_request") REOPENPULLREQUEST("reopen_pull_request"),
 
-        DELETETAG("delete_tag"),
+        @JsonProperty("delete_tag") DELETETAG("delete_tag"),
 
-        DELETEBRANCH("delete_branch"),
+        @JsonProperty("delete_branch") DELETEBRANCH("delete_branch"),
 
-        MIRRORSYNCPUSH("mirror_sync_push"),
+        @JsonProperty("mirror_sync_push") MIRRORSYNCPUSH("mirror_sync_push"),
 
-        MIRRORSYNCCREATE("mirror_sync_create"),
+        @JsonProperty("mirror_sync_create") MIRRORSYNCCREATE("mirror_sync_create"),
 
-        MIRRORSYNCDELETE("mirror_sync_delete"),
+        @JsonProperty("mirror_sync_delete") MIRRORSYNCDELETE("mirror_sync_delete"),
 
-        APPROVEPULLREQUEST("approve_pull_request"),
+        @JsonProperty("approve_pull_request") APPROVEPULLREQUEST("approve_pull_request"),
 
-        REJECTPULLREQUEST("reject_pull_request"),
+        @JsonProperty("reject_pull_request") REJECTPULLREQUEST("reject_pull_request"),
 
-        COMMENTPULL("comment_pull"),
+        @JsonProperty("comment_pull") COMMENTPULL("comment_pull"),
 
-        PUBLISHRELEASE("publish_release"),
+        @JsonProperty("publish_release") PUBLISHRELEASE("publish_release"),
 
-        PULLREVIEWDISMISSED("pull_review_dismissed"),
+        @JsonProperty("pull_review_dismissed") PULLREVIEWDISMISSED("pull_review_dismissed"),
 
-        PULLREQUESTREADYFORREVIEW("pull_request_ready_for_review"),
+        @JsonProperty("pull_request_ready_for_review") PULLREQUESTREADYFORREVIEW("pull_request_ready_for_review"),
 
-        AUTOMERGEPULLREQUEST("auto_merge_pull_request");
+        @JsonProperty("auto_merge_pull_request") AUTOMERGEPULLREQUEST("auto_merge_pull_request");
 
     }
 

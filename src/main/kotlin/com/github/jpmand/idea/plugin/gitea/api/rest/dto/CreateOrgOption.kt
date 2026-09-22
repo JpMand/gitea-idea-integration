@@ -1,5 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 
 /**
  * CreateOrgOption options for creating an organization
@@ -38,11 +40,11 @@ data class CreateOrgOption(
      */
     enum class Visibility(val value: String) {
 
-        PUBLIC("public"),
+        @JsonProperty("public") PUBLIC("public"),
 
-        LIMITED("limited"),
+        @JsonProperty("limited") LIMITED("limited"),
 
-        PRIVATE("private");
+        @JsonProperty("private") PRIVATE("private");
 
     }
 

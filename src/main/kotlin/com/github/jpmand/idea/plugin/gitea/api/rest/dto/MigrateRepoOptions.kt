@@ -1,5 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 
 /**
  * MigrateRepoOptions options for migrating repository's this is used to interact with api v1
@@ -60,23 +62,23 @@ data class MigrateRepoOptions(
      */
     enum class Service(val value: String) {
 
-        GIT("git"),
+        @JsonProperty("git") GIT("git"),
 
-        GITHUB("github"),
+        @JsonProperty("github") GITHUB("github"),
 
-        GITEA("gitea"),
+        @JsonProperty("gitea") GITEA("gitea"),
 
-        GITLAB("gitlab"),
+        @JsonProperty("gitlab") GITLAB("gitlab"),
 
-        GOGS("gogs"),
+        @JsonProperty("gogs") GOGS("gogs"),
 
-        ONEDEV("onedev"),
+        @JsonProperty("onedev") ONEDEV("onedev"),
 
-        GITBUCKET("gitbucket"),
+        @JsonProperty("gitbucket") GITBUCKET("gitbucket"),
 
-        CODEBASE("codebase"),
+        @JsonProperty("codebase") CODEBASE("codebase"),
 
-        CODECOMMIT("codecommit");
+        @JsonProperty("codecommit") CODECOMMIT("codecommit");
 
     }
 

@@ -1,5 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 /**
  * CreateHookOption options when create a hook
  * @param active Whether the webhook should be active upon creation
@@ -33,25 +35,25 @@ data class CreateHookOption(
      */
     enum class Type(val value: String) {
 
-        DINGTALK("dingtalk"),
+        @JsonProperty("dingtalk") DINGTALK("dingtalk"),
 
-        DISCORD("discord"),
+        @JsonProperty("discord") DISCORD("discord"),
 
-        GITEA("gitea"),
+        @JsonProperty("gitea") GITEA("gitea"),
 
-        GOGS("gogs"),
+        @JsonProperty("gogs") GOGS("gogs"),
 
-        MSTEAMS("msteams"),
+        @JsonProperty("msteams") MSTEAMS("msteams"),
 
-        SLACK("slack"),
+        @JsonProperty("slack") SLACK("slack"),
 
-        TELEGRAM("telegram"),
+        @JsonProperty("telegram") TELEGRAM("telegram"),
 
-        FEISHU("feishu"),
+        @JsonProperty("feishu") FEISHU("feishu"),
 
-        WECHATWORK("wechatwork"),
+        @JsonProperty("wechatwork") WECHATWORK("wechatwork"),
 
-        PACKAGIST("packagist");
+        @JsonProperty("packagist") PACKAGIST("packagist");
 
     }
 

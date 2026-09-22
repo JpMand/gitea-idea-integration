@@ -1,5 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 
 /**
  * ChangeFileOperation for creating, updating or deleting a file
@@ -29,15 +31,15 @@ data class ChangeFileOperation(
      */
     enum class Operation(val value: String) {
 
-        CREATE("create"),
+        @JsonProperty("create") CREATE("create"),
 
-        UPDATE("update"),
+        @JsonProperty("update") UPDATE("update"),
 
-        UPLOAD("upload"),
+        @JsonProperty("upload") UPLOAD("upload"),
 
-        RENAME("rename"),
+        @JsonProperty("rename") RENAME("rename"),
 
-        DELETE("delete");
+        @JsonProperty("delete") DELETE("delete");
 
     }
 

@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.OffsetDateTime
 
 /**
@@ -39,17 +40,17 @@ data class CommitStatus(
      */
     enum class Status(val value: String) {
 
-        PENDING("pending"),
+        @JsonProperty("pending") PENDING("pending"),
 
-        SUCCESS("success"),
+        @JsonProperty("success") SUCCESS("success"),
 
-        ERROR("error"),
+        @JsonProperty("error") ERROR("error"),
 
-        FAILURE("failure"),
+        @JsonProperty("failure") FAILURE("failure"),
 
-        WARNING("warning"),
+        @JsonProperty("warning") WARNING("warning"),
 
-        SKIPPED("skipped");
+        @JsonProperty("skipped") SKIPPED("skipped");
 
     }
 

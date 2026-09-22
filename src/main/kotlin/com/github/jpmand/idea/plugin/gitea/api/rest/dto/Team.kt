@@ -1,5 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 /**
  * Team represents a team in an organization
  * @param canCreateOrgRepo Whether the team can create repositories in the organization
@@ -40,15 +42,15 @@ data class Team(
      */
     enum class Permission(val value: String) {
 
-        NONE("none"),
+        @JsonProperty("none") NONE("none"),
 
-        READ("read"),
+        @JsonProperty("read") READ("read"),
 
-        WRITE("write"),
+        @JsonProperty("write") WRITE("write"),
 
-        ADMIN("admin"),
+        @JsonProperty("admin") ADMIN("admin"),
 
-        OWNER("owner");
+        @JsonProperty("owner") OWNER("owner");
 
     }
 
@@ -59,11 +61,11 @@ data class Team(
      */
     enum class Visibility(val value: String) {
 
-        PUBLIC("public"),
+        @JsonProperty("public") PUBLIC("public"),
 
-        LIMITED("limited"),
+        @JsonProperty("limited") LIMITED("limited"),
 
-        PRIVATE("private");
+        @JsonProperty("private") PRIVATE("private");
 
     }
 

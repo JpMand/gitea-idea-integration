@@ -1,5 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 
 /**
  * CreateRepoOption options when creating repository
@@ -50,9 +52,9 @@ data class CreateRepoOption(
      */
     enum class ObjectFormatName(val value: String) {
 
-        SHA1("sha1"),
+        @JsonProperty("sha1") SHA1("sha1"),
 
-        SHA256("sha256");
+        @JsonProperty("sha256") SHA256("sha256");
 
     }
 
@@ -63,13 +65,13 @@ data class CreateRepoOption(
      */
     enum class TrustModel(val value: String) {
 
-        DEFAULT("default"),
+        @JsonProperty("default") DEFAULT("default"),
 
-        COLLABORATOR("collaborator"),
+        @JsonProperty("collaborator") COLLABORATOR("collaborator"),
 
-        COMMITTER("committer"),
+        @JsonProperty("committer") COMMITTER("committer"),
 
-        COLLABORATORCOMMITTER("collaboratorcommitter");
+        @JsonProperty("collaboratorcommitter") COLLABORATORCOMMITTER("collaboratorcommitter");
 
     }
 

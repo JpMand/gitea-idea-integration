@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.OffsetDateTime
 
 /**
@@ -156,9 +157,9 @@ data class Repository(
      */
     enum class ObjectFormatName(val value: String) {
 
-        SHA1("sha1"),
+        @JsonProperty("sha1") SHA1("sha1"),
 
-        SHA256("sha256");
+        @JsonProperty("sha256") SHA256("sha256");
 
     }
 

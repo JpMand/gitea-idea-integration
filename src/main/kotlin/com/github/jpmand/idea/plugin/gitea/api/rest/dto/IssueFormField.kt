@@ -1,5 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 
 /**
  * IssueFormField represents a form field
@@ -24,15 +26,15 @@ data class IssueFormField(
      */
     enum class Type(val value: String) {
 
-        MARKDOWN("markdown"),
+        @JsonProperty("markdown") MARKDOWN("markdown"),
 
-        TEXTAREA("textarea"),
+        @JsonProperty("textarea") TEXTAREA("textarea"),
 
-        INPUT("input"),
+        @JsonProperty("input") INPUT("input"),
 
-        DROPDOWN("dropdown"),
+        @JsonProperty("dropdown") DROPDOWN("dropdown"),
 
-        CHECKBOXES("checkboxes");
+        @JsonProperty("checkboxes") CHECKBOXES("checkboxes");
 
     }
 
@@ -43,9 +45,9 @@ data class IssueFormField(
      */
     enum class Visible(val value: String) {
 
-        FORM("form"),
+        @JsonProperty("form") FORM("form"),
 
-        CONTENT("content");
+        @JsonProperty("content") CONTENT("content");
 
     }
 

@@ -1,5 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 
 /**
  * Organization represents an organization
@@ -47,11 +49,11 @@ data class Organization(
      */
     enum class Visibility(val value: String) {
 
-        PUBLIC("public"),
+        @JsonProperty("public") PUBLIC("public"),
 
-        LIMITED("limited"),
+        @JsonProperty("limited") LIMITED("limited"),
 
-        PRIVATE("private");
+        @JsonProperty("private") PRIVATE("private");
 
     }
 

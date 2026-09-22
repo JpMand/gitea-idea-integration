@@ -1,5 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 
 /**
  * NotificationSubject contains the notification subject (Issue/Pull/Commit)
@@ -35,11 +37,11 @@ data class NotificationSubject(
      */
     enum class State(val value: String) {
 
-        OPEN("open"),
+        @JsonProperty("open") OPEN("open"),
 
-        CLOSED("closed"),
+        @JsonProperty("closed") CLOSED("closed"),
 
-        MERGED("merged");
+        @JsonProperty("merged") MERGED("merged");
 
     }
 
@@ -50,13 +52,13 @@ data class NotificationSubject(
      */
     enum class Type(val value: String) {
 
-        ISSUE("Issue"),
+        @JsonProperty("Issue") ISSUE("Issue"),
 
-        PULL("Pull"),
+        @JsonProperty("Pull") PULL("Pull"),
 
-        COMMIT("Commit"),
+        @JsonProperty("Commit") COMMIT("Commit"),
 
-        REPOSITORY("Repository");
+        @JsonProperty("Repository") REPOSITORY("Repository");
 
     }
 

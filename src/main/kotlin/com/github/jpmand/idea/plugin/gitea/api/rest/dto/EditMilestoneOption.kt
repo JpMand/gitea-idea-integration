@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.OffsetDateTime
 
 
@@ -28,9 +29,9 @@ data class EditMilestoneOption(
      */
     enum class State(val value: String) {
 
-        OPEN("open"),
+        @JsonProperty("open") OPEN("open"),
 
-        CLOSED("closed");
+        @JsonProperty("closed") CLOSED("closed");
 
     }
 

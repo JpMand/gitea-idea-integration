@@ -1,5 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 
 /**
  * CreateTeamOption options for creating a team
@@ -35,11 +37,11 @@ data class CreateTeamOption(
      */
     enum class Permission(val value: String) {
 
-        READ("read"),
+        @JsonProperty("read") READ("read"),
 
-        WRITE("write"),
+        @JsonProperty("write") WRITE("write"),
 
-        ADMIN("admin");
+        @JsonProperty("admin") ADMIN("admin");
 
     }
 
@@ -50,11 +52,11 @@ data class CreateTeamOption(
      */
     enum class Visibility(val value: String) {
 
-        PUBLIC("public"),
+        @JsonProperty("public") PUBLIC("public"),
 
-        LIMITED("limited"),
+        @JsonProperty("limited") LIMITED("limited"),
 
-        PRIVATE("private");
+        @JsonProperty("private") PRIVATE("private");
 
     }
 

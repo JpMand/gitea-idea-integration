@@ -1,5 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 /**
  * RepoCollaboratorPermission to get repository permission for a collaborator
  * @param permission Permission level of the collaborator
@@ -21,15 +23,15 @@ data class RepoCollaboratorPermission(
      */
     enum class Permission(val value: String) {
 
-        NONE("none"),
+        @JsonProperty("none") NONE("none"),
 
-        READ("read"),
+        @JsonProperty("read") READ("read"),
 
-        WRITE("write"),
+        @JsonProperty("write") WRITE("write"),
 
-        ADMIN("admin"),
+        @JsonProperty("admin") ADMIN("admin"),
 
-        OWNER("owner");
+        @JsonProperty("owner") OWNER("owner");
 
     }
 

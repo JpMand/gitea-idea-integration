@@ -1,5 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.api.rest.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 
 /**
  * AddCollaboratorOption options when adding a user as a collaborator of a repository
@@ -17,11 +19,11 @@ data class AddCollaboratorOption(
      */
     enum class Permission(val value: String) {
 
-        READ("read"),
+        @JsonProperty("read") READ("read"),
 
-        WRITE("write"),
+        @JsonProperty("write") WRITE("write"),
 
-        ADMIN("admin");
+        @JsonProperty("admin") ADMIN("admin");
 
     }
 
