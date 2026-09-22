@@ -23,6 +23,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 
+/** Shared with [com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffExtension]'s own
+ * retry loop around the sibling gutter-controls/inlay install — both are working around the same
+ * "editor not fully initialized yet" race. */
+internal const val REVIEW_UI_INSTALL_RETRY_ATTEMPTS = 20
+internal const val REVIEW_UI_INSTALL_RETRY_DELAY_MS = 50L
+
 /**
  * Shows the review toolbar in its own [SupervisorJob], isolated from whatever sibling
  * gutter-controls/inlay-rendering coroutines the caller also runs in the same `coroutineScope` —
@@ -40,8 +46,8 @@ fun CoroutineScope.launchReviewToolbar(project: Project, editor: Editor, discuss
     toolbarScope.launchNow {
         try {
             var attempt = 0
-            while (editor.markupModel !is EditorMarkupModel && attempt < 20) {
-                delay(50)
+            while (editor.markupModel !is EditorMarkupModel && attempt < REVIEW_UI_INSTALL_RETRY_ATTEMPTS) {
+                delay(REVIEW_UI_INSTALL_RETRY_DELAY_MS)
                 attempt++
             }
             ReviewInEditorUtil.showReviewToolbarWithActions(discussionsVm, editor, submitReviewAction(project, discussionsVm))

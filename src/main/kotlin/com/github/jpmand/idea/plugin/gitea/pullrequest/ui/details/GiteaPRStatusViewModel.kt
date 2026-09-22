@@ -20,6 +20,12 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -31,16 +37,22 @@ import kotlinx.coroutines.launch
 @Suppress("UnstableApiUsage")
 class GiteaPRStatusViewModel(
     private val cs: CoroutineScope,
-    private val initialPr: GiteaPullRequest,
+    private val prFlow: StateFlow<GiteaPullRequest>,
+    private val localMergeability: StateFlow<Boolean?>,
     private val repository: GiteaPRRepository,
 ) : CodeReviewStatusViewModel {
 
-    // Same heuristic as the list's mergeable-conflict icon (Gitea only exposes a boolean
-    // "mergeable" flag, no GitHub-style tri-state) — see GiteaPRListPanel for the rationale.
-    private val _hasConflicts = MutableStateFlow(
-        !initialPr.mergeable && initialPr.state == "open" && !initialPr.merged && !initialPr.draft
-    )
-    override val hasConflicts: SharedFlow<Boolean> = _hasConflicts.asStateFlow()
+    private val initialPr: GiteaPullRequest get() = prFlow.value
+
+    // Reactive so a merge/close/refresh (or a newly-completed local mergeability check) updates
+    // the banner and the merge-button gate without a manual reload. Gitea only exposes a boolean
+    // "mergeable" flag (see GiteaPRListPanel for the rationale) — ORed with an independent local
+    // git merge-tree check (GiteaPRBranchesViewModel.localMergeabilityState) against the *remote*
+    // target branch, since Gitea's own flag can be too coarse.
+    override val hasConflicts: SharedFlow<Boolean> = combine(prFlow, localMergeability) { pr, local ->
+        val relevant = pr.state == "open" && !pr.merged && !pr.draft
+        relevant && (!pr.mergeable || local == false)
+    }.stateIn(cs, SharingStarted.Eagerly, false)
 
     private val _ciJobs = MutableStateFlow<List<CodeReviewCIJob>>(emptyList())
     override val ciJobs: SharedFlow<List<CodeReviewCIJob>> = _ciJobs.asStateFlow()
@@ -62,15 +74,19 @@ class GiteaPRStatusViewModel(
                 _ciJobs.value = emptyList()
             }
         }
+        // Re-runs whenever the requested-reviewers list itself changes (e.g. after Request
+        // Review) — collectLatest so a fast follow-up change cancels a stale in-flight reload.
         cs.launch(Dispatchers.IO) {
-            try {
-                val reviews = repository.loadReviews(initialPr.number.toInt())
-                val states = computeReviewerStates(initialPr.requestedReviewers, reviews)
-                _reviewerStates.value = states.mapValues { (_, state) -> state.toReviewState() }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                _reviewerStates.value = emptyMap()
+            prFlow.map { it.requestedReviewers }.distinctUntilChanged().collectLatest { requestedReviewers ->
+                try {
+                    val reviews = repository.loadReviews(initialPr.number.toInt())
+                    val states = computeReviewerStates(requestedReviewers, reviews)
+                    _reviewerStates.value = states.mapValues { (_, state) -> state.toReviewState() }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    _reviewerStates.value = emptyMap()
+                }
             }
         }
     }

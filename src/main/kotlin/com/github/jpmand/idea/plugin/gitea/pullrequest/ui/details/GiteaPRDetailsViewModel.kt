@@ -1,9 +1,11 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.EditPullRequestOption
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.MergePullRequestOption
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
+import com.github.jpmand.idea.plugin.gitea.ui.GiteaSettings
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.ui.codereview.details.data.ReviewRequestState
@@ -27,6 +29,11 @@ class GiteaPRDetailsViewModel(
 ) : CodeReviewDetailsViewModel {
 
     private val _pr = MutableStateFlow(initialPr)
+
+    /** Live PR snapshot, refreshed after every close/reopen/merge/ready-for-review/request-review
+     * call — [GiteaPRStatusViewModel] observes this to keep the conflict banner/merge gate and
+     * reviewer badges in sync without a manual refresh. */
+    val prFlow: StateFlow<GiteaPullRequest> = _pr.asStateFlow()
 
     val prNumber: Int = initialPr.number.toInt()
 
@@ -149,6 +156,37 @@ class GiteaPRDetailsViewModel(
                 throw e
             } catch (e: Exception) {
                 notifyError("pull.request.action.merge.error")
+            } finally {
+                withContext(NonCancellable) { _isActionInProgress.value = false }
+            }
+        }
+    }
+
+    // ── Request review ───────────────────────────────────────────────────
+
+    val currentlyRequestedReviewers: List<GiteaUser> get() = _pr.value.requestedReviewers
+
+    /** Candidate reviewers for the Request Review picker — collaborators, or every user on the
+     * instance, per the signed-in account's "list all users" setting. */
+    suspend fun loadPossibleReviewers(): List<GiteaUser> =
+        repository.loadPossibleReviewers(GiteaSettings.getInstance().isListAllUsersAsReviewer(repository.accountId))
+
+    /**
+     * Applies a reviewer picker's [delta] (add/remove requested reviewers) and reloads the PR —
+     * [GiteaPRStatusViewModel.reviewerStates] observes [prFlow] and refreshes on its own once
+     * `requestedReviewers` changes, so no extra plumbing is needed here.
+     */
+    fun requestReview(newLogins: List<String>, removedLogins: List<String>) {
+        cs.launch(Dispatchers.IO) {
+            _isActionInProgress.value = true
+            try {
+                repository.requestReviewers(prNumber, newLogins)
+                repository.removeReviewRequest(prNumber, removedLogins)
+                _pr.value = repository.loadPullRequest(prNumber)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                notifyError("pull.request.action.request.review.error")
             } finally {
                 withContext(NonCancellable) { _isActionInProgress.value = false }
             }

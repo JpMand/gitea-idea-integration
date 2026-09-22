@@ -82,6 +82,41 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         ctx.api.repoMergePullRequest(owner, repo, number, body)
     }
 
+    // ── Reviewers ────────────────────────────────────────────────────────
+
+    suspend fun requestReviewers(prNumber: Int, logins: List<String>) = giteaApiCall {
+        if (logins.isEmpty()) return@giteaApiCall
+        ctx.api.repoCreatePullReviewRequests(owner, repo, prNumber, PullReviewRequestOptions(reviewers = logins.toTypedArray()))
+    }
+
+    suspend fun removeReviewRequest(prNumber: Int, logins: List<String>) = giteaApiCall {
+        if (logins.isEmpty()) return@giteaApiCall
+        ctx.api.repoDeletePullReviewRequests(owner, repo, prNumber, PullReviewRequestOptions(reviewers = logins.toTypedArray()))
+    }
+
+    /**
+     * Candidate reviewers for the Request Review picker: either the repo's collaborators, or every
+     * user on the instance (via `/users/search`, which needs no admin rights), per [listAllUsers]
+     * — see `GiteaSettings.isListAllUsersAsReviewer`. Falls back to the collaborators list whenever
+     * the "all users" search is forbidden or comes back empty, same 403-tolerant treatment as
+     * [loadPossibleAuthors].
+     */
+    suspend fun loadPossibleReviewers(listAllUsers: Boolean): List<GiteaUser> = giteaApiCall {
+        if (listAllUsers) {
+            val users = try {
+                ctx.api.userSearch(limit = 100).data.orEmpty().map { GiteaUser.fromDto(it) }
+            } catch (e: HttpStatusErrorException) {
+                if (e.statusCode == 403) emptyList() else throw e
+            }
+            if (users.isNotEmpty()) return@giteaApiCall users
+        }
+        try {
+            ctx.api.repoListCollaborators(owner, repo, page = null, limit = 100).map { GiteaUser.fromDto(it) }
+        } catch (e: HttpStatusErrorException) {
+            if (e.statusCode == 403) emptyList() else throw e
+        }
+    }
+
     // ── Reviews & Comments ────────────────────────────────────────────────
 
     suspend fun loadReviews(prNumber: Int): List<GiteaReview> = giteaApiCall {

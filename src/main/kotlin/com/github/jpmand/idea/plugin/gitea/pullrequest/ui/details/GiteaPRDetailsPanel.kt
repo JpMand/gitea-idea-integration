@@ -15,6 +15,8 @@ import com.intellij.collaboration.ui.SimpleHtmlPane
 import com.intellij.collaboration.ui.VerticalListPanel
 import com.intellij.collaboration.ui.codereview.details.*
 import com.intellij.ide.BrowserUtil
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -23,13 +25,16 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NlsSafe
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.ScrollPaneFactory
+import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.*
 import com.intellij.ui.components.panels.Wrapper
 import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import net.miginfocom.layout.CC
 import net.miginfocom.layout.LC
@@ -171,6 +176,12 @@ class GiteaPRDetailsPanel(
         return wrapper
     }
 
+    /**
+     * Comment/Approve/Request Changes/Save-pending as one select-then-confirm split button (see
+     * [createSelectableOptionButton]) — Cancel stays a separate plain button since it isn't a
+     * verdict alternative. Each verdict reads [textArea]'s text live at confirm-time, so switching
+     * the selected verdict never loses what's been typed.
+     */
     private fun startReviewPanel(cs: CoroutineScope, discussionsVm: GiteaPRDiscussionsViewModels): JComponent {
         val textArea = reviewTextArea()
         val draftCountLabel = JBLabel().apply {
@@ -186,19 +197,24 @@ class GiteaPRDetailsPanel(
                 cancelButton.isVisible = drafts.isNotEmpty()
             }
         }
+        val verdictButton = createSelectableOptionButton(
+            listOf(
+                OptionSpec(GiteaBundle.message("pull.request.action.comment")) {
+                    discussionsVm.submitReview(CreatePullReviewOptions.Event.COMMENT, textArea.text)
+                },
+                OptionSpec(GiteaBundle.message("pull.request.action.approve")) {
+                    discussionsVm.submitReview(CreatePullReviewOptions.Event.APPROVED, textArea.text)
+                },
+                OptionSpec(GiteaBundle.message("pull.request.action.request.changes")) {
+                    discussionsVm.submitReview(CreatePullReviewOptions.Event.REQUESTCHANGES, textArea.text)
+                },
+                OptionSpec(GiteaBundle.message("pull.request.review.save.pending")) {
+                    discussionsVm.submitReview(CreatePullReviewOptions.Event.PENDING, textArea.text)
+                },
+            ),
+        )
         val buttons = HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
-            add(JButton(GiteaBundle.message("pull.request.action.comment")).apply {
-                addActionListener { discussionsVm.submitReview(CreatePullReviewOptions.Event.COMMENT, textArea.text) }
-            })
-            add(JButton(GiteaBundle.message("pull.request.action.approve")).apply {
-                addActionListener { discussionsVm.submitReview(CreatePullReviewOptions.Event.APPROVED, textArea.text) }
-            })
-            add(JButton(GiteaBundle.message("pull.request.action.request.changes")).apply {
-                addActionListener { discussionsVm.submitReview(CreatePullReviewOptions.Event.REQUESTCHANGES, textArea.text) }
-            })
-            add(JButton(GiteaBundle.message("pull.request.review.save.pending")).apply {
-                addActionListener { discussionsVm.submitReview(CreatePullReviewOptions.Event.PENDING, textArea.text) }
-            })
+            add(verdictButton)
             add(cancelButton)
         }
         bindBusyState(cs, discussionsVm, buttons)
@@ -209,21 +225,29 @@ class GiteaPRDetailsPanel(
         }
     }
 
+    /** Same select-then-confirm verdict group as [startReviewPanel], minus "Save pending" — a
+     * pending review already exists at this point. */
     private fun finishReviewPanel(cs: CoroutineScope, discussionsVm: GiteaPRDiscussionsViewModels, pending: GiteaReview): JComponent {
         val textArea = reviewTextArea().apply { text = pending.body.orEmpty() }
+        val cancelButton = JButton(GiteaBundle.message("pull.request.action.cancel.review")).apply {
+            addActionListener { confirmAndCancelReview(project, discussionsVm) }
+        }
+        val verdictButton = createSelectableOptionButton(
+            listOf(
+                OptionSpec(GiteaBundle.message("pull.request.action.comment")) {
+                    discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.COMMENT, textArea.text)
+                },
+                OptionSpec(GiteaBundle.message("pull.request.action.approve")) {
+                    discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.APPROVED, textArea.text)
+                },
+                OptionSpec(GiteaBundle.message("pull.request.action.request.changes")) {
+                    discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.REQUESTCHANGES, textArea.text)
+                },
+            ),
+        )
         val buttons = HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
-            add(JButton(GiteaBundle.message("pull.request.action.comment")).apply {
-                addActionListener { discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.COMMENT, textArea.text) }
-            })
-            add(JButton(GiteaBundle.message("pull.request.action.approve")).apply {
-                addActionListener { discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.APPROVED, textArea.text) }
-            })
-            add(JButton(GiteaBundle.message("pull.request.action.request.changes")).apply {
-                addActionListener { discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.REQUESTCHANGES, textArea.text) }
-            })
-            add(JButton(GiteaBundle.message("pull.request.action.cancel.review")).apply {
-                addActionListener { confirmAndCancelReview(project, discussionsVm) }
-            })
+            add(verdictButton)
+            add(cancelButton)
         }
         bindBusyState(cs, discussionsVm, buttons)
         return VerticalListPanel(4).apply {
@@ -256,27 +280,39 @@ class GiteaPRDetailsPanel(
         val reopen = stubActionSwing("pull.request.action.reopen") { vm.reopenPullRequest() }
         val readyForReview = stubActionSwing("pull.request.action.ready.for.review") { vm.markReadyForReview() }
         val closeButton = actionButton("pull.request.action.close") { vm.closePullRequest() }
+        val requestReviewButton = createRequestReviewButton()
         val (mergeControl, mergeOptionButton) = createMergeControl()
 
-        val openedPanel = HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
-            add(mergeControl)
-            add(closeButton)
+
+        val actionPanel = VerticalListPanel().apply {
+            add(HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
+                add(mergeControl)
+            })
+            add(HorizontalListPanel(UIUtil.LARGE_VGAP).apply {
+                add(requestReviewButton)
+                add(closeButton)
+            })
         }
 
         // Mirrors the bundled GitHub plugin's isBusy-gated close/reopen/merge actions: disable
-        // while a call is in flight so a double-click can't fire concurrent requests.
+        // while a call is in flight so a double-click can't fire concurrent requests. Merge is
+        // additionally gated on statusVm.hasConflicts (Gitea's mergeable flag OR'd with the local
+        // merge-tree check, see GiteaPRBranchesViewModel.localMergeabilityState) so a doomed merge
+        // can't even be attempted.
         cs.launch {
-            vm.isActionInProgress.collect { busy ->
-                closeButton.isEnabled = !busy
-                mergeOptionButton.isEnabled = !busy
-                reopen.isEnabled = !busy
-                readyForReview.isEnabled = !busy
-            }
+            vm.isActionInProgress.combine(statusVm.hasConflicts) { busy, hasConflicts -> busy to hasConflicts }
+                .collect { (busy, hasConflicts) ->
+                    closeButton.isEnabled = !busy
+                    requestReviewButton.isEnabled = !busy
+                    mergeOptionButton.isEnabled = !busy && !hasConflicts
+                    reopen.isEnabled = !busy
+                    readyForReview.isEnabled = !busy
+                }
         }
 
         return CodeReviewDetailsActionsComponentFactory.createActionsComponent(
             cs, vm.reviewRequestState,
-            openedStatePanel = openedPanel,
+            openedStatePanel = actionPanel,
             mergedStatePanel = CodeReviewDetailsActionsComponentFactory.createActionsForMergedReview(),
             closedStatePanel = CodeReviewDetailsActionsComponentFactory.createActionsForClosedReview(reopen),
             draftedStatePanel = CodeReviewDetailsActionsComponentFactory.createActionsForDraftReview(readyForReview),
@@ -287,10 +323,44 @@ class GiteaPRDetailsPanel(
         JButton(GiteaBundle.message(bundleKey)).apply { addActionListener { action() } }
 
     /**
-     * A GitHub-style "Merge ▾" split button — the default action merges immediately, the dropdown
-     * offers the other strategies, no confirmation dialog. Reference: `GHPRCommitMergeAction` /
-     * `GHPRSquashMergeAction` in the bundled GitHub plugin, each a plain per-strategy action with
-     * no intermediate dialog step.
+     * Loads candidate reviewers (respecting the per-account "list all users" setting, see
+     * [GiteaPRDetailsViewModel.loadPossibleReviewers]), shows [showReviewersPicker] anchored under
+     * the button, and applies the resulting add/remove delta via [GiteaPRDetailsViewModel.requestReview].
+     * A no-op (no API call) if the picker is dismissed without changes.
+     */
+    private fun createRequestReviewButton(): JButton {
+        lateinit var button: JButton
+        button = JButton(GiteaBundle.message("pull.request.action.request.review")).apply {
+            addActionListener {
+                cs.launch {
+                    try {
+                        val candidates = vm.loadPossibleReviewers()
+                        val delta = showReviewersPicker(RelativePoint.getSouthWestOf(button), candidates, vm.currentlyRequestedReviewers)
+                            ?: return@launch
+                        if (!delta.isEmpty) {
+                            vm.requestReview(delta.newItems.map { it.login }, delta.removedItems.map { it.login })
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        NotificationGroupManager.getInstance()
+                            .getNotificationGroup("Gitea")
+                            .createNotification(GiteaBundle.message("pull.request.action.request.review.load.error"), NotificationType.ERROR)
+                            .notify(project)
+                    }
+                }
+            }
+        }
+        return button
+    }
+
+    /**
+     * A GitHub-style "Merge ▾" split button (see [createSelectableOptionButton] for the
+     * select-then-confirm mechanics) — picking a strategy from the dropdown only changes what the
+     * primary button will do; only clicking the primary button itself merges. Reference:
+     * `GHPRCommitMergeAction`/`GHPRSquashMergeAction` in the bundled GitHub plugin for the
+     * per-strategy action shape (that plugin fires immediately per-action; this one adds the
+     * select/confirm split on top).
      */
     private fun createMergeControl(): Pair<JComponent, JBOptionButton> {
         val deleteBranchCheckBox = JBCheckBox(GiteaBundle.message("pull.request.merge.dialog.delete.branch"))
@@ -301,13 +371,10 @@ class GiteaPRDetailsPanel(
             MergePullRequestOption.Do.REBASEMERGE,
             MergePullRequestOption.Do.FASTFORWARDONLY,
         )
-        fun mergeAction(method: MergePullRequestOption.Do) = object : AbstractAction(mergeMethodLabel(method)) {
-            override fun actionPerformed(e: ActionEvent?) = vm.mergePullRequest(method, deleteBranchCheckBox.isSelected)
-        }
-
-        val optionButton = JBOptionButton(
-            mergeAction(strategies.first()),
-            strategies.drop(1).map { mergeAction(it) }.toTypedArray(),
+        val optionButton = createSelectableOptionButton(
+            strategies.map { method ->
+                OptionSpec(mergeMethodLabel(method)) { vm.mergePullRequest(method, deleteBranchCheckBox.isSelected) }
+            },
         )
 
         val panel = HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
@@ -315,6 +382,32 @@ class GiteaPRDetailsPanel(
             add(deleteBranchCheckBox)
         }
         return panel to optionButton
+    }
+
+    private class OptionSpec(val label: String, val onConfirm: () -> Unit)
+
+    /**
+     * Builds a [JBOptionButton] where clicking a dropdown item only swaps the button's own
+     * default [javax.swing.Action] (via [JButton.setAction], which re-renders the label for free)
+     * instead of firing — only clicking the primary button itself invokes [OptionSpec.onConfirm].
+     * [JBOptionButton] has no built-in "select without firing" mode; this construction pattern is
+     * the mechanism (confirmed against the platform sources: it's a plain `JButton(action)` with a
+     * separate `options: Array<Action>` for the dropdown — nothing more). All [specs] (including
+     * whichever ends up default) go in the dropdown, since re-selecting the current default is a
+     * harmless no-op and the default can change at runtime.
+     */
+    private fun createSelectableOptionButton(specs: List<OptionSpec>): JBOptionButton {
+        lateinit var optionButton: JBOptionButton
+        fun confirmAction(spec: OptionSpec) = object : AbstractAction(spec.label) {
+            override fun actionPerformed(e: ActionEvent?) = spec.onConfirm()
+        }
+        fun selectAction(spec: OptionSpec) = object : AbstractAction(spec.label) {
+            override fun actionPerformed(e: ActionEvent?) {
+                optionButton.action = confirmAction(spec)
+            }
+        }
+        optionButton = JBOptionButton(confirmAction(specs.first()), specs.map { selectAction(it) }.toTypedArray())
+        return optionButton
     }
 
     private fun mergeMethodLabel(method: MergePullRequestOption.Do): String = when (method) {

@@ -88,6 +88,17 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
             { prSettings.editorReviewEnabled = it })
       }
 
+      // Scoped to the project's current default account (there's no account-selector UI here) —
+      // switch the default account first to configure this for a different one.
+      defaultAccountHolder.account?.let { account ->
+        row {
+          checkBox(message("settings.reviewer.list.all.users"))
+            .bindSelected(
+              { giteaSettings.isListAllUsersAsReviewer(account.id) },
+              { giteaSettings.setListAllUsersAsReviewer(account.id, it) })
+        }
+      }
+
       addWarningForMemoryOnlyPasswordSafeAndGet(
         scope,
         service<GiteaAccountManager>().canPersistCredentials,
@@ -108,7 +119,10 @@ class GiteaSettings : SerializablePersistentStateComponent<GiteaSettings.State>(
   data class State(
     val automaticallyMarkAsViewed: Boolean = false,
     val connectionTimeout: Int = 5_000,
-    val cloneWithSsh: Boolean = false
+    val cloneWithSsh: Boolean = false,
+    /** [GiteaAccount.id] -> whether the Request Review picker should offer every user on the
+     * instance rather than just the repo's collaborators. Default (absent) is collaborators-only. */
+    val listAllUsersAsReviewerByAccount: Map<String, Boolean> = emptyMap(),
   )
 
   var isAutomaticallyMarkAsViewed: Boolean
@@ -128,6 +142,13 @@ class GiteaSettings : SerializablePersistentStateComponent<GiteaSettings.State>(
     set(value) {
       updateState { it.copy(cloneWithSsh = value) }
     }
+
+  fun isListAllUsersAsReviewer(accountId: String): Boolean =
+    state.listAllUsersAsReviewerByAccount[accountId] ?: false
+
+  fun setListAllUsersAsReviewer(accountId: String, value: Boolean) {
+    updateState { it.copy(listAllUsersAsReviewerByAccount = it.listAllUsersAsReviewerByAccount + (accountId to value)) }
+  }
 
   companion object {
     fun getInstance(): GiteaSettings =

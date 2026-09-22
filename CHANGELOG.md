@@ -23,6 +23,8 @@
 - @-mention autocomplete for repo collaborators in comment editors
 - Merge (with method choice and delete-branch confirmation), close/reopen, and checkout-branch
   actions on a PR
+- Request Review action: a checkbox picker (add and remove) backed by the repo's collaborators or,
+  per a new per-account setting, every user on the Gitea instance
 - Right-click context menus on PR-list rows and timeline items
 - "Gitea" tab in _Get from Version Control_ for cloning
 - Open-in-browser / copy-link actions and an annotation-gutter action
@@ -43,6 +45,13 @@
   earlier server-rendered approach that was slow and prone to breaking
 - Dropped remaining internal-API usage across account scopes, repository discovery, the clone
   flow, and the changes tree, keeping Marketplace plugin verification clean
+- Merge is now also gated on a local merge-tree dry run against the up-to-date remote target
+  branch (fetched first), in addition to Gitea's own `mergeable` flag
+- The merge strategy and review-verdict controls are now select-then-confirm split buttons:
+  picking a dropdown option only changes what the primary button will do, it no longer fires
+  immediately
+- Checking out a PR whose local branch already exists now fetches and updates that branch (with
+  git's native conflict resolution) instead of erroring, and offers to fix a mismatched upstream
 
 ### Fixed
 
@@ -73,6 +82,8 @@
 - Branch checkout from a PR's own changes branch, and local-commit author attribution, corrected
 - Stale account-context avatars in the Conversation tab after switching accounts; a leaked
   Commit/CommitStatus DTO reaching UI code instead of a domain model
+- Review gutter controls and pre-existing draft comments could silently fail to appear on the
+  very first diff viewer shown (most reproducible on single-commit, single-file PRs)
 
 ## [0.0.1] - 2026-03-13
 

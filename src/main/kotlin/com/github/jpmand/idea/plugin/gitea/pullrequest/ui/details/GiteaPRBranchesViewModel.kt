@@ -5,6 +5,7 @@ import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.util.GiteaGitRepositoryMapping
+import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.ui.codereview.details.model.CodeReviewBranches
 import com.intellij.collaboration.ui.codereview.details.model.CodeReviewBranchesViewModel
 import com.intellij.notification.NotificationGroupManager
@@ -13,8 +14,14 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.MessageDialogBuilder
+import git4idea.GitRevisionNumber
 import git4idea.branch.GitBrancher
+import git4idea.commands.Git
+import git4idea.commands.GitCommand
+import git4idea.commands.GitLineHandler
 import git4idea.fetch.GitFetchSupport
+import git4idea.history.GitHistoryUtils
 import git4idea.remote.hosting.GitCodeReviewUtils
 import git4idea.repo.GitRemote
 import git4idea.repo.GitRepository
@@ -51,6 +58,55 @@ class GiteaPRBranchesViewModel(
 
     private val _isResolvingConflicts = MutableStateFlow(false)
     val isResolvingConflicts: StateFlow<Boolean> = _isResolvingConflicts.asStateFlow()
+
+    /**
+     * Independent, local-git mergeability check — Gitea's own `mergeable` flag (surfaced via
+     * [GiteaPRStatusViewModel.hasConflicts]) is coarse, so this adds a real merge-tree dry run
+     * against the *remote* target branch (never the possibly-stale local one — always fetched
+     * first). `null` means "unknown" (fetch failed, git too old for the two-arg `merge-tree` form,
+     * no repository mapping, ...) and deliberately does NOT add extra gating beyond whatever
+     * Gitea's flag already says — only a confirmed local conflict (`false`) does.
+     */
+    private val _localMergeabilityState = MutableStateFlow<Boolean?>(null)
+    val localMergeabilityState: StateFlow<Boolean?> = _localMergeabilityState.asStateFlow()
+
+    init {
+        cs.launch(Dispatchers.IO) {
+            prFlow.distinctUntilChanged { old, new -> old.head.sha == new.head.sha && old.base.ref == new.base.ref }
+                .collectLatest { pr -> _localMergeabilityState.value = computeLocalMergeability(pr) }
+        }
+    }
+
+    private suspend fun computeLocalMergeability(pr: GiteaPullRequest): Boolean? {
+        val mapping = findRepositoryMapping() ?: return null
+        return try {
+            val baseFetch = withContext(Dispatchers.IO) {
+                GitFetchSupport.fetchSupport(project).fetch(mapping.gitRepository, mapping.gitRemote)
+            }
+            if (!baseFetch.isSuccessful()) return null
+
+            val localRef = "refs/${pr.head.ref}/head"
+            if (!fetch(mapping.gitRepository, mapping.gitRemote, "refs/pull/${pr.number}/head:$localRef")) return null
+
+            val root = mapping.gitRepository.root
+            val targetRef = "${mapping.gitRemote.name}/${pr.base.ref}"
+
+            val mergeBase = GitHistoryUtils.getMergeBase(project, root, targetRef, localRef) ?: return null
+            val targetRevision = GitRevisionNumber.resolve(project, root, targetRef)
+            if (mergeBase.asString() == targetRevision.asString()) return true // target is already an ancestor of head
+
+            val handler = GitLineHandler(project, root, GitCommand.MERGE_TREE).apply {
+                setSilent(true)
+                addParameters(targetRef, localRef)
+            }
+            Git.getInstance().runCommand(handler).success()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            GiteaUtil.LOG.debug("Local mergeability check failed for PR #${pr.number}", e)
+            null
+        }
+    }
 
     override fun fetchAndCheckoutRemoteBranch() {
         val mapping = findRepositoryMapping()
@@ -108,14 +164,28 @@ class GiteaPRBranchesViewModel(
         }
     }
 
+    /**
+     * If [branchName] already exists locally, this updates it (fetch + merge the PR's new head in,
+     * same native-conflict-dialog idiom as [resolveConflicts]) instead of erroring the way a bare
+     * [GitBrancher.checkoutNewBranchStartingFrom] would. A mismatched upstream is offered as a
+     * fix-it confirmation *before* the fetch (a cheap local check, independent of it) — declining
+     * doesn't abort the update, it just leaves the existing tracking info alone.
+     */
     private suspend fun checkoutPrBranch(mapping: GiteaGitRepositoryMapping, pr: GiteaPullRequest): Boolean {
         val prRef = "refs/pull/${pr.number}/head"
         val localRef = "refs/${pr.head.ref}/head"
         val branchName = pr.head.ref
 
+        val existingBranch = mapping.gitRepository.branches.findLocalBranch(branchName) != null
+        if (existingBranch) fixMismatchedUpstreamIfConfirmed(mapping, pr, branchName)
+
         if (!fetch(mapping.gitRepository, mapping.gitRemote, "$prRef:$localRef")) return false
 
-        return suspendCancellableCoroutine { cont ->
+        return if (existingBranch) updateExistingBranch(mapping, localRef, branchName) else checkoutNewBranch(mapping, localRef, branchName)
+    }
+
+    private suspend fun checkoutNewBranch(mapping: GiteaGitRepositoryMapping, localRef: String, branchName: String): Boolean =
+        suspendCancellableCoroutine { cont ->
             ApplicationManager.getApplication().invokeLater {
                 GitBrancher.getInstance(project).checkoutNewBranchStartingFrom(
                     branchName, localRef, listOf(mapping.gitRepository),
@@ -123,6 +193,43 @@ class GiteaPRBranchesViewModel(
                     _isCheckedOut.value = true
                     cont.resume(true)
                 }
+            }
+        }
+
+    private suspend fun updateExistingBranch(mapping: GiteaGitRepositoryMapping, localRef: String, branchName: String): Boolean {
+        if (mapping.gitRepository.currentBranch?.name != branchName) {
+            suspendCancellableCoroutine { cont ->
+                ApplicationManager.getApplication().invokeLater {
+                    GitBrancher.getInstance(project).checkout(branchName, false, listOf(mapping.gitRepository)) {
+                        cont.resume(Unit)
+                    }
+                }
+            }
+        }
+        withContext(Dispatchers.EDT) {
+            GitBrancher.getInstance(project).merge(localRef, GitBrancher.DeleteOnMergeOption.NOTHING, listOf(mapping.gitRepository))
+        }
+        _isCheckedOut.value = true
+        return true
+    }
+
+    private suspend fun fixMismatchedUpstreamIfConfirmed(mapping: GiteaGitRepositoryMapping, pr: GiteaPullRequest, branchName: String) {
+        val trackInfo = mapping.gitRepository.getBranchTrackInfo(branchName)
+        val matches = trackInfo != null &&
+            trackInfo.remote.name == mapping.gitRemote.name &&
+            trackInfo.remoteBranch.nameForRemoteOperations == pr.head.ref
+        if (matches) return
+
+        val expectedUpstream = "${mapping.gitRemote.name}/${pr.head.ref}"
+        val confirmed = withContext(Dispatchers.EDT) {
+            MessageDialogBuilder.yesNo(
+                GiteaBundle.message("pull.request.branch.checkout.upstream.mismatch.title"),
+                GiteaBundle.message("pull.request.branch.checkout.upstream.mismatch.message", branchName, expectedUpstream),
+            ).asWarning().ask(project)
+        }
+        if (confirmed) {
+            withContext(Dispatchers.IO) {
+                Git.getInstance().setUpstream(mapping.gitRepository, expectedUpstream, branchName)
             }
         }
     }
