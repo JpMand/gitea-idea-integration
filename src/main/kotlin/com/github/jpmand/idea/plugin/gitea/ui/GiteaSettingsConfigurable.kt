@@ -1,12 +1,13 @@
 package com.github.jpmand.idea.plugin.gitea.ui
 
-import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle.message
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaProjectDefaultAccountHolder
 import com.github.jpmand.idea.plugin.gitea.authentication.ui.GiteaAccountsDetailsProvider
 import com.github.jpmand.idea.plugin.gitea.authentication.ui.GiteaAccountsListModel
 import com.github.jpmand.idea.plugin.gitea.authentication.ui.GiteaAccountsPanelActionsController
+import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPullRequestsSettings
+import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle.message
 import com.github.jpmand.idea.plugin.gitea.util.GiteaPluginProjectScopeProvider
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil.SERVICE_DISPLAY_NAME
 import com.intellij.collaboration.auth.ui.AccountsPanelFactory
@@ -15,24 +16,12 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.asContextElement
-import com.intellij.openapi.components.SerializablePersistentStateComponent
-import com.intellij.openapi.components.Service
-import com.intellij.openapi.components.SettingsCategory
-import com.intellij.openapi.components.State
-import com.intellij.openapi.components.Storage
-import com.intellij.openapi.components.service
+import com.intellij.openapi.components.*
 import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogPanel
-import com.intellij.ui.dsl.builder.Align
-import com.intellij.ui.dsl.builder.AlignX
-import com.intellij.ui.dsl.builder.RightGap
-import com.intellij.ui.dsl.builder.bindIntText
-import com.intellij.ui.dsl.builder.bindSelected
-import com.intellij.ui.dsl.builder.columns
-import com.intellij.ui.dsl.builder.panel
+import com.intellij.ui.dsl.builder.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.serialization.Serializable
 import org.jetbrains.annotations.ApiStatus
 
 @Suppress("UnstableApiUsage")
@@ -43,8 +32,9 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
     val defaultAccountHolder = project.service<GiteaProjectDefaultAccountHolder>()
     val accountManager = service<GiteaAccountManager>()
     val giteaSettings = GiteaSettings.getInstance()
+    val prSettings = project.service<GiteaPullRequestsSettings>()
 
-    val scope = scopeProvider.createDisposedScope(
+    val scope = scopeProvider.childScope(
       javaClass.name, disposable!!,
       Dispatchers.EDT + ModalityState.any().asContextElement()
     )
@@ -84,6 +74,30 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
           .gap(RightGap.COLUMNS)
       }
 
+      row {
+        checkBox(message("settings.clone.with.ssh"))
+          .bindSelected(
+            { giteaSettings.cloneWithSsh },
+            { giteaSettings.cloneWithSsh = it })
+      }
+
+      row {
+        checkBox(message("settings.editor.review.enabled"))
+          .bindSelected(
+            { prSettings.editorReviewEnabled },
+            { prSettings.editorReviewEnabled = it })
+      }
+
+      // Scoped to the project's current default account (there's no account-selector UI here) —
+      // switch the default account first to configure this for a different one.
+      defaultAccountHolder.account?.let { account ->
+        row {
+          checkBox(message("settings.reviewer.list.all.users"))
+            .bindSelected(
+              { giteaSettings.isListAllUsersAsReviewer(account.id) },
+              { giteaSettings.setListAllUsersAsReviewer(account.id, it) })
+        }
+      }
 
       addWarningForMemoryOnlyPasswordSafeAndGet(
         scope,
@@ -102,10 +116,13 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
   category = SettingsCategory.TOOLS
 )
 class GiteaSettings : SerializablePersistentStateComponent<GiteaSettings.State>(State()) {
-  @Serializable
   data class State(
     val automaticallyMarkAsViewed: Boolean = false,
-    val connectionTimeout: Int = 5_000
+    val connectionTimeout: Int = 5_000,
+    val cloneWithSsh: Boolean = false,
+    /** [GiteaAccount.id] -> whether the Request Review picker should offer every user on the
+     * instance rather than just the repo's collaborators. Default (absent) is collaborators-only. */
+    val listAllUsersAsReviewerByAccount: Map<String, Boolean> = emptyMap(),
   )
 
   var isAutomaticallyMarkAsViewed: Boolean
@@ -119,6 +136,19 @@ class GiteaSettings : SerializablePersistentStateComponent<GiteaSettings.State>(
     set(value) {
       updateState { it.copy(connectionTimeout = value) }
     }
+
+  var cloneWithSsh: Boolean
+    get() = state.cloneWithSsh
+    set(value) {
+      updateState { it.copy(cloneWithSsh = value) }
+    }
+
+  fun isListAllUsersAsReviewer(accountId: String): Boolean =
+    state.listAllUsersAsReviewerByAccount[accountId] ?: false
+
+  fun setListAllUsersAsReviewer(accountId: String, value: Boolean) {
+    updateState { it.copy(listAllUsersAsReviewerByAccount = it.listAllUsersAsReviewerByAccount + (accountId to value)) }
+  }
 
   companion object {
     fun getInstance(): GiteaSettings =

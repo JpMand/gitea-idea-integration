@@ -1,0 +1,29 @@
+[
+  {
+    "id": 1,
+    "name": "bug",
+    "exclusive": false,
+    "is_archived": false,
+    "color": "d73a4a",
+    "description": "Something isn't working",
+    "url": "https://gitea.example.com/api/v1/repos/octo/hello/labels/1"
+  },
+  {
+    "id": 2,
+    "name": "enhancement",
+    "exclusive": false,
+    "is_archived": false,
+    "color": "a2eeef",
+    "description": "New feature or request",
+    "url": "https://gitea.example.com/api/v1/repos/octo/hello/labels/2"
+  },
+  {
+    "id": 3,
+    "name": "good first issue",
+    "exclusive": false,
+    "is_archived": true,
+    "color": "7057ff",
+    "description": "",
+    "url": "https://gitea.example.com/api/v1/repos/octo/hello/labels/3"
+  }
+]

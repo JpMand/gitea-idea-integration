@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import java.awt.Image
 import kotlin.coroutines.cancellation.CancellationException
 
+@Suppress("UnstableApiUsage")
 class GiteaAccountsDetailsProvider(
   scope: CoroutineScope,
   private val apiSupplier: suspend (GiteaAccount) -> GiteaApi?

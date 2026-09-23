@@ -8,6 +8,7 @@ import com.intellij.openapi.components.Service
 import git4idea.remote.hosting.http.HostedGitAuthenticationFailureManager
 import kotlinx.coroutines.CoroutineScope
 
+@Suppress("UnstableApiUsage")
 @Service(Service.Level.PROJECT)
 class GiteaGitAuthenticationFailureManager(parentCs: CoroutineScope) : HostedGitAuthenticationFailureManager<GiteaAccount>(
   serviceGet<GiteaAccountManager>(),

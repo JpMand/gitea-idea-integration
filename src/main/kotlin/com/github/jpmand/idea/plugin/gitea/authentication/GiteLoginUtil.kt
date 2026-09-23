@@ -13,6 +13,7 @@ import com.intellij.collaboration.auth.ui.login.TokenLoginInputPanelFactory
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.NlsContexts
 import com.intellij.util.Urls.parseEncoded
 import com.intellij.util.asSafely
@@ -25,26 +26,24 @@ object GiteLoginUtil {
 
   internal fun buildNewTokenUrl(serverUri: String): String? {
     //Pre-filled grained token generation is not supported. So only redirect to token page
-    return parseEncoded("${serverUri}/settings/applications")?.toExternalForm()
+    return parseEncoded("${serverUri}/user/settings/applications")?.toExternalForm()
   }
 
   @RequiresEdt
   fun logInViaToken(
     project: Project,
     parentComponent: JComponent?,
-    loginSource: String? = null,
     uniqueAccountPredicate: (GiteaServerPath, String) -> Boolean
   ): LoginResult =
-    logInViaToken(project, parentComponent, GiteaServerPath.DEFAULT_SERVER, null, loginSource, uniqueAccountPredicate)
+    logInViaToken(project, parentComponent, GiteaServerPath.DEFAULT_SERVER, null, uniqueAccountPredicate)
 
   @RequiresEdt
   fun updateToken(
     project: Project,
     parentComponent: JComponent?,
     account: GiteaAccount,
-    loginSource: String? = null,
     uniqueAccountPredicate: (GiteaServerPath, String) -> Boolean
-  ): LoginResult = updateToken(project, parentComponent, account, null, loginSource, uniqueAccountPredicate)
+  ): LoginResult = updateToken(project, parentComponent, account, account.name, uniqueAccountPredicate)
 
   @RequiresEdt
   internal fun logInViaToken(
@@ -52,7 +51,6 @@ object GiteLoginUtil {
     parentComponent: JComponent?,
     serverPath: GiteaServerPath = GiteaServerPath.DEFAULT_SERVER,
     requiredUsername: String? = null,
-    loginSource: String?,
     uniqueAccountPredicate: (GiteaServerPath, String) -> Boolean
   ): LoginResult {
     val model = GiteaTokenLoginPanelModel(requiredUsername, uniqueAccountPredicate).apply {
@@ -81,7 +79,6 @@ object GiteLoginUtil {
     parentComponent: JComponent?,
     account: GiteaAccount,
     requiredUsername: String? = null,
-    loginSource: String? = null,
     uniqueAccountPredicate: (GiteaServerPath, String) -> Boolean
   ): LoginResult {
     val predicateWithoutCurrent: (GiteaServerPath, String) -> Boolean = { serverPath, username ->
@@ -113,18 +110,20 @@ object GiteLoginUtil {
     title: @NlsContexts.DialogTitle String,
     serverFieldDisabled: Boolean
   ): Int {
-    val scopeProvider = project.service<GiteaPluginProjectScopeProvider>()
-    val dialog = scopeProvider.constructDialog("Gitea Token login dialog") {
-      TokenLoginDialog(project, this, parentComponent, model, title, model.tryGitAuthorizationSignal) {
-        val cs = this
-        TokenLoginInputPanelFactory(model).createIn(
-          cs,
-          serverFieldDisabled,
-          tokenNote = GiteaBundle.message("clone.dialog.insufficient.scopes"),
-          errorPresenter = GiteaLoginErrorStatusPresenter(cs, model)
-        )
-      }
+    val scopeDisposable = Disposer.newDisposable("Gitea Token login dialog")
+    val uiScope = project.service<GiteaPluginProjectScopeProvider>()
+      .childScope("Gitea Token login dialog", scopeDisposable)
+    val dialog = TokenLoginDialog(
+      project, uiScope, parentComponent, model, title, model.tryGitAuthorizationSignal,
+    ) {
+      TokenLoginInputPanelFactory(model).createIn(
+        this,
+        serverFieldDisabled,
+        tokenNote = GiteaBundle.message("clone.dialog.insufficient.scopes"),
+        errorPresenter = GiteaLoginErrorStatusPresenter(this, model),
+      )
     }
+    Disposer.register(dialog.disposable, scopeDisposable)
     dialog.showAndGet()
 
     return dialog.exitCode
@@ -148,8 +147,13 @@ object GiteLoginUtil {
     } else null
   }
 
+  /**
+   * Same "same server" criterion as `GiteaAccountManager.isAccountUnique` — host + effective
+   * port + context path, protocol-insensitive — but checked against an explicit account list
+   * (the settings panel's in-progress model rather than the persisted state).
+   */
   fun isAccountUnique(accounts: Collection<GiteaAccount>, server: GiteaServerPath, username: String): Boolean =
-    accounts.none { it.server.toURI() == server.toURI() && it.name == username }
+    accounts.none { it.server.equals(server, ignoreProtocol = true) && it.name == username }
 
   sealed interface LoginResult {
     data class Success(val account: GiteaAccount, val token: String) : LoginResult

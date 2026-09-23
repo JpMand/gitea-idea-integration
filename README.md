@@ -12,32 +12,38 @@
 > Any help is greately appreciated
 
 <!-- Plugin description -->
-Gitea integration plugin for IntelliJ Platform IDEs. This plugin provides seamless integration with Gitea, allowing you to authenticate, manage your Gitea accounts, and work with Git repositories hosted on Gitea instances directly from your IDE.
+Gitea integration plugin for IntelliJ Platform IDEs. Authenticate to one or more Gitea servers,
+clone repositories, and review pull requests without leaving the IDE.
 
 ## Features
 
-### Authentication
-- **Token-based Authentication**: Secure authentication using Gitea access tokens
-- **Multiple Account Support**: Manage multiple Gitea accounts from different servers
-- **Account Persistence**: Your accounts are securely stored and persisted across IDE sessions
-- **Git Integration**: Automatic authentication for Git operations on Gitea repositories
+### Authentication & accounts
+- Token-based authentication, multiple accounts across multiple servers
+- Accounts persisted locally; tokens stored in the OS credential store
+- Automatic credential supply for Git HTTPS operations on Gitea repositories
+- A default account per project
 
-### Account Management
-- **Easy Account Setup**: Simple dialog to add new Gitea accounts
-- **Account Switching**: Quickly switch between different Gitea accounts
-- **Token Management**: Update tokens without recreating accounts
-- **Default Account**: Set a default account per project
+### Repositories
+- "Gitea" tab in _Get from Version Control_ to browse and clone your repositories
+- Open-in-browser and copy-link actions for files, commits and lines
 
-### Server Support
-- **Custom Servers**: Connect to any Gitea instance (self-hosted or cloud)
-- **Sub-path Support**: Full support for Gitea instances hosted on sub-paths (e.g., `https://example.com/gitea`)
-- **HTTP/HTTPS**: Support for both secure and insecure connections
+### Pull requests (read-only)
+- Pull Requests tool window scoped to the current project's Gitea remote
+- Per-PR detail tab: description, participants, labels, status checks
+- Activity timeline of comments, reviews and state changes
+- Diff viewer with the PR's changed files and a directory-grouped changes tree
+- Mark files as viewed
+
+### Server support
+- Any Gitea instance (self-hosted or cloud), including instances on a sub-path
+  (e.g. `https://example.com/gitea`), custom ports, and HTTP or HTTPS
+- Minimum supported Gitea version: **1.26**
 
 ## Requirements
 
-- IntelliJ IDEA 2025.3.1 or later
+- IntelliJ IDEA 2026.2.x
 - Git plugin enabled
-- Gitea server access with a valid access token
+- A Gitea (1.26+) server and a personal access token
 
 <!-- Plugin description end -->
 

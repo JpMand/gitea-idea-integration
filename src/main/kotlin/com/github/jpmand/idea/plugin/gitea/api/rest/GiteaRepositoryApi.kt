@@ -2,16 +2,16 @@ package com.github.jpmand.idea.plugin.gitea.api.rest
 
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApi
 import com.github.jpmand.idea.plugin.gitea.api.GiteaUriUtil
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaRepositoryDTO
-import com.github.jpmand.idea.plugin.gitea.api.rest.models.GiteaSearchResultsDTO
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.Repository
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.SearchResults
 import com.intellij.collaboration.api.json.loadJsonValue
 import com.intellij.collaboration.util.resolveRelative
 
 @Suppress("UnstableApiUsage")
-suspend fun GiteaApi.getRepository(owner: String, name: String): GiteaRepositoryDTO? {
+suspend fun GiteaApi.getRepository(owner: String, name: String): Repository? {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$name")
   val request = request(uri).GET().build()
-  return rest.loadJsonValue<GiteaRepositoryDTO>(request).body()
+  return rest.loadJsonValue<Repository>(request).body()
 }
 
 @Suppress("UnstableApiUsage")
@@ -32,7 +32,7 @@ suspend fun GiteaApi.repoSearch(
   sort: String?,
   page: Int?,
   limit: Int?
-): GiteaSearchResultsDTO? {
+): SearchResults? {
   val baseUri = server.restApiUri().resolveRelative("repos/search")
   val uri = GiteaUriUtil.QueryBuilder()
     .addParam("q", keyword)
@@ -53,5 +53,5 @@ suspend fun GiteaApi.repoSearch(
     .addParam("limit", limit)
     .build(baseUri)
   val request = request(uri).GET().build()
-  return rest.loadJsonValue<GiteaSearchResultsDTO>(request).body()
+  return rest.loadJsonValue<SearchResults>(request).body()
 }

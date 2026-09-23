@@ -90,16 +90,14 @@ constructor(
     return if (myAccountsList.selectedValue == null) ValidationInfo(GiteaBundle.message("account.choose.not.selected")) else null
   }
 
-  override fun createCenterPanel(): JComponent {
-    return JBUI.Panels.simplePanel(UIUtil.DEFAULT_HGAP, UIUtil.DEFAULT_VGAP).apply {
-      myDescription?.run { ::addToTop }
-    }.addToCenter(JBScrollPane(myAccountsList).apply {
-      preferredSize = Dimension(150, 20 * (myAccountsList.itemsCount.plus(1)))
-    })
-      .apply {
-        mySetDefaultCheckBox?.run { ::addToBottom }
-      }
-  }
+  override fun createCenterPanel(): JComponent =
+    JBUI.Panels.simplePanel(UIUtil.DEFAULT_HGAP, UIUtil.DEFAULT_VGAP).apply {
+      myDescription?.let { addToTop(it) }
+      addToCenter(JBScrollPane(myAccountsList).apply {
+        preferredSize = JBUI.size(150, 20 * (myAccountsList.itemsCount + 1))
+      })
+      mySetDefaultCheckBox?.let { addToBottom(it) }
+    }
 
   override fun getPreferredFocusedComponent() = myAccountsList
 }

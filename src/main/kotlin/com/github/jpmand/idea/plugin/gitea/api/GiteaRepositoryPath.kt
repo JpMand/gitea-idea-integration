@@ -19,11 +19,13 @@ data class GiteaRepositoryPath(val owner: @NlsSafe String, val repository: @NlsS
       if (!remotePath.startsWith(serverPath)) {
         return null
       }
-      val repoPath = remotePath.removePrefix(serverPath).removePrefix("/")
+      val repoPath = remotePath.removePrefix(serverPath).removePrefix("/").removeSuffix(".git")
       return extractProjectPath(repoPath)
     }
 
     private fun extractProjectPath(repoPath: String): GiteaRepositoryPath? {
+      // Gitea has no nested groups: a repo is always exactly `owner/repo`. Splitting on the last
+      // `/` (owner = everything before it, repo = the segment after) is correct by design.
       val lastSep = repoPath.lastIndexOf('/')
       if (lastSep < 0) return null
       val repository = repoPath.substringAfterLast('/', "").nullize() ?: return null

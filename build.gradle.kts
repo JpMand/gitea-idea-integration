@@ -1,3 +1,4 @@
+
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.changelog.markdownToHTML
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
@@ -15,8 +16,10 @@ group = providers.gradleProperty("pluginGroup").get()
 version = providers.gradleProperty("pluginVersion").get()
 
 // Set the JVM language level used to build the project.
+// IntelliJ IDEA 2026.2.x bundles JBR 25, so the plugin is compiled and tested against Java 25.
+// CI (setup-java) and qodana.yml (projectJDK) are aligned to 25 to match.
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain(25)
 }
 
 // Configure project's dependencies
@@ -31,8 +34,18 @@ repositories {
 
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/version_catalogs.html
 dependencies {
+    // Only the jsr310 module classes are needed here — jackson-core/-databind/-annotations
+    // are already provided by the IntelliJ Platform itself. Pulling in this artifact's own
+    // transitive Jackson jars puts a second, differently-versioned copy on the runtime
+    // classpath alongside the platform's, which breaks other bundled plugins that expect
+    // their own bundled Jackson classes (observed as a JsonFormat.Shape.POJO NoSuchFieldError
+    // when the full plugin set loads, e.g. in MyPluginTest's light IDE fixture).
+    implementation(libs.jacksonDatatypeJsr310) {
+        exclude(group = "com.fasterxml.jackson.core")
+    }
     testImplementation(libs.junit)
     testImplementation(libs.opentest4j)
+
 
     // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
@@ -48,6 +61,7 @@ dependencies {
         bundledModules(providers.gradleProperty("platformBundledModules").map { it.split(',') })
 
         testFramework(TestFrameworkType.Platform)
+
     }
 }
 
@@ -85,6 +99,7 @@ intellijPlatform {
 
         ideaVersion {
             sinceBuild = providers.gradleProperty("pluginSinceBuild")
+            untilBuild = providers.gradleProperty("pluginUntilBuild")
         }
     }
 
@@ -103,6 +118,7 @@ intellijPlatform {
     }
 
     pluginVerification {
+        // untilBuild is capped at 262.*, so `recommended()` verifies against the 2026.2.x line only.
         ides {
             recommended()
         }
@@ -134,26 +150,5 @@ tasks {
 
     publishPlugin {
         dependsOn(patchChangelog)
-    }
-}
-
-intellijPlatformTesting {
-    runIde {
-        register("runIdeForUiTests") {
-            task {
-                jvmArgumentProviders += CommandLineArgumentProvider {
-                    listOf(
-                        "-Drobot-server.port=8082",
-                        "-Dide.mac.message.dialogs.as.sheets=false",
-                        "-Djb.privacy.policy.text=<!--999.999-->",
-                        "-Djb.consents.confirmation.enabled=false",
-                    )
-                }
-            }
-
-            plugins {
-                robotServerPlugin()
-            }
-        }
     }
 }

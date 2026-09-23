@@ -2,6 +2,7 @@ package com.github.jpmand.idea.plugin.gitea.authentication.account
 
 import com.intellij.collaboration.auth.ObservableAccountsRepository
 import com.intellij.openapi.components.PersistentStateComponent
+import com.intellij.openapi.components.RoamingType
 import com.intellij.openapi.components.SettingsCategory
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
@@ -9,7 +10,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 
 @State(
     name = "GiteaAccounts",
-    storages = [Storage("gitea.xml")],
+    // Accounts are keyed to a specific host + username and their tokens live in PasswordSafe
+    // (which does not roam). Roaming the account list on its own produces an
+    // "accounts present, credentials missing" state on a second machine — mirror GHPersistentAccounts.
+    storages = [Storage("gitea.xml", roamingType = RoamingType.DISABLED)],
     reportStatistic = false,
     category = SettingsCategory.TOOLS
 )
