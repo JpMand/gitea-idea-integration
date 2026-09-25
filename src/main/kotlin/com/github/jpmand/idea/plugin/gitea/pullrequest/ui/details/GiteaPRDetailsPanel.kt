@@ -200,16 +200,16 @@ class GiteaPRDetailsPanel(
         val verdictButton = createSelectableOptionButton(
             listOf(
                 OptionSpec(GiteaBundle.message("pull.request.action.comment")) {
-                    discussionsVm.submitReview(CreatePullReviewOptions.Event.COMMENT, textArea.text)
+                    discussionsVm.submitReview(CreatePullReviewOptions.Event.COMMENT, textArea.text, onSuccess = { textArea.text = "" })
                 },
                 OptionSpec(GiteaBundle.message("pull.request.action.approve")) {
-                    discussionsVm.submitReview(CreatePullReviewOptions.Event.APPROVED, textArea.text)
+                    discussionsVm.submitReview(CreatePullReviewOptions.Event.APPROVED, textArea.text, onSuccess = { textArea.text = "" })
                 },
                 OptionSpec(GiteaBundle.message("pull.request.action.request.changes")) {
-                    discussionsVm.submitReview(CreatePullReviewOptions.Event.REQUESTCHANGES, textArea.text)
+                    discussionsVm.submitReview(CreatePullReviewOptions.Event.REQUESTCHANGES, textArea.text, onSuccess = { textArea.text = "" })
                 },
                 OptionSpec(GiteaBundle.message("pull.request.review.save.pending")) {
-                    discussionsVm.submitReview(CreatePullReviewOptions.Event.PENDING, textArea.text)
+                    discussionsVm.submitReview(CreatePullReviewOptions.Event.PENDING, textArea.text, onSuccess = { textArea.text = "" })
                 },
             ),
         )
@@ -235,13 +235,13 @@ class GiteaPRDetailsPanel(
         val verdictButton = createSelectableOptionButton(
             listOf(
                 OptionSpec(GiteaBundle.message("pull.request.action.comment")) {
-                    discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.COMMENT, textArea.text)
+                    discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.COMMENT, textArea.text, onSuccess = { textArea.text = "" })
                 },
                 OptionSpec(GiteaBundle.message("pull.request.action.approve")) {
-                    discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.APPROVED, textArea.text)
+                    discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.APPROVED, textArea.text, onSuccess = { textArea.text = "" })
                 },
                 OptionSpec(GiteaBundle.message("pull.request.action.request.changes")) {
-                    discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.REQUESTCHANGES, textArea.text)
+                    discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.REQUESTCHANGES, textArea.text, onSuccess = { textArea.text = "" })
                 },
             ),
         )

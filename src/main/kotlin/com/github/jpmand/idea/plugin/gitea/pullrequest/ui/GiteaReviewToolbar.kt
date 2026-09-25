@@ -1,7 +1,5 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui
 
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreatePullReviewOptions
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.SubmitPullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
@@ -10,18 +8,20 @@ import com.intellij.collaboration.ui.codereview.editor.ReviewInEditorUtil
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.actionSystem.PlatformDataKeys
 import com.intellij.openapi.actionSystem.ex.ActionUtil
+import com.intellij.openapi.actionSystem.ex.CustomComponentAction
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.ex.EditorMarkupModel
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.popup.JBPopupFactory
 import icons.CollaborationToolsIcons
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** Shared with [com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffExtension]'s own
  * retry loop around the sibling gutter-controls/inlay install — both are working around the same
@@ -60,11 +60,10 @@ fun CoroutineScope.launchReviewToolbar(project: Project, editor: Editor, discuss
 }
 
 /**
- * A compact "N drafts ▾" / "Finish review ▾" action for the editor's inspection-widget corner
- * strip (the only per-editor toolbar hook the platform gives — a secondary, lightweight
- * affordance; the Details tab's review composer, with a full body field, stays primary). Opens a
- * quick-verdict popup that submits with an empty body — compose a body first in the Details tab
- * if you want one.
+ * A compact "N drafts" / "Finish review" action for the editor's inspection-widget corner strip
+ * (the only per-editor toolbar hook the platform gives). Opens [GiteaSubmitReviewPopup] under the
+ * button: a review body plus Approve / Request Changes / Comment and a discard button, the same
+ * popup the GitHub plugin shows.
  */
 fun submitReviewAction(project: Project, discussionsVm: GiteaPRDiscussionsViewModels): AnAction =
     object : AnAction() {
@@ -82,37 +81,15 @@ fun submitReviewAction(project: Project, discussionsVm: GiteaPRDiscussionsViewMo
         }
 
         override fun actionPerformed(e: AnActionEvent) {
-            val pending = discussionsVm.pendingReview.value
-            val cancelReview = verdictAction("pull.request.action.cancel.review") { confirmAndCancelReview(project, discussionsVm) }
-            val group = DefaultActionGroup(
-                if (pending == null) {
-                    listOf(
-                        verdictAction("pull.request.action.comment") { discussionsVm.submitReview(CreatePullReviewOptions.Event.COMMENT, "") },
-                        verdictAction("pull.request.action.approve") { discussionsVm.submitReview(CreatePullReviewOptions.Event.APPROVED, "") },
-                        verdictAction("pull.request.action.request.changes") {
-                            discussionsVm.submitReview(CreatePullReviewOptions.Event.REQUESTCHANGES, "")
-                        },
-                        cancelReview,
-                    )
-                } else {
-                    listOf(
-                        verdictAction("pull.request.action.comment") { discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.COMMENT, "") },
-                        verdictAction("pull.request.action.approve") { discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.APPROVED, "") },
-                        verdictAction("pull.request.action.request.changes") {
-                            discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.REQUESTCHANGES, "")
-                        },
-                        cancelReview,
-                    )
-                },
-            )
-            JBPopupFactory.getInstance()
-                .createActionGroupPopup(null, group, e.dataContext, JBPopupFactory.ActionSelectionAid.SPEEDSEARCH, true)
-                .showInBestPositionFor(e.dataContext)
+            // The clicked toolbar button, so the popup opens under it rather than under the
+            // whole editor/diff panel the data context points at.
+            val component = e.inputEvent?.component
+                ?: e.presentation.getClientProperty(CustomComponentAction.COMPONENT_KEY)
+                ?: e.getData(PlatformDataKeys.CONTEXT_COMPONENT)
+            var popupJob: Job? = null
+            val vm = GiteaSubmitReviewViewModel(project, discussionsVm) { popupJob?.cancel() }
+            popupJob = discussionsVm.scope.launch(Dispatchers.Main) {
+                if (component != null) GiteaSubmitReviewPopup.show(vm, component) else GiteaSubmitReviewPopup.show(vm, project)
+            }
         }
-    }
-
-private fun verdictAction(bundleKey: String, run: () -> Unit): AnAction =
-    object : AnAction(GiteaBundle.message(bundleKey)) {
-        override fun getActionUpdateThread() = ActionUpdateThread.BGT
-        override fun actionPerformed(e: AnActionEvent) = run()
     }

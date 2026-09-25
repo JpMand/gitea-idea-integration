@@ -11,6 +11,7 @@ import com.github.jpmand.idea.plugin.gitea.data.GiteaImageLoader
 import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPullRequestsSettings
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.intellij.collaboration.async.mapState
 import com.intellij.collaboration.ui.codereview.diff.DiscussionsViewOption
 import com.intellij.collaboration.ui.codereview.editor.CodeReviewInEditorViewModel
 import com.intellij.collaboration.ui.icon.AsyncImageIconsProvider
@@ -58,6 +59,8 @@ class GiteaPRDiscussionsViewModels(
      * status isn't the only reason someone is mentionable on *this* PR specifically (e.g. a
      * requested reviewer, or the PR's own author, who may not be an explicit collaborator). */
     private val additionalMentionCandidates: List<GiteaUser> = emptyList(),
+    /** The PR author's login — Gitea doesn't let authors approve or request changes on their own PR. */
+    private val prAuthorLogin: String? = null,
 ) : CodeReviewInEditorViewModel {
 
     private val settings: GiteaPullRequestsSettings get() = project.service()
@@ -66,11 +69,17 @@ class GiteaPRDiscussionsViewModels(
      * comment's own author, same as the Timeline's `currentUserLogin`. */
     val currentUserLogin: String get() = repository.accountLogin
 
+    /** Whether the signed-in account opened this PR (it can then only leave comment reviews). */
+    val viewerIsAuthor: Boolean get() = prAuthorLogin != null && prAuthorLogin.equals(currentUserLogin, ignoreCase = true)
+
     companion object {
         val CONTEXT_KEY: Key<GiteaPRDiscussionsViewModels> = Key.create("gitea.pr.discussions.vm")
     }
 
     private val cs = CoroutineScope(parentCs.coroutineContext + SupervisorJob(parentCs.coroutineContext[Job]))
+
+    /** Lives as long as this PR's review UI — for UI work tied to it, e.g. the submit-review popup. */
+    val scope: CoroutineScope get() = cs
 
     /** Avatar icons for comment/reply authors in the diff-editor review UI. */
     val avatars: IconsProvider<GiteaUser> =
@@ -209,49 +218,88 @@ class GiteaPRDiscussionsViewModels(
     /** Returns all current drafts for a specific file path. */
     fun draftsForPath(path: String): List<GiteaPRDraftComment> = _draftComments.value.filter { it.path == path }
 
+    /** How many local draft comments are waiting to be submitted. */
+    val draftCommentsCount: StateFlow<Int> = _draftComments.mapState { it.size }
+
+    /**
+     * Submits the review-in-progress with [verdict]: finishes the signed-in user's pending review
+     * when there is one, otherwise submits the local drafts as a new review. See [submitReview]
+     * and [submitPendingReview] for [onSuccess]/[onError].
+     */
+    fun submit(verdict: GiteaReviewVerdict, body: String, onSuccess: () -> Unit = {}, onError: ((Throwable) -> Unit)? = null) {
+        val pendingEvent = verdict.submitEvent
+        if (pendingReview.value != null && pendingEvent != null) {
+            submitPendingReview(pendingEvent, body, onSuccess, onError)
+        } else {
+            submitReview(verdict.createEvent, body, onSuccess, onError)
+        }
+    }
+
     /**
      * Submits the current draft batch as a brand-new review with the given verdict — or, when
      * [event] is `PENDING`, creates a draft review that only becomes visible to others once
-     * [submitPendingReview] finishes it. Clears local drafts and reloads on success.
+     * [submitPendingReview] finishes it. Clears local drafts and reloads on success, then runs
+     * [onSuccess] on the UI thread.
+     *
+     * A submission Gitea would reject (see [reviewSubmitProblem]) isn't sent. Failures go to
+     * [onError] on the UI thread when given, otherwise to an error notification carrying the
+     * server's message.
      */
-    fun submitReview(event: CreatePullReviewOptions.Event, body: String) {
-        val comments = _draftComments.value.map {
-            CreatePullReviewComment(body = it.body, path = it.path, newPosition = it.newLine?.toLong(), oldPosition = it.oldLine?.toLong())
-        }
-        cs.launch(Dispatchers.IO) {
-            _isSubmittingReview.value = true
-            try {
-                repository.submitReview(
-                    prNumber,
-                    CreatePullReviewOptions(body = body.ifBlank { null }, comments = comments.toTypedArray(), commitId = headSha, event = event),
-                )
-                updateDrafts { emptyList() }
-                reload()
-                reloadPendingReview()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                notifyError("pull.request.action.submit.review.error")
-            } finally {
-                withContext(NonCancellable) { _isSubmittingReview.value = false }
+    fun submitReview(
+        event: CreatePullReviewOptions.Event,
+        body: String,
+        onSuccess: () -> Unit = {},
+        onError: ((Throwable) -> Unit)? = null,
+    ) {
+        val drafts = _draftComments.value
+        val verdict = GiteaReviewVerdict.entries.first { it.createEvent == event }
+        launchSubmission(reviewSubmitProblem(verdict, body, drafts.size), onSuccess, onError) {
+            val comments = drafts.map {
+                CreatePullReviewComment(body = it.body, path = it.path, newPosition = it.newLine?.toLong(), oldPosition = it.oldLine?.toLong())
             }
+            repository.submitReview(
+                prNumber,
+                CreatePullReviewOptions(body = body.ifBlank { null }, comments = comments.toTypedArray(), commitId = headSha, event = event),
+            )
+            updateDrafts { emptyList() }
         }
     }
 
     /** Finishes (submits) the currently pending review with the given verdict — body/event only,
-     * no new comments (Gitea's API has no way to add any to an already-created review). */
-    fun submitPendingReview(event: SubmitPullReviewOptions.Event, body: String) {
-        val reviewId = pendingReview.value?.id ?: return
+     * no new comments (Gitea's API has no way to add any to an already-created review). Same
+     * [onSuccess]/[onError] contract as [submitReview]. */
+    fun submitPendingReview(
+        event: SubmitPullReviewOptions.Event,
+        body: String,
+        onSuccess: () -> Unit = {},
+        onError: ((Throwable) -> Unit)? = null,
+    ) {
+        val pending = pendingReview.value ?: return
+        val verdict = GiteaReviewVerdict.entries.first { it.submitEvent == event }
+        launchSubmission(reviewSubmitProblem(verdict, body, pending.commentsCount), onSuccess, onError) {
+            repository.submitPendingReview(prNumber, pending.id, SubmitPullReviewOptions(body = body.ifBlank { null }, event = event))
+        }
+    }
+
+    private fun launchSubmission(
+        problemKey: String?,
+        onSuccess: () -> Unit,
+        onError: ((Throwable) -> Unit)?,
+        send: suspend () -> Unit,
+    ) {
         cs.launch(Dispatchers.IO) {
             _isSubmittingReview.value = true
             try {
-                repository.submitPendingReview(prNumber, reviewId, SubmitPullReviewOptions(body = body.ifBlank { null }, event = event))
+                if (problemKey != null) throw IllegalArgumentException(GiteaBundle.message(problemKey))
+                send()
                 reload()
                 reloadPendingReview()
+                withContext(Dispatchers.Main) { onSuccess() }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                notifyError("pull.request.action.submit.review.error")
+                if (onError != null) withContext(Dispatchers.Main) { onError(e) }
+                else notifyError("pull.request.action.submit.review.error", e)
             } finally {
                 withContext(NonCancellable) { _isSubmittingReview.value = false }
             }
@@ -276,18 +324,20 @@ class GiteaPRDiscussionsViewModels(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                notifyError("pull.request.action.cancel.review.error")
+                notifyError("pull.request.action.cancel.review.error", e)
             } finally {
                 withContext(NonCancellable) { _isSubmittingReview.value = false }
             }
         }
     }
 
-    private suspend fun notifyError(bundleKey: String) {
+    /** An error notification titled by [bundleKey], with [cause]'s message (Gitea's own, for
+     * API failures — see [com.github.jpmand.idea.plugin.gitea.api.GiteaHttpError]) as its text. */
+    private suspend fun notifyError(bundleKey: String, cause: Throwable? = null) {
         withContext(Dispatchers.Main) {
             NotificationGroupManager.getInstance()
                 .getNotificationGroup("Gitea")
-                .createNotification(GiteaBundle.message(bundleKey), NotificationType.ERROR)
+                .createNotification(GiteaBundle.message(bundleKey), cause?.localizedMessage.orEmpty(), NotificationType.ERROR)
                 .notify(project)
         }
     }

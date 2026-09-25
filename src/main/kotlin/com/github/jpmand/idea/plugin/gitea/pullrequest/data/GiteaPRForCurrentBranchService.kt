@@ -114,7 +114,7 @@ class GiteaPRForCurrentBranchService(private val project: Project, private val c
 
         val prJob = SupervisorJob(cs.coroutineContext[Job])
         val prCs = CoroutineScope(cs.coroutineContext + prJob)
-        val discussionsVm = GiteaPRDiscussionsViewModels(project, prCs, pr.number.toInt(), pr.head.sha, repository, pr.mentionCandidates())
+        val discussionsVm = GiteaPRDiscussionsViewModels(project, prCs, pr.number.toInt(), pr.head.sha, repository, pr.mentionCandidates(), pr.author.login)
         setCurrent(GiteaPRForCurrentBranch(ctx, pr, repository, discussionsVm, changedFiles, repositoryRoot), prJob)
     }
 
