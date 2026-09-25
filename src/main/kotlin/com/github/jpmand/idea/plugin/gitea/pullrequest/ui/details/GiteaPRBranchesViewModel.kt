@@ -30,10 +30,32 @@ import kotlinx.coroutines.flow.*
 import kotlin.coroutines.resume
 
 /**
- * "Checkout" for the PR-details header: fetches the PR's head commit (Gitea, like GitHub,
- * maintains `refs/pull/<index>/head` in the base repository, kept in sync with the PR's current
- * head commit — this works uniformly for same-repo and fork PRs alike, so there's no need to add
- * the fork as a separate remote) and checks out a local branch for it, using
+ * Where a PR's head commit is fetched to locally.
+ *
+ * A PR from a branch of the same repository is fetched into that branch's own remote-tracking ref
+ * (`refs/remotes/<remote>/<branch>`), so a local branch created from it tracks it like any other
+ * checkout of that branch. A fork PR, or one whose branch is gone, uses Gitea's
+ * `refs/pull/<index>/head` (kept in sync with the PR's head in the base repository), stored under
+ * the remote's namespace rather than as a top-level `refs/<branch>/head` ref.
+ */
+internal data class GiteaPRHeadRef(val refspec: String, val localRef: String, val remoteBranch: String?) {
+    companion object {
+        fun ofBranch(pr: GiteaPullRequest, remoteName: String): GiteaPRHeadRef? {
+            if (pr.head.repoId == 0L || pr.head.repoId != pr.base.repoId || pr.head.ref.isBlank()) return null
+            val tracking = "refs/remotes/$remoteName/${pr.head.ref}"
+            return GiteaPRHeadRef("+refs/heads/${pr.head.ref}:$tracking", tracking, "$remoteName/${pr.head.ref}")
+        }
+
+        fun ofPullRef(pr: GiteaPullRequest, remoteName: String): GiteaPRHeadRef {
+            val local = "refs/remotes/$remoteName/pull/${pr.number}"
+            return GiteaPRHeadRef("+refs/pull/${pr.number}/head:$local", local, null)
+        }
+    }
+}
+
+/**
+ * "Checkout" for the PR-details header: fetches the PR's head commit (see [GiteaPRHeadRef]) and
+ * checks out a local branch for it, using
  * [GitCodeReviewUtils.fetch] (the same review-ref fetch helper the bundled GitHub/GitLab plugins
  * use) and git4idea's public [GitBrancher] — no local git working copy is touched until the user
  * explicitly asks for this.
@@ -85,8 +107,7 @@ class GiteaPRBranchesViewModel(
             }
             if (!baseFetch.isSuccessful()) return null
 
-            val localRef = "refs/${pr.head.ref}/head"
-            if (!fetch(mapping.gitRepository, mapping.gitRemote, "refs/pull/${pr.number}/head:$localRef")) return null
+            val localRef = fetchPrHead(mapping, pr, notifyOnFailure = false)?.localRef ?: return null
 
             val root = mapping.gitRepository.root
             val targetRef = "${mapping.gitRemote.name}/${pr.base.ref}"
@@ -172,29 +193,44 @@ class GiteaPRBranchesViewModel(
      * doesn't abort the update, it just leaves the existing tracking info alone.
      */
     private suspend fun checkoutPrBranch(mapping: GiteaGitRepositoryMapping, pr: GiteaPullRequest): Boolean {
-        val prRef = "refs/pull/${pr.number}/head"
-        val localRef = "refs/${pr.head.ref}/head"
         val branchName = pr.head.ref
 
         val existingBranch = mapping.gitRepository.branches.findLocalBranch(branchName) != null
         if (existingBranch) fixMismatchedUpstreamIfConfirmed(mapping, pr, branchName)
 
-        if (!fetch(mapping.gitRepository, mapping.gitRemote, "$prRef:$localRef")) return false
+        val head = fetchPrHead(mapping, pr, notifyOnFailure = true) ?: return false
 
-        return if (existingBranch) updateExistingBranch(mapping, localRef, branchName) else checkoutNewBranch(mapping, localRef, branchName)
+        return if (existingBranch) updateExistingBranch(mapping, head.localRef, branchName) else checkoutNewBranch(mapping, head, branchName)
     }
 
-    private suspend fun checkoutNewBranch(mapping: GiteaGitRepositoryMapping, localRef: String, branchName: String): Boolean =
+    /** Fetches the PR's head (its branch if possible, else its pull ref) and says where it landed. */
+    private suspend fun fetchPrHead(mapping: GiteaGitRepositoryMapping, pr: GiteaPullRequest, notifyOnFailure: Boolean): GiteaPRHeadRef? {
+        val remoteName = mapping.gitRemote.name
+        GiteaPRHeadRef.ofBranch(pr, remoteName)?.let { branch ->
+            if (fetch(mapping.gitRepository, mapping.gitRemote, branch.refspec, notifyOnFailure = false)) return branch
+        }
+        val pullRef = GiteaPRHeadRef.ofPullRef(pr, remoteName)
+        return pullRef.takeIf { fetch(mapping.gitRepository, mapping.gitRemote, it.refspec, notifyOnFailure) }
+    }
+
+    private suspend fun checkoutNewBranch(mapping: GiteaGitRepositoryMapping, head: GiteaPRHeadRef, branchName: String): Boolean {
         suspendCancellableCoroutine { cont ->
             ApplicationManager.getApplication().invokeLater {
                 GitBrancher.getInstance(project).checkoutNewBranchStartingFrom(
-                    branchName, localRef, listOf(mapping.gitRepository),
+                    branchName, head.remoteBranch ?: head.localRef, listOf(mapping.gitRepository),
                 ) {
-                    _isCheckedOut.value = true
-                    cont.resume(true)
+                    cont.resume(Unit)
                 }
             }
         }
+        // Track the PR's branch so pull/push work as for any other checkout of it (set explicitly,
+        // rather than relying on the user's branch.autoSetupMerge).
+        if (head.remoteBranch != null && mapping.gitRepository.branches.findLocalBranch(branchName) != null) {
+            withContext(Dispatchers.IO) { Git.getInstance().setUpstream(mapping.gitRepository, head.remoteBranch, branchName) }
+        }
+        _isCheckedOut.value = true
+        return true
+    }
 
     private suspend fun updateExistingBranch(mapping: GiteaGitRepositoryMapping, localRef: String, branchName: String): Boolean {
         if (mapping.gitRepository.currentBranch?.name != branchName) {
@@ -240,15 +276,17 @@ class GiteaPRBranchesViewModel(
      * throws on failure rather than returning a result to check, so failures are turned into a
      * plugin notification here instead.
      */
-    private suspend fun fetch(gitRepository: GitRepository, remote: GitRemote, refspec: String): Boolean =
+    private suspend fun fetch(gitRepository: GitRepository, remote: GitRemote, refspec: String, notifyOnFailure: Boolean = true): Boolean =
         try {
             GitCodeReviewUtils.fetch(gitRepository, remote, refspec)
             true
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            val detail = e.message?.let { ":\n$it" } ?: ""
-            notifyError(GiteaBundle.message("pull.request.branch.checkout.fetch.failed", detail))
+            if (notifyOnFailure) {
+                val detail = e.message?.let { ":\n$it" } ?: ""
+                notifyError(GiteaBundle.message("pull.request.branch.checkout.fetch.failed", detail))
+            }
             false
         }
 
