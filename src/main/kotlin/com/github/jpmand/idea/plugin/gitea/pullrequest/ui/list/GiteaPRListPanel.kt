@@ -44,6 +44,7 @@ import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import javax.swing.Action
 import javax.swing.JComponent
 import javax.swing.JPanel
 
@@ -61,6 +62,8 @@ class GiteaPRListPanel(
     private val repositoryName: @NlsSafe String,
     private val repositoryWebUrl: String,
     private val onPROpenRequested: (GiteaPullRequest) -> Unit,
+    /** Offered instead of Retry when loading fails because the account's token is invalid. */
+    private val logInAgain: Action? = null,
 ) {
 
     fun create(): JComponent {
@@ -123,7 +126,7 @@ class GiteaPRListPanel(
         }
 
         val errorPanel = giteaReviewErrorPanel(
-            cs, vm.error, GiteaBundle.message("pull.request.list.load.error"), onRetry = vm::refresh,
+            cs, vm.error, GiteaBundle.message("pull.request.list.load.error"), onRetry = vm::refresh, logInAgain = logInAgain,
         )
 
         return JPanel(BorderLayout()).apply {
