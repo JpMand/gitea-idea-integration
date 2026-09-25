@@ -41,10 +41,21 @@ class GiteaPRChangesViewModel(
         }.shareIn(cs, SharingStarted.Eagerly, replay = 1)
 
     init {
+        reload()
+    }
+
+    /** (Re-)loads the PR's commits, e.g. after new ones were pushed. */
+    fun reload() {
         cs.launch(Dispatchers.IO) {
             try {
                 val loaded = repository.loadCommits(prNumber)
-                withContext(Dispatchers.Main) { _commits.value = loaded }
+                withContext(Dispatchers.Main) {
+                    val selectedSha = _commits.value.getOrNull(_selectedCommitIndex.value)?.sha
+                    _commits.value = loaded
+                    // Keep the same commit selected, or fall back to "all commits" if it's gone.
+                    _selectedCommitIndex.value = selectedSha?.let { sha -> loaded.indexOfFirst { it.sha == sha } } ?: -1
+                }
+                _error.value = null
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
