@@ -56,7 +56,7 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
       }.resizableRow()
 
       row {
-        message("settings.connection.timeout")
+        label(message("settings.connection.timeout"))
         intTextField(range = 0..60)
           .columns(2)
           .bindIntText({ giteaSettings.connectionTimeout / 1000 }, { giteaSettings.connectionTimeout = it * 1000 })
