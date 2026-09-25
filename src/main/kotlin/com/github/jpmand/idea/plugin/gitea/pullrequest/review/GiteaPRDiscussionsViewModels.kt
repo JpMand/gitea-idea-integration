@@ -11,6 +11,7 @@ import com.github.jpmand.idea.plugin.gitea.data.GiteaImageLoader
 import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPullRequestsSettings
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.async.mapState
 import com.intellij.collaboration.ui.codereview.diff.DiscussionsViewOption
 import com.intellij.collaboration.ui.codereview.editor.CodeReviewInEditorViewModel
@@ -267,16 +268,45 @@ class GiteaPRDiscussionsViewModels(
     ) {
         val drafts = _draftComments.value
         val verdict = GiteaReviewVerdict.entries.first { it.createEvent == event }
+        val hadPendingReview = pendingReview.value != null
         launchSubmission(reviewSubmitProblem(verdict, body, drafts.size), onSuccess, onError) {
             val comments = drafts.map {
                 CreatePullReviewComment(body = it.body, path = it.path, newPosition = it.newLine?.toLong(), oldPosition = it.oldLine?.toLong())
             }
-            repository.submitReview(
-                prNumber,
-                CreatePullReviewOptions(body = body.ifBlank { null }, comments = comments.toTypedArray(), commitId = headSha, event = event),
-            )
+            try {
+                repository.submitReview(
+                    prNumber,
+                    CreatePullReviewOptions(body = body.ifBlank { null }, comments = comments.toTypedArray(), commitId = headSha, event = event),
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (!hadPendingReview) discardOrphanedPendingReview()
+                throw e
+            }
             updateDrafts { emptyList() }
         }
+    }
+
+    /**
+     * Gitea creates a review before adding its comments, and doesn't roll it back when adding one
+     * fails (e.g. a 500 for a line the file doesn't have): the failed request leaves an empty
+     * pending review behind, which then shows as "Finish review" with nothing in it. Deletes that
+     * review — only called when there was no pending review before the request, and only an empty
+     * one is touched — and reloads the pending-review state either way. Best-effort: the original
+     * failure is what gets reported.
+     */
+    private suspend fun discardOrphanedPendingReview() {
+        try {
+            repository.findMyPendingReview(prNumber)
+                ?.takeIf { it.commentsCount == 0 && it.body.isNullOrBlank() }
+                ?.let { repository.deletePendingReview(prNumber, it.id) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            GiteaUtil.LOG.warn("Couldn't discard the empty pending review left by a failed submission", e)
+        }
+        reloadPendingReview()
     }
 
     /** Finishes (submits) the currently pending review with the given verdict — body/event only,
