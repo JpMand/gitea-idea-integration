@@ -17,7 +17,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 
 /**
@@ -43,9 +45,11 @@ class GiteaPRDataContextHolder(
         val accountManager = service<GiteaAccountManager>()
         // An account's token can come and go without the account list changing — e.g. logging back
         // in to an account whose token is missing — and only accounts with a token are usable.
+        // getCredentialsFlow only emits on login/logout events, never the current token, so any
+        // event re-resolves (merge, not combine: combine would wait for every account to have one)
+        // and onStart makes the first resolution happen without one.
         val credentialsChanges = accountManager.accountsState.flatMapLatest { accounts ->
-            if (accounts.isEmpty()) flowOf(Unit)
-            else combine(accounts.map { accountManager.getCredentialsFlow(it) }) { }
+            accounts.map { accountManager.getCredentialsFlow(it) }.merge().map { }.onStart { emit(Unit) }
         }
         cs.launch {
             combine(
