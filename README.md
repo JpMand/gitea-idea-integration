@@ -37,13 +37,13 @@ clone repositories, and review pull requests without leaving the IDE.
 ### Server support
 - Any Gitea instance (self-hosted or cloud), including instances on a sub-path
   (e.g. `https://example.com/gitea`), custom ports, and HTTP or HTTPS
-- Minimum supported Gitea version: **1.26**
+- Minimum supported Gitea version: **1.27**
 
 ## Requirements
 
 - IntelliJ IDEA 2026.2.x
 - Git plugin enabled
-- A Gitea (1.26+) server and a personal access token
+- A Gitea (1.27+) server and a personal access token
 
 <!-- Plugin description end -->
 

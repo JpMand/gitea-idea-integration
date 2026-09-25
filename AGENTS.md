@@ -15,7 +15,7 @@ is the source of truth for:
 Always open the spec before adding a new REST call or a new DTO field. When an endpoint's
 "Added in" version or its shape matters, cross-check the per-release specs at
 `https://docs.gitea.com/swagger-<NN>.json` — the plugin's minimum supported Gitea version is
-**1.26** (`GiteaServersManager.earliestSupportedVersion`).
+**1.27** (`GiteaServersManager.earliestSupportedVersion`).
 
 ---
 
