@@ -4,6 +4,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaSuggestion
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRDiffEditorModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRLiveDiffSync
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.intellij.diff.util.DiffDrawUtil
 import com.intellij.diff.util.Range
 import com.intellij.diff.util.Side
 import com.intellij.openapi.editor.Editor
@@ -68,12 +69,14 @@ private fun addSuggestionGutterBar(
     model: GiteaPRDiffEditorModel,
 ): RangeHighlighter {
     val document = editor.document
-    val startOffset = document.getLineStartOffset(range.start2)
-    val endOffset = if (range.end2 < document.lineCount) document.getLineStartOffset(range.end2) else document.textLength
+    // Ends at the last edited line's end, not the next line's start: LINES_IN_RANGE would count
+    // that next line in too. Layered above the review controls, whose comment icons share the
+    // bar's gutter column, so a click on the bar reaches it first.
     val highlighter = editor.markupModel.addRangeHighlighter(
-        startOffset, endOffset, HighlighterLayer.ERROR + 1, null, HighlighterTargetArea.LINES_IN_RANGE,
+        document.getLineStartOffset(range.start2), document.getLineEndOffset(range.end2 - 1),
+        DiffDrawUtil.LST_LINE_MARKER_LAYER + 1, null, HighlighterTargetArea.LINES_IN_RANGE,
     )
-    highlighter.lineMarkerRenderer = SuggestionGutterBarRenderer {
+    highlighter.lineMarkerRenderer = SuggestionGutterBarRenderer(range.start2, range.end2) {
         // Coerced defensively: headLines comes from Kotlin's own String.lines() while
         // range.start1/end1 come from the platform's Document-based diff Range — a mismatch at a
         // trailing-newline boundary between the two line-splitting conventions would otherwise
@@ -106,20 +109,47 @@ private const val BAR_WIDTH = 4
  * manual control of the paint rectangle: this renderer draws a fixed-width bar of its own, anchored
  * to [com.intellij.openapi.editor.ex.EditorGutterComponentEx.getIconAreaOffset] (both public,
  * stable getters) so it always lands inside the gutter's existing, already-nonzero line-marker
- * column — immediately beside IntelliJ's own native VCS change bar rather than overlapping it.
+ * column.
+ *
+ * The bar's height comes from the edited lines ([startLine] until [endLine]) themselves, like the
+ * native bar's: the rectangle the gutter passes in also spans block inlays around those lines —
+ * such as a review thread's — which would stretch the bar well past the edit.
  */
-private class SuggestionGutterBarRenderer(private val onClick: () -> Unit) : ActiveGutterRenderer, LineMarkerRendererEx {
+private class SuggestionGutterBarRenderer(
+    private val startLine: Int,
+    private val endLine: Int,
+    private val onClick: () -> Unit,
+) : ActiveGutterRenderer, LineMarkerRendererEx {
     override fun getPosition(): LineMarkerRendererEx.Position = LineMarkerRendererEx.Position.CUSTOM
 
     override fun paint(editor: Editor, g: Graphics, r: Rectangle) {
+        val bar = barArea(editor) ?: return
+        g.color = SUGGESTION_BAR_COLOR
+        g.fillRect(bar.x, bar.y, bar.width, bar.height)
+    }
+
+    private fun barArea(editor: Editor): Rectangle? {
+        val document = editor.document
+        if (startLine >= endLine || endLine > document.lineCount) return null
         val gutter = (editor as EditorEx).gutterComponentEx
         val barWidth = JBUIScale.scale(BAR_WIDTH)
         val x = (gutter.iconAreaOffset - barWidth).coerceAtLeast(gutter.lineMarkerAreaOffset)
-        g.color = SUGGESTION_BAR_COLOR
-        g.fillRect(x, r.y, barWidth, r.height)
+        val top = editor.visualLineToY(editor.offsetToVisualLine(document.getLineStartOffset(startLine), false))
+        val lastVisualLine = editor.offsetToVisualLine(document.getLineEndOffset(endLine - 1), false)
+        val bottom = editor.visualLineToY(lastVisualLine) + editor.lineHeight
+        return Rectangle(x, top, barWidth, bottom - top)
     }
 
     override fun getTooltipText(): String = GiteaBundle.message("pull.request.action.create.suggestion")
-    override fun canDoAction(editor: Editor, e: MouseEvent): Boolean = true
-    override fun doAction(editor: Editor, e: MouseEvent) = onClick()
+
+    // Only the bar itself: not the inlays the gutter's hit area also spans, nor a thread's comment
+    // icon next to it on the same line.
+    override fun canDoAction(editor: Editor, e: MouseEvent): Boolean =
+        barArea(editor)?.contains(e.point) ?: false
+
+    override fun doAction(editor: Editor, e: MouseEvent) {
+        onClick()
+        // Otherwise the gutter also treats the click as its own, and toggles a breakpoint.
+        e.consume()
+    }
 }
