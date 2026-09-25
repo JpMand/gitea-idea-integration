@@ -7,6 +7,7 @@ import com.intellij.collaboration.async.launchNow
 import com.intellij.collaboration.ui.codereview.diff.action.CodeReviewDiscussionsToggleAction
 import com.intellij.collaboration.ui.codereview.diff.model.CodeReviewDiscussionsViewModel
 import com.intellij.collaboration.ui.codereview.editor.ReviewInEditorUtil
+import com.intellij.ide.ActivityTracker
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
@@ -25,6 +26,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 /** Shared with [com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffExtension]'s own
@@ -54,6 +58,8 @@ fun CoroutineScope.launchReviewToolbar(project: Project, editor: Editor, discuss
                 delay(REVIEW_UI_INSTALL_RETRY_DELAY_MS)
                 attempt++
             }
+            refreshReviewActionsOnChange(discussionsVm)
+            // Never returns: shows the toolbar until this scope is cancelled.
             ReviewInEditorUtil.showReviewToolbarWithActions(discussionsVm, editor, submitReviewAction(project, discussionsVm))
         } catch (e: CancellationException) {
             throw e
@@ -97,6 +103,21 @@ fun submitReviewAction(project: Project, discussionsVm: GiteaPRDiscussionsViewMo
             }
         }
     }
+
+/**
+ * Re-runs toolbar action updates whenever [discussionsVm]'s drafts or pending review change, so
+ * [submitReviewAction]'s "N drafts" / "Finish review" label follows them. The platform only
+ * re-evaluates toolbar actions on its own schedule (typically the next UI event), which left the
+ * label stale — e.g. "No draft comments" after a failed submission left a draft behind.
+ */
+fun CoroutineScope.refreshReviewActionsOnChange(discussionsVm: GiteaPRDiscussionsViewModels) {
+    launch {
+        combine(discussionsVm.draftComments, discussionsVm.pendingReview) { drafts, pending -> drafts.size to pending?.id }
+            .distinctUntilChanged()
+            .drop(1)
+            .collect { ActivityTracker.getInstance().inc() }
+    }
+}
 
 /**
  * "Show Review Threads" popup for the diff header — All / Unresolved Only / Do Not Show — so
