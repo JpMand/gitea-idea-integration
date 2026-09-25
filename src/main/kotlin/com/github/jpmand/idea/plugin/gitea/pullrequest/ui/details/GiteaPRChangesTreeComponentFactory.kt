@@ -65,7 +65,7 @@ object GiteaPRChangesTreeComponentFactory {
                     if (files.isEmpty()) {
                         label(GiteaBundle.message("pull.request.details.changes.empty"))
                     } else {
-                        val beforeSha = selectedCommit?.firstParentSha ?: pr.base.sha
+                        val beforeSha = selectedCommit?.firstParentSha ?: pr.diffBaseSha
                         val afterSha = selectedCommit?.sha ?: pr.head.sha
                         val repoRoot = ProjectLevelVcsManager.getInstance(project).getAllVersionedRoots().firstOrNull()?.path
                         val before = Sha(beforeSha)

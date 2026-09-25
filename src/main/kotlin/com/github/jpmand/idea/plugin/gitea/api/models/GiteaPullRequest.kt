@@ -31,8 +31,17 @@ class GiteaPullRequest(
     val changedFiles: Int?,
     val additions: Int?,
     val deletions: Int?,
-    val requestedReviewers: List<GiteaUser>
+    val requestedReviewers: List<GiteaUser>,
+    /** Gitea's `merge_base`: where the head branch forked from the base branch. */
+    val mergeBase: String? = null,
 ){
+    /**
+     * The commit a PR's changes are diffed against. [base]'s sha is the base branch's current tip,
+     * so diffing against it also shows everything merged into the base branch since the PR
+     * branched off — as if the PR reverted it. Gitea's own diff uses the merge base.
+     */
+    val diffBaseSha: String get() = mergeBase?.takeIf { it.isNotBlank() } ?: base.sha
+
     companion object{
         fun fromDto(dto : PullRequest): GiteaPullRequest {
             return GiteaPullRequest(
@@ -61,7 +70,8 @@ class GiteaPullRequest(
                 changedFiles = dto.changedFiles?.toInt(),
                 additions = dto.additions?.toInt(),
                 deletions = dto.deletions?.toInt(),
-                requestedReviewers = dto.requestedReviewers?.map { GiteaUser.fromDto(it) } ?: emptyList()
+                requestedReviewers = dto.requestedReviewers?.map { GiteaUser.fromDto(it) } ?: emptyList(),
+                mergeBase = dto.mergeBase,
             )
         }
 

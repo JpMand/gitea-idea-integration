@@ -39,7 +39,7 @@ class GiteaPRDiffViewModel(
             try {
                 val files = repository.loadChangedFiles(pr.number.toInt())
                 val fileVms = files.map { file ->
-                    GiteaPRDiffFileViewModel(cs, project, repository, file, pr.base.sha, pr.head.sha)
+                    GiteaPRDiffFileViewModel(cs, project, repository, file, pr.diffBaseSha, pr.head.sha)
                 }
                 withContext(Dispatchers.Main) {
                     _changesState.value = ComputedResult.success(
