@@ -3,13 +3,15 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.GiteaPRActionKeys
-import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.giteaReviewErrorPanel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.GiteaPRCopyLinkAction
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.GiteaPROpenInBrowserAction
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.GiteaPROpenPullRequestAction
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.GiteaPROpenRepositoryAction
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.filters.GiteaPRListSearchPanelFactory
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.filters.GiteaPRListSearchValue
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.giteaReviewErrorPanel
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.intellij.collaboration.messages.CollaborationToolsBundle
 import com.intellij.collaboration.ui.codereview.avatar.Avatar
 import com.intellij.collaboration.ui.codereview.list.NamedCollection
 import com.intellij.collaboration.ui.codereview.list.ReviewListComponentFactory
@@ -27,10 +29,17 @@ import com.intellij.openapi.actionSystem.DataSink
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.UiDataProvider
 import com.intellij.openapi.actionSystem.ex.ActionUtil
+import com.intellij.openapi.application.EDT
+import com.intellij.openapi.util.NlsSafe
 import com.intellij.ui.ColorHexUtil
 import com.intellij.ui.PopupHandler
+import com.intellij.ui.SimpleTextAttributes
+import com.intellij.util.ui.StatusText
 import icons.CollaborationToolsIcons
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.event.MouseAdapter
@@ -49,6 +58,7 @@ class GiteaPRListPanel(
     private val cs: CoroutineScope,
     private val vm: GiteaPRListViewModel,
     private val avatarIconsProvider: IconsProvider<GiteaUser>,
+    private val repositoryName: @NlsSafe String,
     private val repositoryWebUrl: String,
     private val onPROpenRequested: (GiteaPullRequest) -> Unit,
 ) {
@@ -101,9 +111,15 @@ class GiteaPRListPanel(
         // (still an ancestor of `l` once added below) instead — DataContext resolution walks up
         // from whichever component receives the click/Enter, so this is equivalent for the
         // action system while satisfying wrapWithLazyVerticalScroll's type requirement.
-        val scrollPane = ReviewListUtil.wrapWithLazyVerticalScroll(cs, l) { /* pagination deferred */ }
+        val scrollPane = ReviewListUtil.wrapWithLazyVerticalScroll(cs, l, vm::requestMore)
         val scrollPaneWithData = UiDataProvider.wrapComponent(scrollPane) { sink: DataSink ->
             l.selectedValue?.let { pr -> sink[GiteaPRActionKeys.SELECTED_PULL_REQUEST] = pr }
+        }
+
+        cs.launch(Dispatchers.EDT) {
+            combine(vm.isLoading, vm.searchVm.searchState, ::Pair).collect { (isLoading, search) ->
+                updateEmptyText(l.emptyText, isLoading, search)
+            }
         }
 
         val errorPanel = giteaReviewErrorPanel(
@@ -119,6 +135,22 @@ class GiteaPRListPanel(
                 },
                 BorderLayout.CENTER,
             )
+        }
+    }
+
+    private fun updateEmptyText(emptyText: StatusText, isLoading: Boolean, search: GiteaPRListSearchValue) {
+        emptyText.clear()
+        when {
+            isLoading -> emptyText.appendText(CollaborationToolsBundle.message("review.list.empty.state.loading"))
+            // A failed load already says so in the error panel above the list.
+            vm.error.value != null -> Unit
+            search.filterCount == 0 ->
+                emptyText.appendText(GiteaBundle.message("pull.request.list.nothing.loaded", repositoryName))
+            else -> emptyText
+                .appendText(GiteaBundle.message("pull.request.list.no.matches"))
+                .appendSecondaryText(GiteaBundle.message("pull.request.list.filters.clear"), SimpleTextAttributes.LINK_ATTRIBUTES) {
+                    vm.searchVm.searchState.value = GiteaPRListSearchValue.DEFAULT
+                }
         }
     }
 

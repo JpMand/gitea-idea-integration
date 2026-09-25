@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list
 
+import com.github.jpmand.idea.plugin.gitea.api.GITEA_PAGE_SIZE
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReview
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
@@ -9,7 +10,9 @@ import com.intellij.collaboration.ui.codereview.list.ReviewListViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -41,53 +44,93 @@ class GiteaPRListViewModel(
     /** Bumped by [refresh] to re-run the current filter without changing it. */
     private val _refreshTrigger = MutableStateFlow(0L)
 
+    /** The filter the list currently shows and how far through its pages it has loaded. */
+    private class Paging(val filter: GiteaPRListSearchValue, val labelIds: List<Long>?) {
+        var nextPage = 1
+        var exhausted = false
+    }
+
+    @Volatile
+    private var paging: Paging? = null
+
+    @Volatile
+    private var moreJob: Job? = null
+
     init {
         cs.launch(Dispatchers.IO) {
             searchVm.searchState
                 .combine(_refreshTrigger) { filter, _ -> filter }
-                .collectLatest { filter -> loadPRs(filter) }
+                .collectLatest { filter ->
+                    moreJob?.cancelAndJoin()
+                    loadFirstPage(filter)
+                }
         }
     }
 
-    private suspend fun loadPRs(filter: GiteaPRListSearchValue) {
-        _isLoading.value = true
-        _error.value = null
-        try {
+    private suspend fun loadFirstPage(filter: GiteaPRListSearchValue) {
+        paging = null
+        withLoading {
+            // Don't leave the previous filter's results in place while (or if) this one fails —
+            // they'd read as a valid (but wrong) answer to the current filter.
+            withContext(Dispatchers.Main) { _listModel.clear() }
             // The filter holds the label's name (what the chip shows); Gitea filters by label id.
             val labelIds = filter.label?.let { name ->
                 searchVm.labelOptions.first().getOrThrow().filter { it.name == name }.map { it.id }
             }
-            if (labelIds != null && labelIds.isEmpty()) {
-                // The label no longer exists, so nothing can match it.
-                withContext(Dispatchers.Main) { _listModel.clear() }
+            // An empty id list means the label no longer exists, so nothing can match it.
+            if (labelIds != null && labelIds.isEmpty()) return@withLoading
+            val p = Paging(filter, labelIds)
+            paging = p
+            loadPages(p)
+        }
+    }
+
+    /** Loads the next page of the current filter; called by the list as it's scrolled near its end. */
+    fun requestMore() {
+        val p = paging ?: return
+        if (p.exhausted || _isLoading.value || moreJob?.isActive == true) return
+        moreJob = cs.launch(Dispatchers.IO) {
+            withLoading { loadPages(p) }
+        }
+    }
+
+    /**
+     * Fetches pages of [p] until one adds a row or there are none left. The search query is
+     * matched locally, so a page can contribute nothing — and the lazy scroll only asks for more
+     * after rows are added, so stopping on such a page would stall the list.
+     */
+    private suspend fun loadPages(p: Paging) {
+        while (!p.exhausted) {
+            val prs = repository.loadPullRequests(
+                state = p.filter.state.apiValue,
+                sort = p.filter.sort?.api,
+                labels = p.labelIds,
+                poster = p.filter.author,
+                page = p.nextPage,
+                limit = GITEA_PAGE_SIZE,
+            )
+            p.nextPage++
+            // Only an empty page ends the list: a server's MAX_RESPONSE_ITEMS can cap `limit`
+            // below what was asked, so a short page isn't necessarily the last.
+            if (prs.isEmpty()) p.exhausted = true
+            val matching = prs.filter { p.filter.matchesLocally(it) }
+            if (matching.isNotEmpty()) {
+                withContext(Dispatchers.Main) {
+                    if (paging === p) matching.forEach { _listModel.addElement(it) }
+                }
                 return
             }
-            val prs = repository.loadPullRequests(
-                state = filter.state.apiValue,
-                sort = filter.sort?.api,
-                labels = labelIds,
-                poster = filter.author,
-                page = null,
-                limit = 50,
-            )
-            val query = filter.searchQuery
-            val filtered = prs.filter { pr ->
-                (query.isNullOrBlank() ||
-                        pr.title.contains(query, ignoreCase = true) ||
-                        "#${pr.number}".contains(query, ignoreCase = true)) &&
-                        // Belt-and-braces: some Gitea versions ignore an unknown `labels` value.
-                        (filter.label == null || pr.labels.any { it.name == filter.label })
-            }
-            withContext(Dispatchers.Main) {
-                _listModel.clear()
-                filtered.forEach { _listModel.addElement(it) }
-            }
+        }
+    }
+
+    private suspend fun withLoading(load: suspend () -> Unit) {
+        _isLoading.value = true
+        _error.value = null
+        try {
+            load()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            // Don't leave the previous filter's results under the error — they'd read as a valid
-            // (but wrong) answer to the current filter.
-            withContext(Dispatchers.Main) { _listModel.clear() }
             _error.value = e
         } finally {
             withContext(NonCancellable) {
@@ -136,4 +179,16 @@ class GiteaPRListViewModel(
         }
         return null
     }
+}
+
+/**
+ * The parts of the filter Gitea's `/pulls` endpoint can't apply: the search text (matched against
+ * the title and `#number`), and the label again, in case a server ignores an unknown `labels` id.
+ */
+internal fun GiteaPRListSearchValue.matchesLocally(pr: GiteaPullRequest): Boolean {
+    val query = searchQuery
+    return (query.isNullOrBlank() ||
+            pr.title.contains(query, ignoreCase = true) ||
+            "#${pr.number}".contains(query, ignoreCase = true)) &&
+            (label == null || pr.labels.any { it.name == label })
 }

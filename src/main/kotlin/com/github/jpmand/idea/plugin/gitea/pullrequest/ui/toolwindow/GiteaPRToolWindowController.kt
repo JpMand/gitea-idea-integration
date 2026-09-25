@@ -122,6 +122,7 @@ class GiteaPRToolWindowController(
             CachingIconsProvider(AsyncImageIconsProvider<GiteaUser>(panelCs, GiteaImageLoader(ctx.api)))
         val listPanel = GiteaPRListPanel(
             panelCs, listVm, avatarIconsProvider,
+            repositoryName = ctx.repo.repositoryPath.toString(),
             repositoryWebUrl = ctx.repo.getWebURI().toString(),
             onPROpenRequested = { pr -> openPullRequest(ctx, repository, pr) },
         ).create()
