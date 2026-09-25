@@ -22,6 +22,7 @@ import com.intellij.collaboration.api.json.loadJsonList
 import com.intellij.collaboration.api.json.loadJsonValue
 import com.intellij.collaboration.api.json.loadOptionalJsonValue
 import com.intellij.collaboration.util.resolveRelative
+import java.net.URI
 import java.net.http.HttpRequest
 
 /**
@@ -34,7 +35,8 @@ import java.net.http.HttpRequest
  *   param accepts "all" even though the response object's own `state` field only has open/closed)
  * @param sort Type of sort
  * @param milestone ID of the milestone
- * @param labels Label IDs
+ * @param labels Label IDs (sent as one repeated `labels` param each — Gitea's `collectionFormat:
+ *   multi`; label names are rejected with a 500)
  * @param poster Filter by pull request author
  * @param page Page number of results to return (1-based)
  * @param limit Page size of results
@@ -47,24 +49,40 @@ suspend fun GiteaApi.repoListPullRequests(
   state: String?,
   sort: GiteaPullRequestSortEnum?,
   milestone: Int?,
-  labels: List<String>?,
+  labels: List<Long>?,
   poster: String?,
   page: Int?,
   limit: Int?,
 ): List<PullRequest> {
-  val uri = GiteaUriUtil.QueryBuilder()
-    .addParam("base_branch", baseBranch)
-    .addParam("state", state)
-    .addParam("sort", sort?.value)
-    .addParam("milestone", milestone)
-    .addParam("labels", labels?.joinToString(","))
-    .addParam("poster", poster)
-    .addParam("page", page)
-    .addParam("limit", limit)
-    .build(server.restApiUri().resolveRelative("repos/$owner/$repo/pulls"))
+  val uri = pullRequestListUri(
+    server.restApiUri().resolveRelative("repos/$owner/$repo/pulls"),
+    baseBranch, state, sort, milestone, labels, poster, page, limit,
+  )
   val request = request(uri).GET().build()
   return rest.loadJsonList<PullRequest>(request).body()
 }
+
+/** Query for [repoListPullRequests]; `labels` is repeated once per id (`collectionFormat: multi`). */
+internal fun pullRequestListUri(
+  base: URI,
+  baseBranch: String? = null,
+  state: String? = null,
+  sort: GiteaPullRequestSortEnum? = null,
+  milestone: Int? = null,
+  labels: List<Long>? = null,
+  poster: String? = null,
+  page: Int? = null,
+  limit: Int? = null,
+): URI = GiteaUriUtil.QueryBuilder()
+  .addParam("base_branch", baseBranch)
+  .addParam("state", state)
+  .addParam("sort", sort?.value)
+  .addParam("milestone", milestone)
+  .apply { labels?.forEach { addParam("labels", it.toString()) } }
+  .addParam("poster", poster)
+  .addParam("page", page)
+  .addParam("limit", limit)
+  .build(base)
 
 @Suppress("UnstableApiUsage")
 suspend fun GiteaApi.repoListPinnedPullRequests(owner: String, repo: String): List<PullRequest> {

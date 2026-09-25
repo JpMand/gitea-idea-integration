@@ -42,7 +42,7 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     suspend fun loadPullRequests(
         state: String? = "open",
         sort: GiteaPullRequestSortEnum? = null,
-        labels: List<String>? = null,
+        labels: List<Long>? = null,
         poster: String? = null,
         page: Int? = null,
         limit: Int? = null,

@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
@@ -52,10 +53,19 @@ class GiteaPRListViewModel(
         _isLoading.value = true
         _error.value = null
         try {
+            // The filter holds the label's name (what the chip shows); Gitea filters by label id.
+            val labelIds = filter.label?.let { name ->
+                searchVm.labelOptions.first().getOrThrow().filter { it.name == name }.map { it.id }
+            }
+            if (labelIds != null && labelIds.isEmpty()) {
+                // The label no longer exists, so nothing can match it.
+                withContext(Dispatchers.Main) { _listModel.clear() }
+                return
+            }
             val prs = repository.loadPullRequests(
                 state = filter.state.apiValue,
                 sort = filter.sort?.api,
-                labels = filter.label?.let { listOf(it) },
+                labels = labelIds,
                 poster = filter.author,
                 page = null,
                 limit = 50,
@@ -75,6 +85,9 @@ class GiteaPRListViewModel(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            // Don't leave the previous filter's results under the error — they'd read as a valid
+            // (but wrong) answer to the current filter.
+            withContext(Dispatchers.Main) { _listModel.clear() }
             _error.value = e
         } finally {
             withContext(NonCancellable) {
