@@ -13,6 +13,7 @@ import com.intellij.collaboration.ui.icon.CachingIconsProvider
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.fileEditor.FileEditorState
+import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.UserDataHolderBase
 import com.intellij.openapi.vfs.VirtualFile
@@ -20,6 +21,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import java.beans.PropertyChangeListener
 import java.util.Date
 import javax.swing.JComponent
@@ -75,12 +79,23 @@ class GiteaPRTimelineFileEditor(
     private fun notifyReviewChanged() =
         project.service<GiteaPRReviewChanges>().notifyChanged(file.pr.number.toInt(), vm)
 
+    init {
+        // Keep the tab's title in step with the PR's, which each reload re-fetches.
+        cs.launch {
+            vm.pr.map { it.title }.distinctUntilChanged().collect { title ->
+                if (title == file.title) return@collect
+                file.title = title
+                FileEditorManagerEx.getInstanceEx(project).updateFilePresentation(file)
+            }
+        }
+    }
+
     private val component: JComponent =
         GiteaPRTimelineComponentFactory.create(cs, vm, itemFactory, avatarIconsProvider) { vm.reload() }
 
     override fun getComponent(): JComponent = component
     override fun getPreferredFocusedComponent(): JComponent? = null
-    override fun getName(): String = "${file.pr.title} #${file.pr.number}"
+    override fun getName(): String = file.presentableName
     override fun setState(state: FileEditorState) {}
     override fun isModified(): Boolean = false
     override fun isValid(): Boolean = !project.isDisposed

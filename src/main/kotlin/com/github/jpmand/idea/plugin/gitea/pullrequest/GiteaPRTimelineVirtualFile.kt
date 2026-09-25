@@ -38,7 +38,13 @@ class GiteaPRTimelineVirtualFile(
     val repository: GiteaPRRepository,
     val ctx: GiteaPRDataContext,
     private val project: Project,
-) : LightVirtualFile("${pr.title} #${pr.id}", "test") {
+) : LightVirtualFile("${pr.title} #${pr.number}", "test") {
+
+    /** The PR's current title, for the tab — see [GiteaPRTimelineFileEditor]. */
+    @Volatile
+    var title: String = pr.title
+
+    override fun getPresentableName(): String = "$title #$prNumber"
 
     override fun isValid(): Boolean = !project.isDisposed
     override fun isWritable(): Boolean = false

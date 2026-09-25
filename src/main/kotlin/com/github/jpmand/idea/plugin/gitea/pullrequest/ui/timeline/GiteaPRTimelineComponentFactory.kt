@@ -13,6 +13,11 @@ import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -38,17 +43,31 @@ object GiteaPRTimelineComponentFactory {
         avatars: IconsProvider<GiteaUser>,
         onRefresh: () -> Unit,
     ): JComponent {
-        val titleLabel = JBLabel("${vm.title} ${vm.number}").apply {
+        val titleLabel = JBLabel().apply {
             font = JBFont.h2()
             border = JBUI.Borders.empty(4, 16, 8, 16)
         }
 
-        val description = itemFactory.create(
-            cs,
-            // id = 0 is never a real comment id (Gitea's start at 1) — the description isn't
-            // editable/deletable through the comment-edit path (out of scope; see plan notes).
-            GiteaPRTimelineItemViewModel.Comment(0L, vm.author, vm.createdAt, vm.descriptionMarkdown, vm.pr.htmlUrl),
-        )
+        cs.launch {
+            vm.pr.map { "${it.title} ${vm.number}" }.distinctUntilChanged().collect { titleLabel.text = it }
+        }
+
+        val description = Wrapper()
+        cs.launch {
+            vm.pr.map { pr ->
+                // id = 0 is never a real comment id (Gitea's start at 1) — the description isn't
+                // editable/deletable through the comment-edit path (out of scope; see plan notes).
+                GiteaPRTimelineItemViewModel.Comment(0L, pr.author, pr.createdAt, pr.body?.takeIf { it.isNotBlank() }, pr.htmlUrl)
+            }.distinctUntilChanged().collectLatest { item ->
+                // Scoped to this version of the description, so replacing it cancels the old one's work.
+                coroutineScope {
+                    description.setContent(itemFactory.create(this, item))
+                    description.revalidate()
+                    description.repaint()
+                    awaitCancellation()
+                }
+            }
+        }
 
         val itemsPanel = VerticalListPanel(0)
         // Reused across emissions so an unrelated in-place update (see the "In-place updates"
