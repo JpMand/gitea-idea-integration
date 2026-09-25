@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.authentication
 
+import com.github.jpmand.idea.plugin.gitea.api.GiteaHttpError
 import com.github.jpmand.idea.plugin.gitea.authentication.ui.GiteaTokenLoginPanelModel
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.auth.ui.login.LoginException
@@ -28,6 +29,7 @@ internal class GiteaLoginErrorStatusPresenter(
     val builder = HtmlBuilder()
     when (error) {
       is ConnectException -> builder.append(CollaborationToolsBundle.message("clone.dialog.login.error.server"))
+      is GiteaHttpError -> builder.append(error.localizedMessage)
       is LoginException.UnsupportedServerVersion -> builder.customizeUnsupportedVersionError(error)
       is LoginException.InvalidTokenOrUnsupportedServerVersion -> builder.customizeInvalidTokenOrUnsupportedServerVersionError(error)
       is LoginException.AccountAlreadyExists -> builder.append(CollaborationToolsBundle.message("login.dialog.error.account.already.exists", error.username))
