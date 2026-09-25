@@ -1,6 +1,5 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.editor
 
-import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPullRequestsSettings
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRForCurrentBranch
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRForCurrentBranchService
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
@@ -58,7 +57,6 @@ class GiteaPRReviewInEditorController : EditorFactoryListener {
         if (editor.editorKind != EditorKind.MAIN_EDITOR) return
         if (editor !is EditorEx) return
         val project = editor.project ?: return
-        if (!project.service<GiteaPullRequestsSettings>().editorReviewEnabled) return
         val virtualFile = FileDocumentManager.getInstance().getFile(editor.document) ?: return
 
         val job = SupervisorJob()
