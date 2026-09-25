@@ -4,10 +4,14 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussions
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.async.launchNow
+import com.intellij.collaboration.ui.codereview.diff.action.CodeReviewDiscussionsToggleAction
+import com.intellij.collaboration.ui.codereview.diff.model.CodeReviewDiscussionsViewModel
 import com.intellij.collaboration.ui.codereview.editor.ReviewInEditorUtil
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.actionSystem.PlatformDataKeys
 import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.actionSystem.ex.CustomComponentAction
@@ -92,4 +96,20 @@ fun submitReviewAction(project: Project, discussionsVm: GiteaPRDiscussionsViewMo
                 if (component != null) GiteaSubmitReviewPopup.show(vm, component) else GiteaSubmitReviewPopup.show(vm, project)
             }
         }
+    }
+
+/**
+ * "Show Review Threads" popup for the diff header — All / Unresolved Only / Do Not Show — so
+ * resolved threads can be brought back after they're hidden. The GitHub plugin adds the same
+ * platform group to the diff's settings menu.
+ */
+fun discussionsViewOptionsAction(discussionsVm: GiteaPRDiscussionsViewModels): AnAction =
+    object : CodeReviewDiscussionsToggleAction() {
+        init {
+            templatePresentation.text = GiteaBundle.message("pull.request.diff.threads.view.options")
+            templatePresentation.icon = AllIcons.Actions.Show
+            templatePresentation.isPopupGroup = true
+        }
+
+        override fun findViewModel(ctx: DataContext): CodeReviewDiscussionsViewModel = discussionsVm
     }

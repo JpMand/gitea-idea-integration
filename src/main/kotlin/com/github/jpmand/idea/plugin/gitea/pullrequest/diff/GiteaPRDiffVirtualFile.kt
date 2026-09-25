@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.diff
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.GiteaPRFileStatusEnum
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.discussionsViewOptionsAction
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.submitReviewAction
 import com.intellij.collaboration.ui.codereview.diff.AsyncDiffRequestProcessorFactory
 import com.intellij.collaboration.util.KeyValuePair
@@ -66,7 +67,10 @@ class GiteaPRDiffVirtualFile(
             createContext = {
                 listOf(
                     KeyValuePair(GiteaPRDiscussionsViewModels.CONTEXT_KEY, discussionsVm),
-                    KeyValuePair(DiffUserDataKeys.CONTEXT_ACTIONS, listOf(submitReviewAction(project, discussionsVm))),
+                    KeyValuePair(
+                        DiffUserDataKeys.CONTEXT_ACTIONS,
+                        listOf(discussionsViewOptionsAction(discussionsVm), submitReviewAction(project, discussionsVm)),
+                    ),
                 )
             },
             changePresenter = { fileVm ->
