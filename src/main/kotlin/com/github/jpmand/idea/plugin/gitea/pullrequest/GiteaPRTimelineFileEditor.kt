@@ -2,6 +2,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.data.GiteaImageLoader
+import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRReviewChanges
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineComponentFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineItemComponentFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineViewModel
@@ -41,10 +42,12 @@ class GiteaPRTimelineFileEditor(
         onEditComment = { id, body ->
             file.repository.editComment(id, body)
             vm.updateCommentBody(id, body, Date())
+            notifyReviewChanged()
         },
         onDeleteComment = { id ->
             file.repository.deleteComment(id)
             vm.removeComment(id)
+            notifyReviewChanged()
         },
         onOpenCommit = { sha ->
             project.service<GiteaPRCommitSelectionRequests>().request(file.pr, file.repository, file.ctx, sha)
@@ -52,18 +55,25 @@ class GiteaPRTimelineFileEditor(
         onReplyToThread = { threadId, body ->
             val reply = file.repository.replyToComment(file.pr.number.toInt(), threadId, body)
             vm.appendReply(threadId, reply)
+            notifyReviewChanged()
         },
         onResolveThread = { threadId ->
             file.repository.resolveComment(threadId)
             vm.updateThreadResolved(threadId, resolved = true)
+            notifyReviewChanged()
         },
         onUnresolveThread = { threadId ->
             file.repository.unresolveComment(threadId)
             vm.updateThreadResolved(threadId, resolved = false)
+            notifyReviewChanged()
         },
         currentUser = vm.currentUser,
         mentionCandidates = vm.mentionCandidates,
     )
+
+    /** Lets this PR's diff and editor review surfaces pick up a change made in the timeline. */
+    private fun notifyReviewChanged() =
+        project.service<GiteaPRReviewChanges>().notifyChanged(file.pr.number.toInt(), vm)
 
     private val component: JComponent =
         GiteaPRTimelineComponentFactory.create(cs, vm, itemFactory, avatarIconsProvider) { vm.reload() }

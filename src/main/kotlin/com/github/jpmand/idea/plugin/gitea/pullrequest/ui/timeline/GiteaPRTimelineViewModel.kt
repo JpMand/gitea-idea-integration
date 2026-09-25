@@ -5,8 +5,10 @@ import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewComment
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.api.models.mentionCandidates
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
+import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRReviewChanges
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRSubmittableTextViewModel
 import com.intellij.collaboration.util.ComputedResult
+import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -70,6 +72,12 @@ class GiteaPRTimelineViewModel(
 
     init {
         reload()
+        // Threads resolved, replied to or reviewed from the diff or the editor.
+        cs.launch {
+            project.service<GiteaPRReviewChanges>().changes.collect { change ->
+                if (change.prNumber == pr.number.toInt() && change.source !== this@GiteaPRTimelineViewModel) reload()
+            }
+        }
         cs.launch(Dispatchers.IO) {
             val collaborators = try {
                 repository.loadPossibleAuthors()

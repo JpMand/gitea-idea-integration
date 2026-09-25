@@ -92,6 +92,10 @@ internal class GiteaPullRequestsSettings :
 
     fun draftComments(prNumber: Int): List<GiteaPRDraftComment> = state.draftComments[prNumber].orEmpty()
 
+    /** [draftComments] as a flow, so every review surface of a PR shows the same drafts. */
+    fun draftCommentsState(prNumber: Int): StateFlow<List<GiteaPRDraftComment>> =
+        stateFlow.mapState { it.draftComments[prNumber].orEmpty() }
+
     /** Replaces the entire draft list for [prNumber] — callers own the merge logic (add/update/
      * remove/clear), this just writes the result through. */
     fun setDraftComments(prNumber: Int, drafts: List<GiteaPRDraftComment>) {

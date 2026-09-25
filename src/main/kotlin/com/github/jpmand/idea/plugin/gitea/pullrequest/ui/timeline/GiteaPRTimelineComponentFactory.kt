@@ -112,7 +112,12 @@ object GiteaPRTimelineComponentFactory {
         val refreshBar = JPanel(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 0, 0)).apply {
             isOpaque = false
             border = JBUI.Borders.empty(4, 12)
-            add(ActionLink(GiteaBundle.message("pull.request.timeline.refresh")) { onRefresh() })
+            add(ActionLink(GiteaBundle.message("pull.request.timeline.refresh")) {
+                // An explicit refresh rebuilds every item, so relative times ("5 minutes ago")
+                // are re-rendered too; reloads triggered elsewhere keep reusing components.
+                itemComponents.clear()
+                onRefresh()
+            })
         }
 
         return JPanel(java.awt.BorderLayout()).apply {

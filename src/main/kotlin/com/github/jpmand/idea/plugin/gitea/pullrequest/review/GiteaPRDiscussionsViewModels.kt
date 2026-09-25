@@ -146,6 +146,14 @@ class GiteaPRDiscussionsViewModels(
             _mentionCandidates.value = (collaborators + additionalMentionCandidates).distinctBy { it.login }
         }
         reloadPendingReview()
+        cs.launch {
+            project.service<GiteaPRReviewChanges>().changes.collect { change ->
+                if (change.prNumber == prNumber && change.source !== this@GiteaPRDiscussionsViewModels) {
+                    reload()
+                    reloadPendingReview()
+                }
+            }
+        }
     }
 
     private fun reloadPendingReview() {
@@ -163,6 +171,13 @@ class GiteaPRDiscussionsViewModels(
     /** Re-fetches all review comments from the API and rebuilds the thread list. */
     fun reload() {
         _reloadTrigger.value++
+    }
+
+    /** Reloads after a change made here, and tells this PR's other review surfaces to reload too. */
+    private fun reloadAfterChange() {
+        reload()
+        reloadPendingReview()
+        project.service<GiteaPRReviewChanges>().notifyChanged(prNumber, this)
     }
 
     // ── CodeReviewInEditorViewModel ───────────────────────────────────────
@@ -186,21 +201,20 @@ class GiteaPRDiscussionsViewModels(
     // GiteaPRRepository.submitReview. Persisted per-PR via GiteaPullRequestsSettings so drafts
     // survive closing and reopening the diff/PR, not just in-memory for the panel's lifetime.
 
-    private val _draftComments = MutableStateFlow(settings.draftComments(prNumber))
-    val draftComments: StateFlow<List<GiteaPRDraftComment>> = _draftComments.asStateFlow()
-
-    private var nextDraftId = (_draftComments.value.maxOfOrNull { it.localId } ?: -1L) + 1L
+    // Read straight from the settings, so the Details tab, its diff and the regular editor (each
+    // with its own view model) all see the same drafts.
+    private val _draftComments: StateFlow<List<GiteaPRDraftComment>> = settings.draftCommentsState(prNumber)
+    val draftComments: StateFlow<List<GiteaPRDraftComment>> = _draftComments
 
     private fun updateDrafts(transform: (List<GiteaPRDraftComment>) -> List<GiteaPRDraftComment>) {
-        val next = transform(_draftComments.value)
-        _draftComments.value = next
-        settings.setDraftComments(prNumber, next)
+        settings.setDraftComments(prNumber, transform(_draftComments.value))
     }
 
     /** Creates a new draft comment and returns it (its [GiteaPRDraftComment.localId] is assigned
      * here). Purely local — no network call. */
     fun addDraft(path: String, newLine: Int?, oldLine: Int?, body: String): GiteaPRDraftComment {
-        val draft = GiteaPRDraftComment(nextDraftId++, path, newLine, oldLine, body)
+        val nextId = (_draftComments.value.maxOfOrNull { it.localId } ?: -1L) + 1L
+        val draft = GiteaPRDraftComment(nextId, path, newLine, oldLine, body)
         updateDrafts { it + draft }
         return draft
     }
@@ -292,8 +306,7 @@ class GiteaPRDiscussionsViewModels(
             try {
                 if (problemKey != null) throw IllegalArgumentException(GiteaBundle.message(problemKey))
                 send()
-                reload()
-                reloadPendingReview()
+                reloadAfterChange()
                 withContext(Dispatchers.Main) { onSuccess() }
             } catch (e: CancellationException) {
                 throw e
@@ -319,8 +332,7 @@ class GiteaPRDiscussionsViewModels(
             try {
                 if (pending != null) repository.deletePendingReview(prNumber, pending.id)
                 updateDrafts { emptyList() }
-                reload()
-                reloadPendingReview()
+                reloadAfterChange()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -350,7 +362,7 @@ class GiteaPRDiscussionsViewModels(
      */
     suspend fun resolveThread(threadId: Long) {
         repository.resolveComment(threadId)
-        reload()
+        reloadAfterChange()
     }
 
     /**
@@ -358,7 +370,7 @@ class GiteaPRDiscussionsViewModels(
      */
     suspend fun unresolveThread(threadId: Long) {
         repository.unresolveComment(threadId)
-        reload()
+        reloadAfterChange()
     }
 
     /** Replies to the given review comment — callers pass the *last* comment in the thread they
@@ -366,20 +378,20 @@ class GiteaPRDiscussionsViewModels(
      * reply endpoint threads the conversation correctly. */
     suspend fun replyToThread(commentId: Long, body: String) {
         repository.replyToComment(prNumber, commentId, body)
-        reload()
+        reloadAfterChange()
     }
 
     /** Edits an inline review comment's body (own comments only — gated by [currentUserLogin] at
      * the call site, same as the Timeline) and reloads. */
     suspend fun editComment(commentId: Long, body: String) {
         repository.editComment(commentId, body)
-        reload()
+        reloadAfterChange()
     }
 
     /** Deletes an inline review comment (own comments only) and reloads. */
     suspend fun deleteComment(commentId: Long) {
         repository.deleteComment(commentId)
-        reload()
+        reloadAfterChange()
     }
 
     // ── Lookup helpers ────────────────────────────────────────────────────
