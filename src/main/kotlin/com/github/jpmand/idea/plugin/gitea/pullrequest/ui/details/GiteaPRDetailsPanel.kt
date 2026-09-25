@@ -280,6 +280,8 @@ class GiteaPRDetailsPanel(
         val reopen = stubActionSwing("pull.request.action.reopen") { vm.reopenPullRequest() }
         val readyForReview = stubActionSwing("pull.request.action.ready.for.review") { vm.markReadyForReview() }
         val closeButton = actionButton("pull.request.action.close") { vm.closePullRequest() }
+        // A separate instance: a Swing component can only sit in one of the state panels.
+        val closeDraftButton = actionButton("pull.request.action.close") { vm.closePullRequest() }.apply { isOpaque = false }
         val requestReviewButton = createRequestReviewButton()
         val (mergeControl, mergeOptionButton) = createMergeControl()
 
@@ -303,6 +305,7 @@ class GiteaPRDetailsPanel(
             vm.isActionInProgress.combine(statusVm.hasConflicts) { busy, hasConflicts -> busy to hasConflicts }
                 .collect { (busy, hasConflicts) ->
                     closeButton.isEnabled = !busy
+                    closeDraftButton.isEnabled = !busy
                     requestReviewButton.isEnabled = !busy
                     mergeOptionButton.isEnabled = !busy && !hasConflicts
                     reopen.isEnabled = !busy
@@ -315,7 +318,11 @@ class GiteaPRDetailsPanel(
             openedStatePanel = actionPanel,
             mergedStatePanel = CodeReviewDetailsActionsComponentFactory.createActionsForMergedReview(),
             closedStatePanel = CodeReviewDetailsActionsComponentFactory.createActionsForClosedReview(reopen),
-            draftedStatePanel = CodeReviewDetailsActionsComponentFactory.createActionsForDraftReview(readyForReview),
+            // The platform's draft panel only offers "Ready for Review"; a draft can be closed too.
+            draftedStatePanel = HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
+                add(CodeReviewDetailsActionsComponentFactory.createActionsForDraftReview(readyForReview))
+                add(closeDraftButton)
+            },
         )
     }
 
