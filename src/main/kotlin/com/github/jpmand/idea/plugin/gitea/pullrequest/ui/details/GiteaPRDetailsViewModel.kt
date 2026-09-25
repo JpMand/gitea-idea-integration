@@ -166,12 +166,18 @@ class GiteaPRDetailsViewModel(
 
     // ── Request review ───────────────────────────────────────────────────
 
-    val currentlyRequestedReviewers: List<GiteaUser> get() = _pr.value.requestedReviewers
+    /** Requested reviewers as the picker shows them — without the author, whom Gitea also lists
+     * here once they've commented in a review, but who can't be requested (see [loadPossibleReviewers]). */
+    val currentlyRequestedReviewers: List<GiteaUser>
+        get() = _pr.value.requestedReviewers.filterNot { it.login.equals(_pr.value.author.login, ignoreCase = true) }
 
     /** Candidate reviewers for the Request Review picker — collaborators, or every user on the
      * instance, per the signed-in account's "list all users" setting. */
+    /** Everyone who can be asked for a review, except the PR's author (Gitea rejects that with
+     * "poster of pr can't be reviewer", failing the whole update). */
     suspend fun loadPossibleReviewers(): List<GiteaUser> =
         repository.loadPossibleReviewers(GiteaSettings.getInstance().isListAllUsersAsReviewer(repository.accountId))
+            .filterNot { it.login.equals(_pr.value.author.login, ignoreCase = true) }
 
     /**
      * Applies a reviewer picker's [delta] (add/remove requested reviewers) and reloads the PR —
