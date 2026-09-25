@@ -17,8 +17,42 @@ data class GiteaReviewThread(
     val oldLine: Int?,
     /** Derived from the anchor comment's resolved state. */
     val isResolved: Boolean,
-    val comments: List<GiteaReviewComment>
+    val comments: List<GiteaReviewComment>,
+    /**
+     * True when the line the thread is anchored to has changed since it was commented on — see
+     * [isAnchorOutdated]. Computed by the repository (it needs the head file content), so a
+     * freshly grouped thread starts out current.
+     */
+    val isOutdated: Boolean = false,
 )
+
+/**
+ * The text of the line a review comment is anchored to, without its diff prefix: Gitea's
+ * `diff_hunk` ends at the commented line. Null when there is no hunk, or when the anchor is a
+ * removed (base-side) line, which has no head-side counterpart to compare with.
+ */
+fun GiteaReviewComment.anchoredLineText(): String? {
+    val last = diffHunk?.lines()?.lastOrNull { it.isNotEmpty() } ?: return null
+    if (last.startsWith("@@") || last.startsWith("-") || last.startsWith("\\")) return null
+    return last.drop(1)
+}
+
+/**
+ * Whether [anchor]'s head-side line no longer holds the text it was commented on, given the PR
+ * head's current file content as [headLines].
+ *
+ * Gitea's API has no per-comment "outdated" flag, and a comment's `commit_id` is the last commit
+ * that touched the line (not the head it was made on), so comparing it with the PR head marks
+ * almost every thread outdated. Comparing the anchored line's text is what actually changes when
+ * a later push rewrites the line. A line number past the end of the file (or a deleted file) also
+ * counts as outdated.
+ */
+fun isAnchorOutdated(anchor: GiteaReviewComment, headLines: List<String>): Boolean {
+    val line = anchor.newLine?.takeIf { it > 0 } ?: return false
+    val expected = anchor.anchoredLineText() ?: return false
+    val actual = headLines.getOrNull(line - 1) ?: return true
+    return actual.trimEnd() != expected.trimEnd()
+}
 
 /**
  * Groups a flat list of [GiteaReviewComment] into synthetic [GiteaReviewThread]s.

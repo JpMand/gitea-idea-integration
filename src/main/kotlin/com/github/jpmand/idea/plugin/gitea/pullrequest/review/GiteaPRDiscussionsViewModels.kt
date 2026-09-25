@@ -50,8 +50,8 @@ class GiteaPRDiscussionsViewModels(
     private val project: Project,
     parentCs: CoroutineScope,
     private val prNumber: Int,
-    /** The PR's current head SHA — a thread's anchor comment carrying a different `commitId`
-     * means the diff it was anchored to is no longer the latest one, i.e. it's "outdated". */
+    /** The PR's current head SHA — new reviews are anchored to it, and threads are checked
+     * against its file content to tell whether they're outdated. */
     val headSha: String,
     private val repository: GiteaPRRepository,
     /** Merged into [mentionCandidates] alongside repo collaborators — repo-wide collaborator
@@ -106,7 +106,7 @@ class GiteaPRDiscussionsViewModels(
             _reloadTrigger.collectLatest {
                 _threads.value = ComputedResult.loading()
                 try {
-                    val threadList = repository.loadThreads(prNumber)
+                    val threadList = repository.loadThreads(prNumber, headSha)
                     val threadVms = threadList.map { GiteaPRThreadViewModel(it, this@GiteaPRDiscussionsViewModels) }
                     _threads.value = ComputedResult.success(threadVms)
                 } catch (e: CancellationException) {

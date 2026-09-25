@@ -129,25 +129,51 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     }
 
     /** Convenience: load comments from all reviews in one call. */
-    suspend fun loadAllReviewComments(prNumber: Int): List<GiteaReviewComment> =
-        loadReviews(prNumber).flatMap { review -> loadReviewComments(prNumber, review.id) }
+    suspend fun loadAllReviewComments(prNumber: Int, reviews: List<GiteaReview>? = null): List<GiteaReviewComment> =
+        (reviews ?: loadReviews(prNumber)).flatMap { review -> loadReviewComments(prNumber, review.id) }
 
-    /** Groups all review comments for a PR into synthetic [GiteaReviewThread]s. */
-    suspend fun loadThreads(prNumber: Int): List<GiteaReviewThread> =
-        loadAllReviewComments(prNumber).toThreads()
+    /** Groups all review comments for a PR into synthetic [GiteaReviewThread]s, with
+     * [GiteaReviewThread.isOutdated] computed against the file content at [headSha]. */
+    suspend fun loadThreads(prNumber: Int, headSha: String): List<GiteaReviewThread> {
+        val reviews = loadReviews(prNumber)
+        return markOutdated(loadAllReviewComments(prNumber, reviews).toThreads(), reviews, headSha, mutableMapOf())
+    }
+
+    /**
+     * Sets [GiteaReviewThread.isOutdated] on [threads]. Only threads whose anchor comment belongs to
+     * a review Gitea reports as `stale` (made against an older head) can be outdated, so the head
+     * file content is fetched just for those paths, once each via [headLinesCache].
+     */
+    private suspend fun markOutdated(
+        threads: List<GiteaReviewThread>,
+        reviews: List<GiteaReview>,
+        headSha: String,
+        headLinesCache: MutableMap<String, List<String>>,
+    ): List<GiteaReviewThread> {
+        val staleReviewIds = reviews.filter { it.stale }.mapTo(HashSet()) { it.id }
+        return threads.map { thread ->
+            val anchor = thread.comments.firstOrNull()
+            val path = thread.path
+            if (anchor == null || path == null || anchor.reviewId !in staleReviewIds) return@map thread
+            val headLines = headLinesCache[path] ?: loadFileContent(path, headSha).lines().also { headLinesCache[path] = it }
+            thread.copy(isOutdated = isAnchorOutdated(anchor, headLines))
+        }
+    }
 
     /**
      * The PR's full activity timeline (Conversation): comments, commits, submitted reviews (with
      * their inline threads), and metadata events, in chronological order.
      */
-    suspend fun loadTimeline(prNumber: Int): List<GiteaTimelineItem> {
+    suspend fun loadTimeline(prNumber: Int, headSha: String): List<GiteaTimelineItem> {
         val timeline = loadAllGiteaPages { page ->
             ctx.api.issueListTimeline(owner, repo, prNumber, page = page, limit = GITEA_PAGE_SIZE)
         }
-        val reviewsById = loadReviews(prNumber).associateBy { it.id }
-        val threadsByReviewId = loadAllReviewComments(prNumber)
+        val reviews = loadReviews(prNumber)
+        val reviewsById = reviews.associateBy { it.id }
+        val headLinesCache = mutableMapOf<String, List<String>>()
+        val threadsByReviewId = loadAllReviewComments(prNumber, reviews)
             .groupBy { it.reviewId ?: 0L }
-            .mapValues { (_, comments) -> comments.toThreads() }
+            .mapValues { (_, comments) -> markOutdated(comments.toThreads(), reviews, headSha, headLinesCache) }
         val commits = loadCommits(prNumber)
         return mergeTimeline(timeline, reviewsById, threadsByReviewId, commits)
     }

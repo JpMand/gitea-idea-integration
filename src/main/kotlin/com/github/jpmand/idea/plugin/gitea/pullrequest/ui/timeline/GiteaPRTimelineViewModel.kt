@@ -103,7 +103,7 @@ class GiteaPRTimelineViewModel(
         loadJob = cs.launch(Dispatchers.IO) {
             if (_items.value == null) _items.value = ComputedResult.loading()
             try {
-                val items = repository.loadTimeline(pr.number.toInt()).toItemViewModels()
+                val items = repository.loadTimeline(pr.number.toInt(), pr.head.sha).toItemViewModels()
                 _items.value = ComputedResult.success(items)
             } catch (e: CancellationException) {
                 throw e

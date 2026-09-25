@@ -36,7 +36,7 @@ class GiteaPRTimelineFileEditor(
     private val avatarIconsProvider =
         CachingIconsProvider(AsyncImageIconsProvider<GiteaUser>(cs, GiteaImageLoader(file.ctx.api)))
     private val itemFactory = GiteaPRTimelineItemComponentFactory(
-        project, avatarIconsProvider, { m -> GiteaUtil.safeConvertMarkdownToHtml(m) }, headSha = file.pr.head.sha,
+        project, avatarIconsProvider, { m -> GiteaUtil.safeConvertMarkdownToHtml(m) },
         currentUserLogin = file.ctx.account.name,
         onEditComment = { id, body ->
             file.repository.editComment(id, body)
