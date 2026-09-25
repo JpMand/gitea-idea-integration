@@ -61,7 +61,7 @@ class GiteaPRDiffEditorModel(
                     Side.LEFT -> vm.oldLine?.let { locationToLine(Pair(Side.LEFT, it - 1)) }
                     null -> vm.newLine?.let { locationToLine(Pair(Side.RIGHT, it - 1)) }
                         ?: vm.oldLine?.let { locationToLine(Pair(Side.LEFT, it - 1)) }
-                } ?: return@mapNotNull null
+                }?.takeIf { it in 0 until editor.document.lineCount } ?: return@mapNotNull null
                 GiteaPRInlayModel.Thread(vm, lineIdx, editor, MutableStateFlow(lineIdx !in collapsed))
             }
         }.stateIn(cs, SharingStarted.Eagerly, emptyList())

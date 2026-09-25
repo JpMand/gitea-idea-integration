@@ -32,8 +32,9 @@ data class GiteaReviewComment(
             createdAt = dto.createdAt?.toDate(),
             updatedAt = dto.updatedAt?.toDate(),
             path = dto.path,
-            newLine = dto.position,
-            oldLine = dto.originalPosition,
+            // A comment sits on one side only; Gitea reports the other side's line as 0.
+            newLine = dto.position?.takeIf { it > 0 },
+            oldLine = dto.originalPosition?.takeIf { it > 0 },
             diffHunk = dto.diffHunk,
             commitId = dto.commitId,
             originalCommitId = dto.originalCommitId,
