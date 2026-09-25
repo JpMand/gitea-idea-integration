@@ -11,6 +11,7 @@ import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.ui.Either
 import com.intellij.collaboration.ui.HorizontalListPanel
+import com.intellij.collaboration.ui.ScrollablePanel
 import com.intellij.collaboration.ui.SimpleHtmlPane
 import com.intellij.collaboration.ui.VerticalListPanel
 import com.intellij.collaboration.ui.codereview.details.*
@@ -135,18 +136,26 @@ class GiteaPRDetailsPanel(
             add(pad(commitsAndBranch, 0, 4))
         }
 
-        val commitInfoScrollPane = ScrollPaneFactory.createScrollPane(pad(commitInfo, 0, 0), true).apply {
+        // The view must track the viewport's width: otherwise a long commit message lays out at
+        // its full unwrapped width, clipping the text and pushing "Hide details" out of view.
+        val commitInfoView = ScrollablePanel(SwingConstants.VERTICAL, java.awt.BorderLayout()).apply {
+            isOpaque = false
+            border = JBUI.Borders.empty(0, 8)
+            add(commitInfo, java.awt.BorderLayout.CENTER)
+        }
+        val commitInfoScrollPane = ScrollPaneFactory.createScrollPane(commitInfoView, true).apply {
             horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
         }
 
-        // shrink(0) on the header/commit-info rows keeps them at their preferred size always —
+        // shrinkY(0) on the header/commit-info rows keeps them at their preferred height always —
         // the changes tree (the sole push/grow row) is what absorbs a shrinking tool-window
         // height first; only once it's already at its own minimum does MigLayout start shrinking
         // the remaining non-push rows (status, then actions).
         return JPanel(MigLayout(LC().insets("0").fill().flowY().noGrid().gridGap("0", "0"))).apply {
             isOpaque = false
-            add(header, CC().growX().shrink(0f))
-            add(commitInfoScrollPane, CC().growX().shrink(0f).maxHeight("${JBUI.scale(COMMIT_INFO_MAX_HEIGHT)}"))
+            // Only vertically: a row that can't shrink horizontally lays out at its unwrapped width.
+            add(header, CC().growX().shrinkY(0f))
+            add(commitInfoScrollPane, CC().growX().shrinkY(0f).maxHeight("${JBUI.scale(COMMIT_INFO_MAX_HEIGHT)}"))
             add(changesComponent, CC().grow().push())
             add(pad(statusComponent, ReviewDetailsUIUtil.STATUSES_GAPS.top, ReviewDetailsUIUtil.STATUSES_GAPS.bottom), CC().growX())
             add(pad(actionsComponent, COMPACT_ACTIONS_GAP, COMPACT_ACTIONS_GAP), CC().growX())
