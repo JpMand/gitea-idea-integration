@@ -10,23 +10,27 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 /**
  * Project service that tracks the active [GiteaPRDataContext].
  *
- * Reacts to changes in known Git repositories and authenticated accounts to produce
+ * Reacts to changes in known Git repositories, accounts and their tokens to produce
  * a [StateFlow] that emits the current context (or null when none can be resolved).
  *
  * When several `(repository, account)` pairs resolve, the one recorded in
  * [GiteaPullRequestsSettings.selectedUrlAndAccountId] wins; otherwise the first pair that has a
  * stored token is used. Server matching is protocol-insensitive.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @Service(Service.Level.PROJECT)
 class GiteaPRDataContextHolder(
     private val project: Project,
@@ -36,11 +40,19 @@ class GiteaPRDataContextHolder(
     val context: StateFlow<GiteaPRDataContext?> = _context.asStateFlow()
 
     init {
+        val accountManager = service<GiteaAccountManager>()
+        // An account's token can come and go without the account list changing — e.g. logging back
+        // in to an account whose token is missing — and only accounts with a token are usable.
+        val credentialsChanges = accountManager.accountsState.flatMapLatest { accounts ->
+            if (accounts.isEmpty()) flowOf(Unit)
+            else combine(accounts.map { accountManager.getCredentialsFlow(it) }) { }
+        }
         cs.launch {
             combine(
                 project.service<GiteaRepositoriesManager>().knownRepositoriesState,
-                service<GiteaAccountManager>().accountsState,
-            ) { repos, accounts -> repos to accounts }
+                accountManager.accountsState,
+                credentialsChanges,
+            ) { repos, accounts, _ -> repos to accounts }
                 .collectLatest { (repos, accounts) ->
                     _context.value = buildContext(repos, accounts)
                 }
