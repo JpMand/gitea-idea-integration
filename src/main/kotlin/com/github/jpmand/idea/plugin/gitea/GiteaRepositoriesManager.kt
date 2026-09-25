@@ -38,11 +38,14 @@ internal class GiteaRepositoriesManagerImpl(project: Project, cs: CoroutineScope
       // when it's explicitly http/https — an http-only self-hosted instance must not be guessed
       // at as https — and fall back to https only when the remote gives no such signal (e.g. an
       // ssh/scp-style git remote, which says nothing about the web-facing scheme the same host
-      // serves Gitea's own UI/API over). A server hosted on a sub-path is only discovered once
-      // the user configures an account for it (accountsServersFlow).
+      // serves Gitea's own UI/API over). Likewise the port: an http(s) remote's port is the web
+      // port (`http://host:3000/...`), while an ssh remote's is the SSH port, so it's only kept
+      // for the former. A server hosted on a sub-path is only discovered once the user
+      // configures an account for it (accountsServersFlow).
       val uri = GitHostingUrlUtil.getUriFromRemoteUrl(remote.url)
-      val scheme = uri?.scheme?.takeIf { it == "http" || it == "https" } ?: "https"
-      uri?.host?.let { host -> runCatching { GiteaServerPath.from("$scheme://$host") }.getOrNull() }
+      val webScheme = uri?.scheme?.takeIf { it == "http" || it == "https" }
+      val port = if (webScheme != null && uri.port > 0) ":${uri.port}" else ""
+      uri?.host?.let { host -> runCatching { GiteaServerPath.from("${webScheme ?: "https"}://$host$port") }.getOrNull() }
     }.runningFold(emptySet<GiteaServerPath>()) { acc, value ->
       acc + value
     }.distinctUntilChanged()
