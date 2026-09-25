@@ -64,7 +64,7 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
      */
     suspend fun loadPossibleAuthors(): List<GiteaUser> = giteaApiCall {
         try {
-            ctx.api.repoListCollaborators(owner, repo, page = null, limit = 100).map { GiteaUser.fromDto(it) }
+            loadAllCollaborators()
         } catch (e: HttpStatusErrorException) {
             if (e.statusCode == 403) emptyList() else throw e
         }
@@ -111,16 +111,22 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
             if (users.isNotEmpty()) return@giteaApiCall users
         }
         try {
-            ctx.api.repoListCollaborators(owner, repo, page = null, limit = 100).map { GiteaUser.fromDto(it) }
+            loadAllCollaborators()
         } catch (e: HttpStatusErrorException) {
             if (e.statusCode == 403) emptyList() else throw e
         }
     }
 
+    /** Every page — the server caps a page at 50, whatever `limit` asks for. */
+    private suspend fun loadAllCollaborators(): List<GiteaUser> =
+        loadAllGiteaPages { page -> ctx.api.repoListCollaborators(owner, repo, page = page, limit = GITEA_PAGE_SIZE) }
+            .map { GiteaUser.fromDto(it) }
+
     // ── Reviews & Comments ────────────────────────────────────────────────
 
     suspend fun loadReviews(prNumber: Int): List<GiteaReview> = giteaApiCall {
-        ctx.api.repoListPullRequestReviews(owner, repo, prNumber).map { GiteaReview.fromDto(it) }
+        loadAllGiteaPages { page -> ctx.api.repoListPullRequestReviews(owner, repo, prNumber, page = page, limit = GITEA_PAGE_SIZE) }
+            .map { GiteaReview.fromDto(it) }
     }
 
     suspend fun loadReviewComments(prNumber: Int, reviewId: Long): List<GiteaReviewComment> = giteaApiCall {

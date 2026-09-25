@@ -103,8 +103,17 @@ suspend fun GiteaApi.repoGetPullRequest(owner: String, repo: String, index: Int)
 // ── Reviews ───────────────────────────────────────────────────────────────
 
 @Suppress("UnstableApiUsage")
-suspend fun GiteaApi.repoListPullRequestReviews(owner: String, repo: String, index: Int): List<PullReview> {
-  val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/reviews")
+suspend fun GiteaApi.repoListPullRequestReviews(
+  owner: String,
+  repo: String,
+  index: Int,
+  page: Int? = null,
+  limit: Int? = null,
+): List<PullReview> {
+  val uri = GiteaUriUtil.QueryBuilder()
+    .addParam("page", page)
+    .addParam("limit", limit)
+    .build(server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/reviews"))
   val request = request(uri).GET().build()
   return rest.loadJsonList<PullReview>(request).body()
 }
