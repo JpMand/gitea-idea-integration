@@ -21,6 +21,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.ui.dsl.builder.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.serialization.Serializable
 import org.jetbrains.annotations.ApiStatus
 
 @Suppress("UnstableApiUsage")
@@ -100,6 +101,8 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
   category = SettingsCategory.TOOLS
 )
 class GiteaSettings : SerializablePersistentStateComponent<GiteaSettings.State>(State()) {
+  // Without a generated serializer the platform silently saves and loads nothing for this state.
+  @Serializable
   data class State(
     val connectionTimeout: Int = 5_000,
     val cloneWithSsh: Boolean = false,
