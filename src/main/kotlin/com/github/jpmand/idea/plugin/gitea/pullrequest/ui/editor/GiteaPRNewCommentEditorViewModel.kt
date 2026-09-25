@@ -77,10 +77,11 @@ class GiteaPRNewCommentEditorViewModel(
     fun submitAsSingleCommentReview() {
         val body = textVm.text.value
         if (suggestion == null && body.isBlank()) return
-        discussionsVm.addDraft(path, newLine, oldLine, fullBodyOf(body))
-        discussionsVm.submitReview(CreatePullReviewOptions.Event.COMMENT, "")
+        // Shown as a draft row until the review goes through, so a failed submission leaves the
+        // draft visible to retry or discard instead of only counted in the review toolbar.
+        _draft.value = discussionsVm.addDraft(path, newLine, oldLine, fullBodyOf(body))
+        discussionsVm.submitReview(CreatePullReviewOptions.Event.COMMENT, "", onSuccess = onDismissed)
         textVm.text.value = ""
-        onDismissed()
     }
 
     private val newLine: Int? get() = if (side == Side.RIGHT) line else null
