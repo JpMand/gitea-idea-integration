@@ -72,8 +72,8 @@ fun CoroutineScope.launchReviewToolbar(project: Project, editor: Editor, discuss
 /**
  * A compact "N drafts" / "Finish review" action for the editor's inspection-widget corner strip
  * (the only per-editor toolbar hook the platform gives). Opens [GiteaSubmitReviewPopup] under the
- * button: a review body plus Approve / Request Changes / Comment and a discard button, the same
- * popup the GitHub plugin shows.
+ * button: a review body plus Approve / Request Changes / Comment and a discard button, laid out
+ * like the popup the GitHub plugin shows.
  */
 fun submitReviewAction(project: Project, discussionsVm: GiteaPRDiscussionsViewModels): AnAction =
     object : AnAction() {

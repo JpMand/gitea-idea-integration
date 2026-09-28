@@ -6,25 +6,46 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.review.reviewSubmitProble
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.messages.CollaborationToolsBundle
 import com.intellij.collaboration.ui.HorizontalListPanel
+import com.intellij.collaboration.ui.codereview.list.error.ErrorStatusPanelFactory
 import com.intellij.collaboration.ui.codereview.list.error.ErrorStatusPresenter
-import com.intellij.collaboration.ui.codereview.review.CodeReviewSubmitPopupHandler
 import com.intellij.collaboration.ui.codereview.review.CodeReviewSubmitViewModel
+import com.intellij.collaboration.ui.util.bindChildIn
 import com.intellij.collaboration.ui.util.bindDisabledIn
+import com.intellij.collaboration.ui.util.bindTextIn
 import com.intellij.collaboration.ui.util.bindVisibilityIn
+import com.intellij.collaboration.ui.util.popup.awaitClose
+import com.intellij.icons.AllIcons
+import com.intellij.openapi.application.EDT
+import com.intellij.openapi.editor.actions.IncrementalFindAction
+import com.intellij.openapi.fileTypes.FileTypes
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.popup.JBPopup
+import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.ui.EditorTextField
+import com.intellij.ui.components.panels.HorizontalLayout
 import com.intellij.util.ui.InlineIconButton
+import com.intellij.util.ui.JBDimension
 import com.intellij.util.ui.JBUI
 import icons.CollaborationToolsIcons
+import java.awt.Component
+import java.awt.Font
 import java.awt.event.ActionListener
 import javax.swing.JButton
 import javax.swing.JComponent
+import javax.swing.JLabel
+import javax.swing.JPanel
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
+import net.miginfocom.layout.CC
+import net.miginfocom.layout.LC
+import net.miginfocom.swing.MigLayout
 
 /**
  * Backs [GiteaSubmitReviewPopup]: a review body plus a verdict, submitted through
@@ -71,12 +92,79 @@ internal class GiteaSubmitReviewViewModel(
     override fun cancel() = onDone()
 }
 
-/** The platform's review-submit popup (same one the GitHub plugin uses), with Gitea's verdicts. */
+/**
+ * The review-submit popup: a title with the pending comment count, discard and close buttons, a
+ * body editor, an error line and Gitea's verdict buttons. Same layout as the platform's popup the
+ * GitHub plugin uses, which is internal API and so can't be extended here.
+ */
 @Suppress("UnstableApiUsage")
-internal object GiteaSubmitReviewPopup : CodeReviewSubmitPopupHandler<GiteaSubmitReviewViewModel>() {
+internal object GiteaSubmitReviewPopup {
+    // 12px gaps minus the buttons' own 3px borders, as in the platform popup.
+    private const val ACTIONS_GAP = 6
+    private const val TITLE_ACTIONS_GAP = 5
 
-    override fun CoroutineScope.createActionsComponent(vm: GiteaSubmitReviewViewModel): JComponent {
-        val cs = this
+    /** Shows the popup under [parentComponent] and suspends until it closes. */
+    suspend fun show(vm: GiteaSubmitReviewViewModel, parentComponent: Component) =
+        showPopup(vm) { it.showUnderneathOf(parentComponent) }
+
+    /** Shows the popup centered in [project]'s window and suspends until it closes. */
+    suspend fun show(vm: GiteaSubmitReviewViewModel, project: Project) =
+        showPopup(vm) { it.showCenteredInCurrentWindow(project) }
+
+    private suspend fun showPopup(vm: GiteaSubmitReviewViewModel, show: (JBPopup) -> Unit) {
+        withContext(Dispatchers.EDT) {
+            val editor = createEditor(this, vm.text)
+            val popup = JBPopupFactory.getInstance()
+                // the popup needs a focusable component to focus; it won't look inside a panel
+                .createComponentPopupBuilder(createPanel(this, vm, editor), editor)
+                .setFocusable(true)
+                .setRequestFocus(true)
+                .setResizable(true)
+                .createPopup()
+            show(popup)
+            popup.awaitClose()
+        }
+    }
+
+    private fun createPanel(cs: CoroutineScope, vm: GiteaSubmitReviewViewModel, editor: EditorTextField): JComponent {
+        val titleLabel = JLabel(CollaborationToolsBundle.message("review.submit.review.title")).apply {
+            font = font.deriveFont(font.style or Font.BOLD)
+        }
+        val titlePanel = JPanel(HorizontalLayout(TITLE_ACTIONS_GAP)).apply {
+            isOpaque = false
+            add(titleLabel, HorizontalLayout.LEFT)
+            bindChildIn(cs, vm.draftCommentsCount, HorizontalLayout.LEFT, 1) {
+                if (it <= 0) null else JLabel(CollaborationToolsBundle.message("review.pending.comments.count", it))
+            }
+            add(createTitleActions(cs, vm), HorizontalLayout.RIGHT)
+        }
+        val errorPanel = ErrorStatusPanelFactory.create(cs, vm.error, errorPresenter, ErrorStatusPanelFactory.Alignment.LEFT)
+
+        return JPanel(MigLayout(LC().insets("12").fill().flowY().noGrid().hideMode(3))).apply {
+            background = JBUI.CurrentTheme.Popup.BACKGROUND
+            preferredSize = JBDimension(500, 200)
+
+            add(titlePanel, CC().growX())
+            add(editor, CC().growX().growY())
+            add(errorPanel, CC().growY().growPrioY(0))
+            add(createActions(cs, vm), CC())
+        }
+    }
+
+    private fun createEditor(cs: CoroutineScope, text: MutableStateFlow<String>): EditorTextField =
+        EditorTextField(text.value, null, FileTypes.PLAIN_TEXT).apply {
+            setOneLineMode(false)
+            setPlaceholder(CollaborationToolsBundle.message("review.comment.placeholder"))
+            addSettingsProvider {
+                it.settings.isUseSoftWraps = true
+                it.setVerticalScrollbarVisible(true)
+                it.scrollPane.viewportBorder = JBUI.Borders.emptyLeft(4)
+                it.putUserData(IncrementalFindAction.SEARCH_DISABLED, true)
+            }
+            document.bindTextIn(cs, text)
+        }
+
+    private fun createActions(cs: CoroutineScope, vm: GiteaSubmitReviewViewModel): JComponent {
         fun verdictButton(bundleKey: String, verdict: GiteaReviewVerdict): JButton =
             JButton(GiteaBundle.message(bundleKey)).apply {
                 isOpaque = false
@@ -95,8 +183,7 @@ internal object GiteaSubmitReviewPopup : CodeReviewSubmitPopupHandler<GiteaSubmi
         }
     }
 
-    override fun createTitleActionsComponentIn(cs: CoroutineScope, vm: GiteaSubmitReviewViewModel): JComponent {
-        val close = super.createTitleActionsComponentIn(cs, vm)
+    private fun createTitleActions(cs: CoroutineScope, vm: GiteaSubmitReviewViewModel): JComponent {
         val discard = InlineIconButton(
             icon = CollaborationToolsIcons.Delete,
             hoveredIcon = CollaborationToolsIcons.DeleteHovered,
@@ -107,13 +194,20 @@ internal object GiteaSubmitReviewPopup : CodeReviewSubmitPopupHandler<GiteaSubmi
             bindVisibilityIn(cs, vm.draftCommentsCount.map { it > 0 })
             actionListener = ActionListener { vm.discard() }
         }
+        val close = InlineIconButton(
+            icon = AllIcons.Actions.Close,
+            hoveredIcon = AllIcons.Actions.CloseHovered,
+        ).apply {
+            border = JBUI.Borders.empty(5)
+            actionListener = ActionListener { vm.cancel() }
+        }
         return HorizontalListPanel(TITLE_ACTIONS_GAP).apply {
             add(discard)
             add(close)
         }
     }
 
-    override val errorPresenter: ErrorStatusPresenter<Throwable> by lazy {
+    private val errorPresenter: ErrorStatusPresenter<Throwable> by lazy {
         ErrorStatusPresenter.simpleHTML(
             CollaborationToolsBundle.message("review.submit.failed"),
             descriptionProvider = { it.localizedMessage },
