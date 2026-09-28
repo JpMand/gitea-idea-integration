@@ -51,7 +51,7 @@ import net.miginfocom.swing.MigLayout
  * Backs [GiteaSubmitReviewPopup]: a review body plus a verdict, submitted through
  * [GiteaPRDiscussionsViewModels.submit] (which finishes a pending review or sends the local
  * drafts as a new one). [onDone] closes the popup; it runs after a successful submission, a
- * discard, or a cancel.
+ * confirmed discard, or a cancel.
  */
 @Suppress("UnstableApiUsage")
 internal class GiteaSubmitReviewViewModel(
@@ -67,7 +67,10 @@ internal class GiteaSubmitReviewViewModel(
         discussionsVm.pendingReview.value?.let { MutableStateFlow(it.commentsCount).asStateFlow() }
             ?: discussionsVm.draftCommentsCount
 
-    override val text: MutableStateFlow<String> = MutableStateFlow(discussionsVm.pendingReview.value?.body.orEmpty())
+    /** Shared with every opening of the popup for this PR, so what was typed survives it closing. */
+    override val text: MutableStateFlow<String> = discussionsVm.submitReviewText.also {
+        if (it.value.isBlank()) it.value = discussionsVm.pendingReview.value?.body.orEmpty()
+    }
 
     override val isBusy: StateFlow<Boolean> get() = discussionsVm.isSubmittingReview
 
@@ -83,10 +86,10 @@ internal class GiteaSubmitReviewViewModel(
         discussionsVm.submit(verdict, text.value, onSuccess = onDone, onError = { _error.value = it })
     }
 
-    /** Asks for confirmation, then discards the drafts and any pending review. */
+    /** Asks for confirmation, then discards the drafts and any pending review. The popup may close
+     * while the confirmation has focus; declining keeps what was typed for its next opening. */
     fun discard() {
-        confirmAndCancelReview(project, discussionsVm)
-        onDone()
+        if (confirmAndCancelReview(project, discussionsVm)) onDone()
     }
 
     override fun cancel() = onDone()

@@ -104,6 +104,11 @@ class GiteaPRDiscussionsViewModels(
     private val _isSubmittingReview = MutableStateFlow(false)
     val isSubmittingReview: StateFlow<Boolean> = _isSubmittingReview.asStateFlow()
 
+    /** The body typed in the submit-review popup. Kept here, not in the popup, so closing the popup
+     * (e.g. when it loses focus) and opening it again doesn't lose it; cleared once the review is
+     * submitted or discarded. */
+    val submitReviewText: MutableStateFlow<String> = MutableStateFlow("")
+
     // ── Threads ───────────────────────────────────────────────────────────
 
     private val _reloadTrigger = MutableStateFlow(0)
@@ -343,6 +348,7 @@ class GiteaPRDiscussionsViewModels(
             try {
                 if (problemKey != null) throw IllegalArgumentException(GiteaBundle.message(problemKey))
                 send()
+                submitReviewText.value = ""
                 reloadAfterChange()
                 withContext(Dispatchers.Main) { onSuccess() }
             } catch (e: CancellationException) {
@@ -369,6 +375,7 @@ class GiteaPRDiscussionsViewModels(
             try {
                 if (pending != null) repository.deletePendingReview(prNumber, pending.id)
                 updateDrafts { emptyList() }
+                submitReviewText.value = ""
                 reloadAfterChange()
             } catch (e: CancellationException) {
                 throw e
