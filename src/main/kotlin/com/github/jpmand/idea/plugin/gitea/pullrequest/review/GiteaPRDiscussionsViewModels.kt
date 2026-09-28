@@ -52,9 +52,7 @@ class GiteaPRDiscussionsViewModels(
     private val project: Project,
     parentCs: CoroutineScope,
     private val prNumber: Int,
-    /** The PR's current head SHA — new reviews are anchored to it, and threads are checked
-     * against its file content to tell whether they're outdated. */
-    val headSha: String,
+    headSha: String,
     private val repository: GiteaPRRepository,
     /** Merged into [mentionCandidates] alongside repo collaborators — repo-wide collaborator
      * status isn't the only reason someone is mentionable on *this* PR specifically (e.g. a
@@ -65,6 +63,19 @@ class GiteaPRDiscussionsViewModels(
 ) : CodeReviewInEditorViewModel {
 
     private val settings: GiteaPullRequestsSettings get() = project.service()
+
+    /** The PR's current head SHA — new reviews are anchored to it, and threads are checked
+     * against its file content to tell whether they're outdated. See [updateHeadSha]. */
+    @Volatile
+    var headSha: String = headSha
+        private set
+
+    /** Follows a new head (e.g. after a push and a refresh): reloads the threads when it changed. */
+    fun updateHeadSha(sha: String) {
+        if (sha == headSha) return
+        headSha = sha
+        reload()
+    }
 
     /** The signed-in account's login — gates inline-comment edit/delete/reply controls to a
      * comment's own author, same as the Timeline's `currentUserLogin`. */
