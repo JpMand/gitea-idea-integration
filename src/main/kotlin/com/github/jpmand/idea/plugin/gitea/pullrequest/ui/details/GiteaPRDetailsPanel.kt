@@ -207,16 +207,16 @@ class GiteaPRDetailsPanel(
             }
         }
         val verdictButton = createSelectableOptionButton(
-            listOf(
+            listOfNotNull(
                 OptionSpec(GiteaBundle.message("pull.request.action.comment")) {
                     discussionsVm.submitReview(CreatePullReviewOptions.Event.COMMENT, textArea.text, onSuccess = { textArea.text = "" })
                 },
                 OptionSpec(GiteaBundle.message("pull.request.action.approve")) {
                     discussionsVm.submitReview(CreatePullReviewOptions.Event.APPROVED, textArea.text, onSuccess = { textArea.text = "" })
-                },
+                }.unlessAuthor(discussionsVm),
                 OptionSpec(GiteaBundle.message("pull.request.action.request.changes")) {
                     discussionsVm.submitReview(CreatePullReviewOptions.Event.REQUESTCHANGES, textArea.text, onSuccess = { textArea.text = "" })
-                },
+                }.unlessAuthor(discussionsVm),
                 OptionSpec(GiteaBundle.message("pull.request.review.save.pending")) {
                     discussionsVm.submitReview(CreatePullReviewOptions.Event.PENDING, textArea.text, onSuccess = { textArea.text = "" })
                 },
@@ -242,16 +242,16 @@ class GiteaPRDetailsPanel(
             addActionListener { confirmAndCancelReview(project, discussionsVm) }
         }
         val verdictButton = createSelectableOptionButton(
-            listOf(
+            listOfNotNull(
                 OptionSpec(GiteaBundle.message("pull.request.action.comment")) {
                     discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.COMMENT, textArea.text, onSuccess = { textArea.text = "" })
                 },
                 OptionSpec(GiteaBundle.message("pull.request.action.approve")) {
                     discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.APPROVED, textArea.text, onSuccess = { textArea.text = "" })
-                },
+                }.unlessAuthor(discussionsVm),
                 OptionSpec(GiteaBundle.message("pull.request.action.request.changes")) {
                     discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.REQUESTCHANGES, textArea.text, onSuccess = { textArea.text = "" })
-                },
+                }.unlessAuthor(discussionsVm),
             ),
         )
         val buttons = HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
@@ -265,6 +265,10 @@ class GiteaPRDetailsPanel(
             add(buttons)
         }
     }
+
+    /** Drops a verdict Gitea rejects from the PR's author (approving or requesting changes). */
+    private fun OptionSpec.unlessAuthor(discussionsVm: GiteaPRDiscussionsViewModels): OptionSpec? =
+        takeUnless { discussionsVm.viewerIsAuthor }
 
     private fun reviewTextArea(): JBTextArea = JBTextArea(3, 40).apply { lineWrap = true; wrapStyleWord = true }
 
