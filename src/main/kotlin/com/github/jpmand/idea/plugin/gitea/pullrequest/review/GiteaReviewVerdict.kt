@@ -20,8 +20,8 @@ enum class GiteaReviewVerdict(
  * [commentCount] inline comments, or null when it's acceptable. Gitea answers both cases with a
  * 422: "review event REQUEST_CHANGES requires a body", and an empty COMMENT review.
  */
-fun reviewSubmitProblem(verdict: GiteaReviewVerdict, body: String, commentCount: Int): String? = when {
-    verdict == GiteaReviewVerdict.REQUEST_CHANGES && body.isBlank() -> "pull.request.review.submit.error.request.changes.body"
-    verdict == GiteaReviewVerdict.COMMENT && body.isBlank() && commentCount == 0 -> "pull.request.review.submit.error.empty"
+fun reviewSubmitProblem(verdict: GiteaReviewVerdict, body: String, commentCount: Int): String? = when (verdict) {
+    GiteaReviewVerdict.REQUEST_CHANGES if body.isBlank() -> "pull.request.review.submit.error.request.changes.body"
+    GiteaReviewVerdict.COMMENT if body.isBlank() && commentCount == 0 -> "pull.request.review.submit.error.empty"
     else -> null
 }

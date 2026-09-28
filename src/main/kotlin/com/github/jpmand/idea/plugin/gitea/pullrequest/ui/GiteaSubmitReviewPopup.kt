@@ -15,18 +15,27 @@ import com.intellij.collaboration.ui.util.bindTextIn
 import com.intellij.collaboration.ui.util.bindVisibilityIn
 import com.intellij.collaboration.ui.util.popup.awaitClose
 import com.intellij.icons.AllIcons
+import com.intellij.ide.setToolTipText
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.editor.actions.IncrementalFindAction
 import com.intellij.openapi.fileTypes.FileTypes
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.openapi.util.text.HtmlChunk
 import com.intellij.ui.EditorTextField
 import com.intellij.ui.components.panels.HorizontalLayout
 import com.intellij.util.ui.InlineIconButton
 import com.intellij.util.ui.JBDimension
 import com.intellij.util.ui.JBUI
 import icons.CollaborationToolsIcons
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.withContext
+import net.miginfocom.layout.CC
+import net.miginfocom.layout.LC
+import net.miginfocom.swing.MigLayout
 import java.awt.Component
 import java.awt.Font
 import java.awt.event.ActionListener
@@ -34,18 +43,6 @@ import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.withContext
-import net.miginfocom.layout.CC
-import net.miginfocom.layout.LC
-import net.miginfocom.swing.MigLayout
 
 /**
  * Backs [GiteaSubmitReviewPopup]: a review body plus a verdict, submitted through
@@ -179,7 +176,7 @@ internal object GiteaSubmitReviewPopup {
             if (!vm.viewerIsAuthor) {
                 add(verdictButton("pull.request.action.approve", GiteaReviewVerdict.APPROVE))
                 add(verdictButton("pull.request.action.request.changes", GiteaReviewVerdict.REQUEST_CHANGES).apply {
-                    toolTipText = GiteaBundle.message("pull.request.review.submit.error.request.changes.body")
+                    setToolTipText(HtmlChunk.text(GiteaBundle.message("pull.request.review.submit.error.request.changes.body")))
                 })
             }
             add(verdictButton("pull.request.action.comment", GiteaReviewVerdict.COMMENT))

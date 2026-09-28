@@ -7,29 +7,19 @@ import com.intellij.collaboration.async.launchNow
 import com.intellij.collaboration.ui.codereview.diff.action.CodeReviewDiscussionsToggleAction
 import com.intellij.collaboration.ui.codereview.diff.model.CodeReviewDiscussionsViewModel
 import com.intellij.collaboration.ui.codereview.editor.ReviewInEditorUtil
-import com.intellij.ide.ActivityTracker
 import com.intellij.icons.AllIcons
-import com.intellij.openapi.actionSystem.ActionUpdateThread
-import com.intellij.openapi.actionSystem.AnAction
-import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.actionSystem.DataContext
-import com.intellij.openapi.actionSystem.PlatformDataKeys
+import com.intellij.ide.ActivityTracker
+import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.actionSystem.ex.CustomComponentAction
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.ex.EditorMarkupModel
 import com.intellij.openapi.project.Project
 import icons.CollaborationToolsIcons
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.launch
 
 /** Shared with [com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffExtension]'s own
  * retry loop around the sibling gutter-controls/inlay install — both are working around the same
@@ -132,5 +122,6 @@ fun discussionsViewOptionsAction(discussionsVm: GiteaPRDiscussionsViewModels): A
             templatePresentation.isPopupGroup = true
         }
 
+        @Suppress("UnstableApiUsage")
         override fun findViewModel(ctx: DataContext): CodeReviewDiscussionsViewModel = discussionsVm
     }
