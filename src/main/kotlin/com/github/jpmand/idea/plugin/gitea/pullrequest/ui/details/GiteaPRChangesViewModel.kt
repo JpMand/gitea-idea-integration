@@ -40,10 +40,6 @@ class GiteaPRChangesViewModel(
             if (idx == -1) null else commits.getOrNull(idx)
         }.shareIn(cs, SharingStarted.Eagerly, replay = 1)
 
-    init {
-        reload()
-    }
-
     /** (Re-)loads the PR's commits, e.g. after new ones were pushed. */
     fun reload() {
         cs.launch(Dispatchers.IO) {
