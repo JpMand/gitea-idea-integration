@@ -58,4 +58,14 @@ class GiteaJsonPullRequestTest {
     val withName = prs.first { it.number == 18L }
     assertEquals("Handika Aswara", withName.author.fullName)
   }
+
+  @Test
+  fun `diffs are based on the merge base, not the base branch tip`() {
+    val dto = FileReader(fixture()).use { reader ->
+      GiteaJsonDeSerializer.fromJson(reader, Array<PullRequest>::class.java)
+    }!!.first { it.number == 19L }
+    val pr = GiteaPullRequest.fromDto(dto)
+    assertEquals(dto.mergeBase, pr.diffBaseSha)
+    assertTrue(pr.diffBaseSha != pr.base.sha)
+  }
 }

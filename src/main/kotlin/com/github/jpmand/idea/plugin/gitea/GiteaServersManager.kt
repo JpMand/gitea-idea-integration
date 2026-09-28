@@ -24,12 +24,12 @@ internal class CachingGiteaServersManager(private val serviceCs: CoroutineScope)
     private val metadataCache = ConcurrentHashMap<GiteaServerPath, GiteaServerMetadata>()
     private val metadataCacheGuard = Mutex()
 
-    // 1.26 is the first release that exposes the PR review-comment resolve/unresolve endpoints
-    // (`POST /repos/{owner}/{repo}/pulls/comments/{id}/{,un}resolve`) that this plugin wires.
-    // Every other endpoint the plugin calls already exists in 1.25, and request/response schemas
-    // are identical from 1.26 through the dev spec the DTOs were generated against. Tested
-    // reference: 1.26.4.
-    override val earliestSupportedVersion: GiteaVersion = GiteaVersion(1, 26, 0)
+    // 1.27 is the first release that exposes the PR review-comment reply endpoint
+    // (`POST /repos/{owner}/{repo}/pulls/{index}/comments/{id}/replies`); 1.26 answers it with a
+    // 405, which left replying to review threads broken everywhere in the UI. Resolve/unresolve
+    // (1.26) and every other endpoint the plugin calls are also present in 1.27. Tested
+    // reference: 1.27.3.
+    override val earliestSupportedVersion: GiteaVersion = GiteaVersion(1, 27, 0)
 
     override suspend fun checkIsGiteaServer(server: GiteaServerPath): Boolean =
         testCache.getOrPut(server) {

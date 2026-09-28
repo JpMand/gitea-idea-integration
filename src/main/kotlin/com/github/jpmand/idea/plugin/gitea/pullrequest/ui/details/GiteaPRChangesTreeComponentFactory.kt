@@ -24,6 +24,8 @@ import com.intellij.util.ui.JBUI
 import com.intellij.vcsUtil.VcsUtil
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import java.io.File
@@ -33,7 +35,8 @@ import javax.swing.JComponent
  * Renders a PR's changed files as the platform [CodeReviewChangeListComponentFactory] tree
  * (`AsyncChangesTree`) — mirroring GitLab's `GitLabMergeRequestDetailsChangesComponentFactory`.
  * The tree reloads whenever [selectedCommitFlow] changes: `null` = the whole PR (base..head),
- * a specific commit = just that commit's files. Viewed checkboxes and directory grouping come
+ * a specific commit = just that commit's files. It also reloads when [prFlow] brings a new head
+ * or merge base. Viewed checkboxes and directory grouping come
  * from [GiteaPRChangesTreeViewModel]; opening a file goes through the existing REST diff via
  * [onOpenChange] (called with the repo-relative path).
  */
@@ -43,7 +46,7 @@ object GiteaPRChangesTreeComponentFactory {
     fun create(
         cs: CoroutineScope,
         project: Project,
-        pr: GiteaPullRequest,
+        prFlow: StateFlow<GiteaPullRequest>,
         repository: GiteaPRRepository,
         discussionsVm: GiteaPRDiscussionsViewModels,
         selectedCommitFlow: Flow<GiteaCommit?>,
@@ -52,7 +55,11 @@ object GiteaPRChangesTreeComponentFactory {
         val wrapper = Wrapper(LoadingLabel())
 
         cs.launch {
-            selectedCommitFlow.distinctUntilChangedBy { it?.sha }.collectLatest { selectedCommit ->
+            combine(
+                selectedCommitFlow.distinctUntilChangedBy { it?.sha },
+                prFlow.distinctUntilChangedBy { Triple(it.number, it.diffBaseSha, it.head.sha) },
+                ::Pair,
+            ).collectLatest { (selectedCommit, pr) ->
                 wrapper.setContent(LoadingLabel())
                 wrapper.repaint()
 
@@ -65,7 +72,7 @@ object GiteaPRChangesTreeComponentFactory {
                     if (files.isEmpty()) {
                         label(GiteaBundle.message("pull.request.details.changes.empty"))
                     } else {
-                        val beforeSha = selectedCommit?.firstParentSha ?: pr.base.sha
+                        val beforeSha = selectedCommit?.firstParentSha ?: pr.diffBaseSha
                         val afterSha = selectedCommit?.sha ?: pr.head.sha
                         val repoRoot = ProjectLevelVcsManager.getInstance(project).getAllVersionedRoots().firstOrNull()?.path
                         val before = Sha(beforeSha)

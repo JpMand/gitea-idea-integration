@@ -69,10 +69,6 @@ class GiteaPRTimelineItemComponentFactory(
     private val avatars: IconsProvider<GiteaUser>,
     /** Renders a body to sanitized HTML via the server; null on failure (keep the fallback). */
     private val renderMarkdown: suspend (String) -> String?,
-    /** The PR's current head SHA — a thread's anchor comment carrying a different
-     * [com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewComment.commitId] means the diff
-     * it was anchored to is no longer the latest one, i.e. it's "outdated" (GitHub's term). */
-    private val headSha: String,
     /** The signed-in account's login — gates the edit/delete controls to a comment's own author
      * (Gitea's API exposes no `viewerCanUpdate`-style flag, so this is a client-side check). */
     private val currentUserLogin: String,
@@ -278,12 +274,12 @@ class GiteaPRTimelineItemComponentFactory(
      * [com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewComment.diffHunk]) so the
      * comment doesn't require opening the diff viewer to understand — its own header already
      * shows the file path, so no separate file:line label is needed here — an "Outdated" badge
-     * when the anchor's [com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewComment.commitId]
-     * no longer matches [headSha], then the comments themselves.
+     * when [GiteaReviewThread.isOutdated] (the anchored line has changed since), then the comments
+     * themselves.
      */
     private fun threadPanel(cs: CoroutineScope, thread: GiteaReviewThread): JComponent {
         val anchor = thread.comments.firstOrNull()
-        val isOutdated = anchor?.commitId != null && anchor.commitId != headSha
+        val isOutdated = thread.isOutdated
 
         val commentsPanel = createThreadCommentsPanel(thread.comments) { c -> threadCommentRow(cs, c) }
         return VerticalListPanel(2).apply {

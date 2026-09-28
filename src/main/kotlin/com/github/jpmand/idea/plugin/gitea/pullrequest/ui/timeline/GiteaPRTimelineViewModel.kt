@@ -5,8 +5,10 @@ import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewComment
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.api.models.mentionCandidates
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
+import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRReviewChanges
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRSubmittableTextViewModel
 import com.intellij.collaboration.util.ComputedResult
+import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -26,17 +28,18 @@ import java.util.Date
 class GiteaPRTimelineViewModel(
     parentCs: CoroutineScope,
     private val project: Project,
-    val pr: GiteaPullRequest,
+    initialPr: GiteaPullRequest,
     private val repository: GiteaPRRepository,
 ) {
 
     private val cs = CoroutineScope(parentCs.coroutineContext + SupervisorJob(parentCs.coroutineContext[Job]))
 
-    val number: String = "#${pr.number}"
-    val title: String = pr.title
-    val descriptionMarkdown: String? = pr.body?.takeIf { it.isNotBlank() }
-    val author = pr.author
-    val createdAt: Date = pr.createdAt
+    private val prNumber: Int = initialPr.number.toInt()
+    val number: String = "#$prNumber"
+
+    /** The PR as of the last [reload] — its title, description and head move on while the tab is open. */
+    private val _pr = MutableStateFlow(initialPr)
+    val pr: StateFlow<GiteaPullRequest> = _pr.asStateFlow()
 
     /**
      * Posts a new top-level timeline comment and appends it to the already-loaded list, instead
@@ -44,7 +47,7 @@ class GiteaPRTimelineViewModel(
      * making every existing item disappear and reappear for a moment.
      */
     val newCommentVm = GiteaPRSubmittableTextViewModel(project, cs) { body ->
-        val comment = repository.createComment(pr.number.toInt(), body)
+        val comment = repository.createComment(prNumber, body)
         val currentList = _items.value?.result?.getOrNull()
         if (currentList != null) {
             _items.value = ComputedResult.success(currentList + comment)
@@ -70,16 +73,22 @@ class GiteaPRTimelineViewModel(
 
     init {
         reload()
+        // Threads resolved, replied to or reviewed from the diff or the editor.
+        cs.launch {
+            project.service<GiteaPRReviewChanges>().changes.collect { change ->
+                if (change.prNumber == prNumber && change.source !== this@GiteaPRTimelineViewModel) reload()
+            }
+        }
         cs.launch(Dispatchers.IO) {
             val collaborators = try {
                 repository.loadPossibleAuthors()
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                // Best-effort — a failed lookup still leaves pr.mentionCandidates() usable.
+                // Best-effort — a failed lookup still leaves the PR's own participants usable.
                 emptyList()
             }
-            _mentionCandidates.value = (collaborators + pr.mentionCandidates()).distinctBy { it.login }
+            _mentionCandidates.value = (collaborators + initialPr.mentionCandidates()).distinctBy { it.login }
         }
         cs.launch(Dispatchers.IO) {
             try {
@@ -103,7 +112,9 @@ class GiteaPRTimelineViewModel(
         loadJob = cs.launch(Dispatchers.IO) {
             if (_items.value == null) _items.value = ComputedResult.loading()
             try {
-                val items = repository.loadTimeline(pr.number.toInt()).toItemViewModels()
+                val pr = repository.loadPullRequest(prNumber)
+                _pr.value = pr
+                val items = repository.loadTimeline(prNumber, pr.head.sha).toItemViewModels()
                 _items.value = ComputedResult.success(items)
             } catch (e: CancellationException) {
                 throw e

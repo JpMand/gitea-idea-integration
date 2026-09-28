@@ -3,7 +3,9 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.editor
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaSuggestion
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRDiffEditorModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRLiveDiffSync
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.contentLineCount
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.intellij.diff.util.DiffDrawUtil
 import com.intellij.diff.util.Range
 import com.intellij.diff.util.Side
 import com.intellij.openapi.editor.Editor
@@ -48,7 +50,8 @@ fun CoroutineScope.installSuggestionGutterIcons(
     headContent: String,
     model: GiteaPRDiffEditorModel,
 ) {
-    val headLines = headContent.lines()
+    // Only the file's real lines: a trailing newline doesn't start another line on Gitea's side.
+    val headLines = headContent.lines().take(contentLineCount(headContent))
     var highlighters: List<RangeHighlighter> = emptyList()
 
     launch {
@@ -68,30 +71,43 @@ private fun addSuggestionGutterBar(
     model: GiteaPRDiffEditorModel,
 ): RangeHighlighter {
     val document = editor.document
-    val startOffset = document.getLineStartOffset(range.start2)
-    val endOffset = if (range.end2 < document.lineCount) document.getLineStartOffset(range.end2) else document.textLength
+    // Ends at the last edited line's end, not the next line's start: LINES_IN_RANGE would count
+    // that next line in too. Layered above the review controls, whose comment icons share the
+    // bar's gutter column, so a click on the bar reaches it first.
     val highlighter = editor.markupModel.addRangeHighlighter(
-        startOffset, endOffset, HighlighterLayer.ERROR + 1, null, HighlighterTargetArea.LINES_IN_RANGE,
+        document.getLineStartOffset(range.start2), document.getLineEndOffset(range.end2 - 1),
+        DiffDrawUtil.LST_LINE_MARKER_LAYER + 1, null, HighlighterTargetArea.LINES_IN_RANGE,
     )
-    highlighter.lineMarkerRenderer = SuggestionGutterBarRenderer {
-        // Coerced defensively: headLines comes from Kotlin's own String.lines() while
-        // range.start1/end1 come from the platform's Document-based diff Range — a mismatch at a
-        // trailing-newline boundary between the two line-splitting conventions would otherwise
-        // throw IndexOutOfBoundsException synchronously on the EDT from this click handler.
-        val start1 = range.start1.coerceIn(0, headLines.size)
-        val end1 = range.end1.coerceIn(start1, headLines.size)
-        val oldLines = headLines.subList(start1, end1)
+    highlighter.lineMarkerRenderer = SuggestionGutterBarRenderer(range.start2, range.end2) {
         val newLines = (range.start2 until range.end2).map { line ->
             document.getText(TextRange(document.getLineStartOffset(line), document.getLineEndOffset(line)))
         }
-        val suggestion = GiteaSuggestion(start1, oldLines, newLines)
-        // The range's before-side boundary (a real head-SHA line — always present, unlike any
-        // live line inside the edit itself) doubles as the comment's anchor: the last replaced
-        // line when there is one, otherwise the line right before a pure insertion.
-        val anchorLine = if (start1 < end1) end1 - 1 else (start1 - 1).coerceAtLeast(0)
+        val (anchorLine, suggestion) = suggestionForRange(range, headLines, newLines) ?: return@SuggestionGutterBarRenderer
         model.requestSuggestion(range.end2 - 1, Side.RIGHT, anchorLine, suggestion)
     }
     return highlighter
+}
+
+/**
+ * The suggestion for a local edit [range] whose live lines are now [newLines], and the 0-indexed
+ * head line to anchor its comment on — or null when the head file has no line to anchor on.
+ *
+ * The range's head side is clamped to [headLines], the file's real lines. The platform's diff also
+ * counts the empty "line" after a final newline, so an edit that appends lines at the end of the
+ * file reaches one line past the file — anchoring there makes Gitea fail the comment with a 500
+ * ("file has only N lines"). Clamped, appending becomes a pure insertion after the last line.
+ *
+ * The anchor is the range's head-side boundary (a real head-SHA line, unlike any live line inside
+ * the edit itself): the last replaced line when there is one, otherwise the line right before a
+ * pure insertion (or the first line, for an insertion at the very top).
+ */
+internal fun suggestionForRange(range: Range, headLines: List<String>, newLines: List<String>): Pair<Int, GiteaSuggestion>? {
+    if (headLines.isEmpty()) return null
+    val start1 = range.start1.coerceIn(0, headLines.size)
+    val end1 = range.end1.coerceIn(start1, headLines.size)
+    val suggestion = GiteaSuggestion(start1, headLines.subList(start1, end1), newLines)
+    val anchorLine = if (start1 < end1) end1 - 1 else (start1 - 1).coerceAtLeast(0)
+    return anchorLine to suggestion
 }
 
 private val SUGGESTION_BAR_COLOR: Color = JBColor(0x0E8577, 0x3FB6A8)
@@ -106,20 +122,47 @@ private const val BAR_WIDTH = 4
  * manual control of the paint rectangle: this renderer draws a fixed-width bar of its own, anchored
  * to [com.intellij.openapi.editor.ex.EditorGutterComponentEx.getIconAreaOffset] (both public,
  * stable getters) so it always lands inside the gutter's existing, already-nonzero line-marker
- * column — immediately beside IntelliJ's own native VCS change bar rather than overlapping it.
+ * column.
+ *
+ * The bar's height comes from the edited lines ([startLine] until [endLine]) themselves, like the
+ * native bar's: the rectangle the gutter passes in also spans block inlays around those lines —
+ * such as a review thread's — which would stretch the bar well past the edit.
  */
-private class SuggestionGutterBarRenderer(private val onClick: () -> Unit) : ActiveGutterRenderer, LineMarkerRendererEx {
+private class SuggestionGutterBarRenderer(
+    private val startLine: Int,
+    private val endLine: Int,
+    private val onClick: () -> Unit,
+) : ActiveGutterRenderer, LineMarkerRendererEx {
     override fun getPosition(): LineMarkerRendererEx.Position = LineMarkerRendererEx.Position.CUSTOM
 
     override fun paint(editor: Editor, g: Graphics, r: Rectangle) {
+        val bar = barArea(editor) ?: return
+        g.color = SUGGESTION_BAR_COLOR
+        g.fillRect(bar.x, bar.y, bar.width, bar.height)
+    }
+
+    private fun barArea(editor: Editor): Rectangle? {
+        val document = editor.document
+        if (startLine >= endLine || endLine > document.lineCount) return null
         val gutter = (editor as EditorEx).gutterComponentEx
         val barWidth = JBUIScale.scale(BAR_WIDTH)
         val x = (gutter.iconAreaOffset - barWidth).coerceAtLeast(gutter.lineMarkerAreaOffset)
-        g.color = SUGGESTION_BAR_COLOR
-        g.fillRect(x, r.y, barWidth, r.height)
+        val top = editor.visualLineToY(editor.offsetToVisualLine(document.getLineStartOffset(startLine), false))
+        val lastVisualLine = editor.offsetToVisualLine(document.getLineEndOffset(endLine - 1), false)
+        val bottom = editor.visualLineToY(lastVisualLine) + editor.lineHeight
+        return Rectangle(x, top, barWidth, bottom - top)
     }
 
     override fun getTooltipText(): String = GiteaBundle.message("pull.request.action.create.suggestion")
-    override fun canDoAction(editor: Editor, e: MouseEvent): Boolean = true
-    override fun doAction(editor: Editor, e: MouseEvent) = onClick()
+
+    // Only the bar itself: not the inlays the gutter's hit area also spans, nor a thread's comment
+    // icon next to it on the same line.
+    override fun canDoAction(editor: Editor, e: MouseEvent): Boolean =
+        barArea(editor)?.contains(e.point) ?: false
+
+    override fun doAction(editor: Editor, e: MouseEvent) {
+        onClick()
+        // Otherwise the gutter also treats the click as its own, and toggles a breakpoint.
+        e.consume()
+    }
 }

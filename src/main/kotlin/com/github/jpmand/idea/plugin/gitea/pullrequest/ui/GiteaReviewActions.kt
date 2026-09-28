@@ -8,9 +8,10 @@ import com.intellij.openapi.ui.MessageDialogBuilder
 /**
  * Confirms with the user, then cancels the review-in-progress via
  * [GiteaPRDiscussionsViewModels.cancelReview] — shared by the Details tab's review composer and
- * the diff editor's toolbar popup so both surfaces ask the same question.
+ * the diff editor's toolbar popup so both surfaces ask the same question. Returns whether the
+ * user confirmed.
  */
-fun confirmAndCancelReview(project: Project, discussionsVm: GiteaPRDiscussionsViewModels) {
+fun confirmAndCancelReview(project: Project, discussionsVm: GiteaPRDiscussionsViewModels): Boolean {
     val confirmed = MessageDialogBuilder.yesNo(
         GiteaBundle.message("pull.request.action.cancel.review.confirm.title"),
         GiteaBundle.message("pull.request.action.cancel.review.confirm.message"),
@@ -19,4 +20,5 @@ fun confirmAndCancelReview(project: Project, discussionsVm: GiteaPRDiscussionsVi
         .yesText(GiteaBundle.message("pull.request.action.cancel.review"))
         .ask(project)
     if (confirmed) discussionsVm.cancelReview()
+    return confirmed
 }

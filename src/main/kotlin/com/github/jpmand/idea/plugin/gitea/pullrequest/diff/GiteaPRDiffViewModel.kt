@@ -12,17 +12,26 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * The PR's changed files for the diff viewer, compared from [GiteaPullRequest.diffBaseSha] to the
+ * head. Reloads whenever [prFlow] brings a new head or merge base (e.g. after a push and a
+ * refresh), keeping the selected file when it's still part of the PR.
+ */
 @Suppress("UnstableApiUsage")
 class GiteaPRDiffViewModel(
     parentCs: CoroutineScope,
     private val project: Project,
-    private val pr: GiteaPullRequest,
+    prFlow: StateFlow<GiteaPullRequest>,
     private val repository: GiteaPRRepository,
 ) : CodeReviewDiffProcessorViewModel<GiteaPRDiffFileViewModel> {
 
@@ -34,22 +43,30 @@ class GiteaPRDiffViewModel(
         _changesState.asStateFlow()
 
     init {
-        cs.launch(Dispatchers.IO) {
-            _changesState.value = ComputedResult.loading()
-            try {
-                val files = repository.loadChangedFiles(pr.number.toInt())
-                val fileVms = files.map { file ->
-                    GiteaPRDiffFileViewModel(cs, project, repository, file, pr.base.sha, pr.head.sha)
+        cs.launch {
+            prFlow.distinctUntilChangedBy { Triple(it.number, it.diffBaseSha, it.head.sha) }.collectLatest { pr ->
+                // The file view models of the previous load live only as long as it does.
+                coroutineScope {
+                    val previous = _changesState.value?.result?.getOrNull()?.selectedChanges
+                    _changesState.value = ComputedResult.loading()
+                    try {
+                        val files = withContext(Dispatchers.IO) { repository.loadChangedFiles(pr.number.toInt()) }
+                        val fileVms = files.map { file ->
+                            GiteaPRDiffFileViewModel(this, project, repository, file, pr.diffBaseSha, pr.head.sha)
+                        }
+                        val previousName = previous?.let { it.list.getOrNull(it.selectedIndex)?.file?.filename }
+                        val selected = fileVms.indexOfFirst { it.file.filename == previousName }
+                            .takeIf { it >= 0 } ?: if (fileVms.isEmpty()) -1 else 0
+                        withContext(Dispatchers.Main) {
+                            _changesState.value = ComputedResult.success(SimpleState(ListSelection.createAt(fileVms, selected)))
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        _changesState.value = ComputedResult.failure(e)
+                    }
+                    awaitCancellation()
                 }
-                withContext(Dispatchers.Main) {
-                    _changesState.value = ComputedResult.success(
-                        SimpleState(ListSelection.createAt(fileVms, if (fileVms.isEmpty()) -1 else 0))
-                    )
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _changesState.value = ComputedResult.failure(e)
             }
         }
     }

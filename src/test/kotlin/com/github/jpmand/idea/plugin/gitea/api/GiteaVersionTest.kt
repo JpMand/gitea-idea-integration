@@ -1,5 +1,8 @@
 package com.github.jpmand.idea.plugin.gitea.api
 
+import com.github.jpmand.idea.plugin.gitea.CachingGiteaServersManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -7,7 +10,7 @@ import org.junit.Test
 
 class GiteaVersionTest {
 
-  private val floor = GiteaVersion(1, 26, 0)
+  private val floor = CachingGiteaServersManager(CoroutineScope(Dispatchers.Default)).earliestSupportedVersion
 
   @Test
   fun `parses plain release`() {
@@ -31,12 +34,12 @@ class GiteaVersionTest {
 
   @Test
   fun `parses release candidate with hyphen`() {
-    val v = GiteaVersion.fromString("1.26.0-rc0")
+    val v = GiteaVersion.fromString("1.27.0-rc0")
     assertEquals(1, v.major)
-    assertEquals(26, v.minor)
+    assertEquals(27, v.minor)
     assertEquals(0, v.patch)
     assertEquals("rc0", v.metadata)
-    // 1.26.0-rc0 is treated as 1.26.0 -> not below the floor
+    // 1.27.0-rc0 is treated as 1.27.0 -> not below the floor
     assertTrue(v >= floor)
   }
 
@@ -99,8 +102,10 @@ class GiteaVersionTest {
   fun `floor comparison across candidate versions`() {
     assertTrue(GiteaVersion.fromString("1.24.0") < floor)
     assertTrue(GiteaVersion.fromString("1.25.5") < floor)
-    assertTrue(GiteaVersion.fromString("1.26.0") >= floor)
-    assertTrue(GiteaVersion.fromString("1.26.4") >= floor)
+    // 1.26 lacks the review-comment reply endpoint
+    assertTrue(GiteaVersion.fromString("1.26.0") < floor)
+    assertTrue(GiteaVersion.fromString("1.26.4") < floor)
+    assertTrue(GiteaVersion.fromString("1.27.0") >= floor)
     assertTrue(GiteaVersion.fromString("1.27.3") >= floor)
     assertTrue(GiteaVersion.fromString("2.0.0") >= floor)
   }

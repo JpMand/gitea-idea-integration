@@ -2,6 +2,8 @@ package com.github.jpmand.idea.plugin.gitea.authentication.ui
 
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApi
+import com.github.jpmand.idea.plugin.gitea.api.GiteaHttpError
+import com.github.jpmand.idea.plugin.gitea.api.giteaApiCall
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.api.rest.currentUser
 import com.github.jpmand.idea.plugin.gitea.api.rest.loadImage
@@ -44,9 +46,11 @@ class GiteaAccountsDetailsProvider(
     try {
       val api = apiSupplier(account) ?: return Result.Error(GiteaBundle.message("account.token.missing"), true)
       val details = runCatchingUser {
-        api.currentUser()
+        giteaApiCall { api.currentUser() }
       }.getOrElse {
-        return Result.Error(it.localizedMessage, false)
+        // An invalid or expired token gets the panel's "Log In" link, so it can be replaced
+        // without removing and re-adding the account.
+        return Result.Error(it.localizedMessage, it is GiteaHttpError.Unauthorized)
       }
       return Result.Success(details)
     } catch (ce: CancellationException) {

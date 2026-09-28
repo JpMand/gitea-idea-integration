@@ -24,6 +24,9 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 class GiteaPRLiveDiffSync(cs: CoroutineScope, headContent: String, document: Document) {
 
+    /** Head lines as Gitea counts them — see [contentLineCount]. */
+    private val headLineCount = contentLineCount(headContent)
+
     private val _ranges = MutableStateFlow<List<Range>>(emptyList())
     val ranges: StateFlow<List<Range>> = _ranges.asStateFlow()
 
@@ -43,6 +46,16 @@ class GiteaPRLiveDiffSync(cs: CoroutineScope, headContent: String, document: Doc
      * live line has no exact counterpart in the head snapshot (e.g. a line the user just typed),
      * which is deliberately treated as "not a safe place to anchor a new comment", not
      * approximated, since a wrong anchor would silently land a comment on the wrong server-side
-     * line with no visible symptom in the editor. */
-    fun liveToAnchor(liveLineZeroIndexed: Int): Int? = ReviewInEditorUtil.transferLineFromAfter(ranges.value, liveLineZeroIndexed)
+     * line with no visible symptom in the editor. The empty "line" after a final newline has no
+     * counterpart either: Gitea fails a comment there with a 500. */
+    fun liveToAnchor(liveLineZeroIndexed: Int): Int? =
+        ReviewInEditorUtil.transferLineFromAfter(ranges.value, liveLineZeroIndexed)?.takeIf { it < headLineCount }
 }
+
+/**
+ * The number of lines in [content] as Git counts them: a final newline ends the last line rather
+ * than starting an empty one, unlike [String.lines] and an editor [Document], which both count
+ * that empty "line".
+ */
+internal fun contentLineCount(content: String): Int =
+    if (content.isEmpty()) 0 else content.lines().size - (if (content.endsWith('\n')) 1 else 0)

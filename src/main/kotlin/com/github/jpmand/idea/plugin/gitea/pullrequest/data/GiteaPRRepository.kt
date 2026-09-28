@@ -42,7 +42,7 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     suspend fun loadPullRequests(
         state: String? = "open",
         sort: GiteaPullRequestSortEnum? = null,
-        labels: List<String>? = null,
+        labels: List<Long>? = null,
         poster: String? = null,
         page: Int? = null,
         limit: Int? = null,
@@ -64,7 +64,7 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
      */
     suspend fun loadPossibleAuthors(): List<GiteaUser> = giteaApiCall {
         try {
-            ctx.api.repoListCollaborators(owner, repo, page = null, limit = 100).map { GiteaUser.fromDto(it) }
+            loadAllCollaborators()
         } catch (e: HttpStatusErrorException) {
             if (e.statusCode == 403) emptyList() else throw e
         }
@@ -111,16 +111,22 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
             if (users.isNotEmpty()) return@giteaApiCall users
         }
         try {
-            ctx.api.repoListCollaborators(owner, repo, page = null, limit = 100).map { GiteaUser.fromDto(it) }
+            loadAllCollaborators()
         } catch (e: HttpStatusErrorException) {
             if (e.statusCode == 403) emptyList() else throw e
         }
     }
 
+    /** Every page — the server caps a page at 50, whatever `limit` asks for. */
+    private suspend fun loadAllCollaborators(): List<GiteaUser> =
+        loadAllGiteaPages { page -> ctx.api.repoListCollaborators(owner, repo, page = page, limit = GITEA_PAGE_SIZE) }
+            .map { GiteaUser.fromDto(it) }
+
     // ── Reviews & Comments ────────────────────────────────────────────────
 
     suspend fun loadReviews(prNumber: Int): List<GiteaReview> = giteaApiCall {
-        ctx.api.repoListPullRequestReviews(owner, repo, prNumber).map { GiteaReview.fromDto(it) }
+        loadAllGiteaPages { page -> ctx.api.repoListPullRequestReviews(owner, repo, prNumber, page = page, limit = GITEA_PAGE_SIZE) }
+            .map { GiteaReview.fromDto(it) }
     }
 
     suspend fun loadReviewComments(prNumber: Int, reviewId: Long): List<GiteaReviewComment> = giteaApiCall {
@@ -129,25 +135,51 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     }
 
     /** Convenience: load comments from all reviews in one call. */
-    suspend fun loadAllReviewComments(prNumber: Int): List<GiteaReviewComment> =
-        loadReviews(prNumber).flatMap { review -> loadReviewComments(prNumber, review.id) }
+    suspend fun loadAllReviewComments(prNumber: Int, reviews: List<GiteaReview>? = null): List<GiteaReviewComment> =
+        (reviews ?: loadReviews(prNumber)).flatMap { review -> loadReviewComments(prNumber, review.id) }
 
-    /** Groups all review comments for a PR into synthetic [GiteaReviewThread]s. */
-    suspend fun loadThreads(prNumber: Int): List<GiteaReviewThread> =
-        loadAllReviewComments(prNumber).toThreads()
+    /** Groups all review comments for a PR into synthetic [GiteaReviewThread]s, with
+     * [GiteaReviewThread.isOutdated] computed against the file content at [headSha]. */
+    suspend fun loadThreads(prNumber: Int, headSha: String): List<GiteaReviewThread> {
+        val reviews = loadReviews(prNumber)
+        return markOutdated(loadAllReviewComments(prNumber, reviews).toThreads(), reviews, headSha, mutableMapOf())
+    }
+
+    /**
+     * Sets [GiteaReviewThread.isOutdated] on [threads]. Only threads whose anchor comment belongs to
+     * a review Gitea reports as `stale` (made against an older head) can be outdated, so the head
+     * file content is fetched just for those paths, once each via [headLinesCache].
+     */
+    private suspend fun markOutdated(
+        threads: List<GiteaReviewThread>,
+        reviews: List<GiteaReview>,
+        headSha: String,
+        headLinesCache: MutableMap<String, List<String>>,
+    ): List<GiteaReviewThread> {
+        val staleReviewIds = reviews.filter { it.stale }.mapTo(HashSet()) { it.id }
+        return threads.map { thread ->
+            val anchor = thread.comments.firstOrNull()
+            val path = thread.path
+            if (anchor == null || path == null || anchor.reviewId !in staleReviewIds) return@map thread
+            val headLines = headLinesCache[path] ?: loadFileContent(path, headSha).lines().also { headLinesCache[path] = it }
+            thread.copy(isOutdated = isAnchorOutdated(anchor, headLines))
+        }
+    }
 
     /**
      * The PR's full activity timeline (Conversation): comments, commits, submitted reviews (with
      * their inline threads), and metadata events, in chronological order.
      */
-    suspend fun loadTimeline(prNumber: Int): List<GiteaTimelineItem> {
+    suspend fun loadTimeline(prNumber: Int, headSha: String): List<GiteaTimelineItem> {
         val timeline = loadAllGiteaPages { page ->
             ctx.api.issueListTimeline(owner, repo, prNumber, page = page, limit = GITEA_PAGE_SIZE)
         }
-        val reviewsById = loadReviews(prNumber).associateBy { it.id }
-        val threadsByReviewId = loadAllReviewComments(prNumber)
+        val reviews = loadReviews(prNumber)
+        val reviewsById = reviews.associateBy { it.id }
+        val headLinesCache = mutableMapOf<String, List<String>>()
+        val threadsByReviewId = loadAllReviewComments(prNumber, reviews)
             .groupBy { it.reviewId ?: 0L }
-            .mapValues { (_, comments) -> comments.toThreads() }
+            .mapValues { (_, comments) -> markOutdated(comments.toThreads(), reviews, headSha, headLinesCache) }
         val commits = loadCommits(prNumber)
         return mergeTimeline(timeline, reviewsById, threadsByReviewId, commits)
     }
@@ -176,8 +208,11 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     }
 
     /** The signed-in account's own not-yet-submitted review for this PR, if any. */
-    suspend fun findMyPendingReview(prNumber: Int): GiteaReview? =
-        loadReviews(prNumber).firstOrNull { it.state == GiteaReviewState.PENDING && it.author?.login == ctx.account.name }
+    suspend fun findMyPendingReview(prNumber: Int): GiteaReview? = findMyPendingReviews(prNumber).firstOrNull()
+
+    /** All of the signed-in user's pending reviews on the PR (normally at most one). */
+    suspend fun findMyPendingReviews(prNumber: Int): List<GiteaReview> =
+        loadReviews(prNumber).filter { it.state == GiteaReviewState.PENDING && it.author?.login == ctx.account.name }
 
     /** Posts a new top-level (non-inline) timeline comment. */
     suspend fun createComment(prNumber: Int, body: String): GiteaPRTimelineItemViewModel.Comment = giteaApiCall {

@@ -34,6 +34,10 @@ class GiteaServerPath(useHttp: Boolean?, host: String, port: Int?, path: String?
   private val defaultPort: Int
     get() = if (myUseHttp) 80 else 443
 
+  /** The port in use: the explicit one, or the scheme's default when none is given. */
+  private val effectivePort: Int
+    get() = if (myPort > 0) myPort else defaultPort
+
   /** The explicitly-specified non-default port, or null when the scheme default is in effect. */
   private val explicitPort: Int?
     get() = myPort.takeIf { it > 0 && it != defaultPort }
@@ -103,19 +107,23 @@ class GiteaServerPath(useHttp: Boolean?, host: String, port: Int?, path: String?
   override fun equals(other: Any?): Boolean = equals(other, ignoreProtocol = false)
 
   /**
-   * Compares host (case-insensitive), effective port and context path. A missing port and the
-   * scheme's default port (443/80) are treated as equal, and a trailing `/` on the path is
-   * ignored. With [ignoreProtocol] the `http`/`https` scheme is not compared.
+   * Compares host (case-insensitive), port and context path. A missing port means the scheme's
+   * default port (443/80), and a trailing `/` on the path is ignored.
+   *
+   * With [ignoreProtocol] the `http`/`https` scheme is not compared: the same host is the same
+   * server whichever scheme reached it. Ports are then compared as the ports actually in use (a
+   * missing one is its scheme's default), except that two servers both on their own scheme's
+   * default port are the same too — `http://host` and `https://host` are one server, while
+   * `http://host:3000` only matches another `:3000`.
    */
   fun equals(other: Any?, ignoreProtocol: Boolean): Boolean {
     if (this === other) return true
     if (other !is GiteaServerPath) return false
-    if (!ignoreProtocol && myUseHttp != other.myUseHttp) return false
-    if (explicitPort != other.explicitPort) return false
     if (!myHost.equals(other.myHost, ignoreCase = true)) return false
     if (normalizedPath != other.normalizedPath) return false
-
-    return true
+    if (!ignoreProtocol) return myUseHttp == other.myUseHttp && explicitPort == other.explicitPort
+    val bothOnDefaultPort = explicitPort == null && other.explicitPort == null
+    return bothOnDefaultPort || effectivePort == other.effectivePort
   }
 
   override fun hashCode(): Int {

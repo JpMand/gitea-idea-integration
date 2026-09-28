@@ -95,18 +95,24 @@ class GiteaPRStatusViewModel(
         cs.launch { _showJobsDetailsRequests.emit(_ciJobs.value) }
     }
 
-    private fun GiteaCommitStatus.toCiJob(): CodeReviewCIJob = CodeReviewCIJob(
-        name = context ?: description ?: "check",
-        status = when (status) {
+    private fun GiteaCommitStatus.toCiJob(): CodeReviewCIJob {
+        val state = when (status) {
             GiteaCommitStatusState.PENDING, GiteaCommitStatusState.WARNING -> CodeReviewCIJobState.PENDING
             GiteaCommitStatusState.SUCCESS -> CodeReviewCIJobState.SUCCESS
             GiteaCommitStatusState.ERROR, GiteaCommitStatusState.FAILURE -> CodeReviewCIJobState.FAILED
             GiteaCommitStatusState.SKIPPED -> CodeReviewCIJobState.SKIPPED
             GiteaCommitStatusState.UNKNOWN -> CodeReviewCIJobState.PENDING
-        },
-        isRequired = false, // Gitea's commit-status API doesn't expose branch-protection "required" flags
-        detailsUrl = targetUrl ?: initialPr.htmlUrl,
-    )
+        }
+        return CodeReviewCIJob(
+            name = context ?: description ?: "check",
+            status = state,
+            // Gitea's commit-status API doesn't say which checks branch protection requires, so
+            // every non-skipped check counts (as the GitLab plugin does). With none required, the
+            // platform reports "All required checks have passed" even while checks are pending.
+            isRequired = state != CodeReviewCIJobState.SKIPPED,
+            detailsUrl = targetUrl ?: initialPr.htmlUrl,
+        )
+    }
 
     private fun GiteaPRReviewerState.toReviewState(): ReviewState = when (this) {
         GiteaPRReviewerState.APPROVED -> ReviewState.ACCEPTED

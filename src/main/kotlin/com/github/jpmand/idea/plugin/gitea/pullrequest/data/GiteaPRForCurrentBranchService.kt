@@ -1,6 +1,8 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.data
 
 import com.github.jpmand.idea.plugin.gitea.GiteaRepositoriesManager
+import com.github.jpmand.idea.plugin.gitea.api.GITEA_PAGE_SIZE
+import com.github.jpmand.idea.plugin.gitea.api.loadAllGiteaPages
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.models.mentionCandidates
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
@@ -92,7 +94,10 @@ class GiteaPRForCurrentBranchService(private val project: Project, private val c
         }
         val repository = GiteaPRRepository(ctx)
         val pr = try {
-            repository.loadPullRequests(state = "open").filter { it.head.ref == branch }.maxByOrNull { it.updatedAt }
+            // Every page: a branch's PR can be older than the newest page's worth of open PRs.
+            loadAllGiteaPages { page -> repository.loadPullRequests(state = "open", page = page, limit = GITEA_PAGE_SIZE) }
+                .filter { it.head.ref == branch }
+                .maxByOrNull { it.updatedAt }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -114,7 +119,7 @@ class GiteaPRForCurrentBranchService(private val project: Project, private val c
 
         val prJob = SupervisorJob(cs.coroutineContext[Job])
         val prCs = CoroutineScope(cs.coroutineContext + prJob)
-        val discussionsVm = GiteaPRDiscussionsViewModels(project, prCs, pr.number.toInt(), pr.head.sha, repository, pr.mentionCandidates())
+        val discussionsVm = GiteaPRDiscussionsViewModels(project, prCs, pr.number.toInt(), pr.head.sha, repository, pr.mentionCandidates(), pr.author.login)
         setCurrent(GiteaPRForCurrentBranch(ctx, pr, repository, discussionsVm, changedFiles, repositoryRoot), prJob)
     }
 

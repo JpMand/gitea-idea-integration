@@ -192,4 +192,25 @@ class GiteaServerPathTest {
     assertNull(GiteaServerPath.fromOrNull("not a url"))
     assertNull(GiteaServerPath.fromOrNull("https://"))
   }
+
+  @Test
+  fun `ignoreProtocol matches a portless remote to a server on the scheme's default port`() {
+    val portless = GiteaServerPath.from("https://gitea.example.com")
+    assertTrue(portless.equals(GiteaServerPath.from("https://gitea.example.com:443"), ignoreProtocol = true))
+    assertTrue(portless.equals(GiteaServerPath.from("http://gitea.example.com:443"), ignoreProtocol = true))
+    assertFalse(portless.equals(GiteaServerPath.from("https://gitea.example.com:3000"), ignoreProtocol = true))
+  }
+
+  @Test
+  fun `ignoreProtocol matches the same explicit port across schemes`() {
+    val http = GiteaServerPath.from("http://gitea.example.com:3000")
+    assertTrue(http.equals(GiteaServerPath.from("https://gitea.example.com:3000"), ignoreProtocol = true))
+    assertFalse(http.equals(GiteaServerPath.from("http://gitea.example.com:3001"), ignoreProtocol = true))
+  }
+
+  @Test
+  fun `ignoreProtocol still compares the context path`() {
+    val root = GiteaServerPath.from("http://gitea.example.com")
+    assertFalse(root.equals(GiteaServerPath.from("https://gitea.example.com/gitea"), ignoreProtocol = true))
+  }
 }

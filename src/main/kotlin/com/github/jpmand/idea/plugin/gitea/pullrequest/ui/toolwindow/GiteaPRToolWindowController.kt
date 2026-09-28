@@ -2,7 +2,9 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
+import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager
 import com.github.jpmand.idea.plugin.gitea.data.GiteaImageLoader
+import com.github.jpmand.idea.plugin.gitea.exception.GiteaHttpStatusErrorAction
 import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPRTimelineVirtualFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContext
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContextHolder
@@ -90,10 +92,9 @@ class GiteaPRToolWindowController(
                 closeAllTimelineEditors()
                 showEmptyState()
             }
-            ctx.repo == currentCtx?.repo && ctx.account == currentCtx?.account -> {
-                // Same repo/account (e.g. token refresh) — keep the open tabs as they are.
-                currentCtx = ctx
-            }
+            // GiteaPRDataContextHolder keeps the same context unless the account, repository or
+            // token changed, so anything new needs rebuilding: open tabs hold the old API client.
+            ctx === currentCtx -> Unit
             else -> {
                 closeAllDetailTabs()
                 closeAllTimelineEditors()
@@ -122,8 +123,11 @@ class GiteaPRToolWindowController(
             CachingIconsProvider(AsyncImageIconsProvider<GiteaUser>(panelCs, GiteaImageLoader(ctx.api)))
         val listPanel = GiteaPRListPanel(
             panelCs, listVm, avatarIconsProvider,
+            repositoryName = ctx.repo.repositoryPath.toString(),
             repositoryWebUrl = ctx.repo.getWebURI().toString(),
             onPROpenRequested = { pr -> openPullRequest(ctx, repository, pr) },
+            // In the controller's scope: saving the new token rebuilds this list, cancelling panelCs.
+            logInAgain = GiteaHttpStatusErrorAction.LogInAgain(project, cs, ctx.account, service<GiteaAccountManager>()),
         ).create()
 
         val content = cm.factory.createContent(

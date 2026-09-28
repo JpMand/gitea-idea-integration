@@ -80,7 +80,9 @@ class GiteaPRDetailsViewModel(
     private val _error = MutableStateFlow<Throwable?>(null)
     val error: StateFlow<Throwable?> = _error.asStateFlow()
 
+    /** Re-fetches the PR and its commits. */
     fun refresh() {
+        changesVm.reload()
         cs.launch(Dispatchers.IO) {
             _isLoading.value = true
             _error.value = null
@@ -110,7 +112,7 @@ class GiteaPRDetailsViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                notifyError(errorKey)
+                notifyError(errorKey, e)
             } finally {
                 withContext(NonCancellable) { _isActionInProgress.value = false }
             }
@@ -137,7 +139,7 @@ class GiteaPRDetailsViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                notifyError("pull.request.action.ready.for.review.error")
+                notifyError("pull.request.action.ready.for.review.error", e)
             } finally {
                 withContext(NonCancellable) { _isActionInProgress.value = false }
             }
@@ -155,7 +157,7 @@ class GiteaPRDetailsViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                notifyError("pull.request.action.merge.error")
+                notifyError("pull.request.action.merge.error", e)
             } finally {
                 withContext(NonCancellable) { _isActionInProgress.value = false }
             }
@@ -164,12 +166,18 @@ class GiteaPRDetailsViewModel(
 
     // ── Request review ───────────────────────────────────────────────────
 
-    val currentlyRequestedReviewers: List<GiteaUser> get() = _pr.value.requestedReviewers
+    /** Requested reviewers as the picker shows them — without the author, whom Gitea also lists
+     * here once they've commented in a review, but who can't be requested (see [loadPossibleReviewers]). */
+    val currentlyRequestedReviewers: List<GiteaUser>
+        get() = _pr.value.requestedReviewers.filterNot { it.login.equals(_pr.value.author.login, ignoreCase = true) }
 
     /** Candidate reviewers for the Request Review picker — collaborators, or every user on the
      * instance, per the signed-in account's "list all users" setting. */
+    /** Everyone who can be asked for a review, except the PR's author (Gitea rejects that with
+     * "poster of pr can't be reviewer", failing the whole update). */
     suspend fun loadPossibleReviewers(): List<GiteaUser> =
         repository.loadPossibleReviewers(GiteaSettings.getInstance().isListAllUsersAsReviewer(repository.accountId))
+            .filterNot { it.login.equals(_pr.value.author.login, ignoreCase = true) }
 
     /**
      * Applies a reviewer picker's [delta] (add/remove requested reviewers) and reloads the PR —
@@ -186,20 +194,28 @@ class GiteaPRDetailsViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                notifyError("pull.request.action.request.review.error")
+                notifyError("pull.request.action.request.review.error", e)
             } finally {
                 withContext(NonCancellable) { _isActionInProgress.value = false }
             }
         }
     }
 
-    private suspend fun notifyError(bundleKey: String) {
+    /** An error notification titled by [bundleKey], with [cause]'s message (Gitea's own, for API
+     * failures) as its text. */
+    private suspend fun notifyError(bundleKey: String, cause: Throwable? = null) {
         withContext(Dispatchers.Main) {
             NotificationGroupManager.getInstance()
                 .getNotificationGroup("Gitea")
-                .createNotification(GiteaBundle.message(bundleKey), NotificationType.ERROR)
+                .createNotification(GiteaBundle.message(bundleKey), cause?.localizedMessage.orEmpty(), NotificationType.ERROR)
                 .notify(project)
         }
+    }
+
+    init {
+        // The PR handed in usually comes from the list, which may be older than what's on the
+        // server now (e.g. a conflict fixed by a push), so show it and fetch a fresh copy.
+        refresh()
     }
 
     private companion object {

@@ -15,6 +15,7 @@ import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import java.awt.BorderLayout
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -35,12 +36,15 @@ class GiteaPRDetailsTab(
 
     private val detailsVm = GiteaPRDetailsViewModel(project, cs, pr, repository)
     private val statusVm = GiteaPRStatusViewModel(cs, detailsVm.prFlow, detailsVm.branchesVm.localMergeabilityState, repository)
-    private val diffVm = GiteaPRDiffViewModel(cs, project, pr, repository)
-    private val discussionsVm = GiteaPRDiscussionsViewModels(project, cs, pr.number.toInt(), pr.head.sha, repository, pr.mentionCandidates())
+    // The diff, the review threads and the changes tree follow the refreshed PR (detailsVm.prFlow),
+    // so a push shows up in all of them, not just in the header and commit list.
+    private val diffVm = GiteaPRDiffViewModel(cs, project, detailsVm.prFlow, repository)
+    private val discussionsVm = GiteaPRDiscussionsViewModels(project, cs, pr.number.toInt(), pr.head.sha, repository, pr.mentionCandidates(), pr.author.login)
+        .also { vm -> cs.launch { detailsVm.prFlow.collect { vm.updateHeadSha(it.head.sha) } } }
     private val diffFile = GiteaPRDiffVirtualFile(pr.number.toInt(), cs, project, repository, diffVm, discussionsVm)
 
     private val changesComponent = GiteaPRChangesTreeComponentFactory.create(
-        cs, project, pr, repository, discussionsVm,
+        cs, project, detailsVm.prFlow, repository, discussionsVm,
         selectedCommitFlow = detailsVm.changesVm.selectedCommit,
         onOpenChange = { relPath ->
             val list = diffVm.changes.value?.result?.getOrNull()?.selectedChanges?.list.orEmpty()

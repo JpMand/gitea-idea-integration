@@ -3,6 +3,8 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.diff
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.GiteaPRFileStatusEnum
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.discussionsViewOptionsAction
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.refreshReviewActionsOnChange
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.submitReviewAction
 import com.intellij.collaboration.ui.codereview.diff.AsyncDiffRequestProcessorFactory
 import com.intellij.collaboration.util.KeyValuePair
@@ -59,14 +61,18 @@ class GiteaPRDiffVirtualFile(
     // needed here: this is the only createViewer/processor-construction call site in the plugin,
     // so the extra responsibilities that class carries (combined-diff toggle, sharing one scope
     // across multiple call sites) don't apply.
-    override fun createViewer(project: Project): DiffEditorViewer =
-        AsyncDiffRequestProcessorFactory.createIn(
+    override fun createViewer(project: Project): DiffEditorViewer {
+        cs.refreshReviewActionsOnChange(discussionsVm)
+        return AsyncDiffRequestProcessorFactory.createIn(
             cs, project,
             flowOf(vm),
             createContext = {
                 listOf(
                     KeyValuePair(GiteaPRDiscussionsViewModels.CONTEXT_KEY, discussionsVm),
-                    KeyValuePair(DiffUserDataKeys.CONTEXT_ACTIONS, listOf(submitReviewAction(project, discussionsVm))),
+                    KeyValuePair(
+                        DiffUserDataKeys.CONTEXT_ACTIONS,
+                        listOf(discussionsViewOptionsAction(discussionsVm), submitReviewAction(project, discussionsVm)),
+                    ),
                 )
             },
             changePresenter = { fileVm ->
@@ -81,4 +87,5 @@ class GiteaPRDiffVirtualFile(
                 }
             }
         )
+    }
 }

@@ -11,6 +11,7 @@ import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.ui.Either
 import com.intellij.collaboration.ui.HorizontalListPanel
+import com.intellij.collaboration.ui.ScrollablePanel
 import com.intellij.collaboration.ui.SimpleHtmlPane
 import com.intellij.collaboration.ui.VerticalListPanel
 import com.intellij.collaboration.ui.codereview.details.*
@@ -135,18 +136,26 @@ class GiteaPRDetailsPanel(
             add(pad(commitsAndBranch, 0, 4))
         }
 
-        val commitInfoScrollPane = ScrollPaneFactory.createScrollPane(pad(commitInfo, 0, 0), true).apply {
+        // The view must track the viewport's width: otherwise a long commit message lays out at
+        // its full unwrapped width, clipping the text and pushing "Hide details" out of view.
+        val commitInfoView = ScrollablePanel(SwingConstants.VERTICAL, java.awt.BorderLayout()).apply {
+            isOpaque = false
+            border = JBUI.Borders.empty(0, 8)
+            add(commitInfo, java.awt.BorderLayout.CENTER)
+        }
+        val commitInfoScrollPane = ScrollPaneFactory.createScrollPane(commitInfoView, true).apply {
             horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
         }
 
-        // shrink(0) on the header/commit-info rows keeps them at their preferred size always —
+        // shrinkY(0) on the header/commit-info rows keeps them at their preferred height always —
         // the changes tree (the sole push/grow row) is what absorbs a shrinking tool-window
         // height first; only once it's already at its own minimum does MigLayout start shrinking
         // the remaining non-push rows (status, then actions).
         return JPanel(MigLayout(LC().insets("0").fill().flowY().noGrid().gridGap("0", "0"))).apply {
             isOpaque = false
-            add(header, CC().growX().shrink(0f))
-            add(commitInfoScrollPane, CC().growX().shrink(0f).maxHeight("${JBUI.scale(COMMIT_INFO_MAX_HEIGHT)}"))
+            // Only vertically: a row that can't shrink horizontally lays out at its unwrapped width.
+            add(header, CC().growX().shrinkY(0f))
+            add(commitInfoScrollPane, CC().growX().shrinkY(0f).maxHeight("${JBUI.scale(COMMIT_INFO_MAX_HEIGHT)}"))
             add(changesComponent, CC().grow().push())
             add(pad(statusComponent, ReviewDetailsUIUtil.STATUSES_GAPS.top, ReviewDetailsUIUtil.STATUSES_GAPS.bottom), CC().growX())
             add(pad(actionsComponent, COMPACT_ACTIONS_GAP, COMPACT_ACTIONS_GAP), CC().growX())
@@ -198,18 +207,18 @@ class GiteaPRDetailsPanel(
             }
         }
         val verdictButton = createSelectableOptionButton(
-            listOf(
+            listOfNotNull(
                 OptionSpec(GiteaBundle.message("pull.request.action.comment")) {
-                    discussionsVm.submitReview(CreatePullReviewOptions.Event.COMMENT, textArea.text)
+                    discussionsVm.submitReview(CreatePullReviewOptions.Event.COMMENT, textArea.text, onSuccess = { textArea.text = "" })
                 },
                 OptionSpec(GiteaBundle.message("pull.request.action.approve")) {
-                    discussionsVm.submitReview(CreatePullReviewOptions.Event.APPROVED, textArea.text)
-                },
+                    discussionsVm.submitReview(CreatePullReviewOptions.Event.APPROVED, textArea.text, onSuccess = { textArea.text = "" })
+                }.unlessAuthor(discussionsVm),
                 OptionSpec(GiteaBundle.message("pull.request.action.request.changes")) {
-                    discussionsVm.submitReview(CreatePullReviewOptions.Event.REQUESTCHANGES, textArea.text)
-                },
+                    discussionsVm.submitReview(CreatePullReviewOptions.Event.REQUESTCHANGES, textArea.text, onSuccess = { textArea.text = "" })
+                }.unlessAuthor(discussionsVm),
                 OptionSpec(GiteaBundle.message("pull.request.review.save.pending")) {
-                    discussionsVm.submitReview(CreatePullReviewOptions.Event.PENDING, textArea.text)
+                    discussionsVm.submitReview(CreatePullReviewOptions.Event.PENDING, textArea.text, onSuccess = { textArea.text = "" })
                 },
             ),
         )
@@ -233,16 +242,16 @@ class GiteaPRDetailsPanel(
             addActionListener { confirmAndCancelReview(project, discussionsVm) }
         }
         val verdictButton = createSelectableOptionButton(
-            listOf(
+            listOfNotNull(
                 OptionSpec(GiteaBundle.message("pull.request.action.comment")) {
-                    discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.COMMENT, textArea.text)
+                    discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.COMMENT, textArea.text, onSuccess = { textArea.text = "" })
                 },
                 OptionSpec(GiteaBundle.message("pull.request.action.approve")) {
-                    discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.APPROVED, textArea.text)
-                },
+                    discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.APPROVED, textArea.text, onSuccess = { textArea.text = "" })
+                }.unlessAuthor(discussionsVm),
                 OptionSpec(GiteaBundle.message("pull.request.action.request.changes")) {
-                    discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.REQUESTCHANGES, textArea.text)
-                },
+                    discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.REQUESTCHANGES, textArea.text, onSuccess = { textArea.text = "" })
+                }.unlessAuthor(discussionsVm),
             ),
         )
         val buttons = HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
@@ -256,6 +265,10 @@ class GiteaPRDetailsPanel(
             add(buttons)
         }
     }
+
+    /** Drops a verdict Gitea rejects from the PR's author (approving or requesting changes). */
+    private fun OptionSpec.unlessAuthor(discussionsVm: GiteaPRDiscussionsViewModels): OptionSpec? =
+        takeUnless { discussionsVm.viewerIsAuthor }
 
     private fun reviewTextArea(): JBTextArea = JBTextArea(3, 40).apply { lineWrap = true; wrapStyleWord = true }
 
@@ -280,6 +293,8 @@ class GiteaPRDetailsPanel(
         val reopen = stubActionSwing("pull.request.action.reopen") { vm.reopenPullRequest() }
         val readyForReview = stubActionSwing("pull.request.action.ready.for.review") { vm.markReadyForReview() }
         val closeButton = actionButton("pull.request.action.close") { vm.closePullRequest() }
+        // A separate instance: a Swing component can only sit in one of the state panels.
+        val closeDraftButton = actionButton("pull.request.action.close") { vm.closePullRequest() }.apply { isOpaque = false }
         val requestReviewButton = createRequestReviewButton()
         val (mergeControl, mergeOptionButton) = createMergeControl()
 
@@ -303,6 +318,7 @@ class GiteaPRDetailsPanel(
             vm.isActionInProgress.combine(statusVm.hasConflicts) { busy, hasConflicts -> busy to hasConflicts }
                 .collect { (busy, hasConflicts) ->
                     closeButton.isEnabled = !busy
+                    closeDraftButton.isEnabled = !busy
                     requestReviewButton.isEnabled = !busy
                     mergeOptionButton.isEnabled = !busy && !hasConflicts
                     reopen.isEnabled = !busy
@@ -315,7 +331,11 @@ class GiteaPRDetailsPanel(
             openedStatePanel = actionPanel,
             mergedStatePanel = CodeReviewDetailsActionsComponentFactory.createActionsForMergedReview(),
             closedStatePanel = CodeReviewDetailsActionsComponentFactory.createActionsForClosedReview(reopen),
-            draftedStatePanel = CodeReviewDetailsActionsComponentFactory.createActionsForDraftReview(readyForReview),
+            // The platform's draft panel only offers "Ready for Review"; a draft can be closed too.
+            draftedStatePanel = HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
+                add(CodeReviewDetailsActionsComponentFactory.createActionsForDraftReview(readyForReview))
+                add(closeDraftButton)
+            },
         )
     }
 

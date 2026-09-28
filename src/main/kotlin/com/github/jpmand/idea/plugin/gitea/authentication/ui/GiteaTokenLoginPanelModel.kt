@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.authentication.ui
 import com.github.jpmand.idea.plugin.gitea.GiteaServersManager
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager
 import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
+import com.github.jpmand.idea.plugin.gitea.api.giteaApiCall
 import com.github.jpmand.idea.plugin.gitea.api.rest.currentUser
 import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil
 import com.intellij.collaboration.auth.ui.login.LoginException
@@ -30,12 +31,13 @@ class GiteaTokenLoginPanelModel(
     val server = createServerPath(serverUri)
     val api = service<GiteaApiManager>().getClient(server, token)
     val serversManager = service<GiteaServersManager>()
-    val metadata = withContext(Dispatchers.IO) { serversManager.getMetadata(api) }
+    // giteaApiCall: a rejected token reads "invalid or expired token", not a raw HTTP dump.
+    val metadata = withContext(Dispatchers.IO) { giteaApiCall { serversManager.getMetadata(api) } }
     if (metadata.version < serversManager.earliestSupportedVersion) {
       throw LoginException.UnsupportedServerVersion(serversManager.earliestSupportedVersion.toString())
     }
     val user = withContext(Dispatchers.IO) {
-      api.currentUser()
+      giteaApiCall { api.currentUser() }
     }
     val username = user.name
     val _requiredUsername = requiredUsername
