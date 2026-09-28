@@ -208,8 +208,11 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     }
 
     /** The signed-in account's own not-yet-submitted review for this PR, if any. */
-    suspend fun findMyPendingReview(prNumber: Int): GiteaReview? =
-        loadReviews(prNumber).firstOrNull { it.state == GiteaReviewState.PENDING && it.author?.login == ctx.account.name }
+    suspend fun findMyPendingReview(prNumber: Int): GiteaReview? = findMyPendingReviews(prNumber).firstOrNull()
+
+    /** All of the signed-in user's pending reviews on the PR (normally at most one). */
+    suspend fun findMyPendingReviews(prNumber: Int): List<GiteaReview> =
+        loadReviews(prNumber).filter { it.state == GiteaReviewState.PENDING && it.author?.login == ctx.account.name }
 
     /** Posts a new top-level (non-inline) timeline comment. */
     suspend fun createComment(prNumber: Int, body: String): GiteaPRTimelineItemViewModel.Comment = giteaApiCall {

@@ -268,8 +268,16 @@ class GiteaPRDiscussionsViewModels(
     ) {
         val drafts = _draftComments.value
         val verdict = GiteaReviewVerdict.entries.first { it.createEvent == event }
-        val hadPendingReview = pendingReview.value != null
         launchSubmission(reviewSubmitProblem(verdict, body, drafts.size), onSuccess, onError) {
+            // Asked here rather than read from pendingReview, which loads in the background and may
+            // not have arrived yet: a pending review that already existed must never be discarded.
+            val existingPending = try {
+                PendingReviewBaseline.Known(repository.findMyPendingReviews(prNumber).mapTo(HashSet()) { it.id })
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                PendingReviewBaseline.Unknown
+            }
             val comments = drafts.map {
                 CreatePullReviewComment(body = it.body, path = it.path, newPosition = it.newLine?.toLong(), oldPosition = it.oldLine?.toLong())
             }
@@ -281,7 +289,7 @@ class GiteaPRDiscussionsViewModels(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                if (!hadPendingReview) discardOrphanedPendingReview()
+                if (existingPending is PendingReviewBaseline.Known) discardOrphanedPendingReviews(existingPending.reviewIds)
                 throw e
             }
             updateDrafts { emptyList() }
@@ -291,16 +299,15 @@ class GiteaPRDiscussionsViewModels(
     /**
      * Gitea creates a review before adding its comments, and doesn't roll it back when adding one
      * fails (e.g. a 500 for a line the file doesn't have): the failed request leaves an empty
-     * pending review behind, which then shows as "Finish review" with nothing in it. Deletes that
-     * review — only called when there was no pending review before the request, and only an empty
-     * one is touched — and reloads the pending-review state either way. Best-effort: the original
-     * failure is what gets reported.
+     * pending review behind, which then shows as "Finish review" with nothing in it. Deletes such
+     * reviews — only empty ones, and never one of [existingReviewIds], the pending reviews that were
+     * already there before the request — and reloads the pending-review state either way.
+     * Best-effort: the original failure is what gets reported.
      */
-    private suspend fun discardOrphanedPendingReview() {
+    private suspend fun discardOrphanedPendingReviews(existingReviewIds: Set<Long>) {
         try {
-            repository.findMyPendingReview(prNumber)
-                ?.takeIf { it.commentsCount == 0 && it.body.isNullOrBlank() }
-                ?.let { repository.deletePendingReview(prNumber, it.id) }
+            orphanedPendingReviews(repository.findMyPendingReviews(prNumber), existingReviewIds)
+                .forEach { repository.deletePendingReview(prNumber, it.id) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -436,4 +443,17 @@ class GiteaPRDiscussionsViewModels(
             .filter { it.path == path }
             .sortedWith(compareBy(nullsLast()) { it.newLine ?: it.oldLine })
     }
+}
+
+/** The pending reviews a failed submission left behind: empty ones that weren't among
+ * [existingReviewIds] before it. */
+internal fun orphanedPendingReviews(pendingReviews: List<GiteaReview>, existingReviewIds: Set<Long>): List<GiteaReview> =
+    pendingReviews.filter { it.id !in existingReviewIds && it.commentsCount == 0 && it.body.isNullOrBlank() }
+
+/** The signed-in user's pending reviews as they were right before a submission. */
+private sealed interface PendingReviewBaseline {
+    data class Known(val reviewIds: Set<Long>) : PendingReviewBaseline
+
+    /** The lookup failed, so nothing left behind by a failed submission may be deleted. */
+    data object Unknown : PendingReviewBaseline
 }
