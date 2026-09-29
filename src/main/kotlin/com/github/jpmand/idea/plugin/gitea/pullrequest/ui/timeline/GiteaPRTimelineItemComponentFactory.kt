@@ -113,13 +113,13 @@ class GiteaPRTimelineItemComponentFactory(
      */
     private fun review(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel.Review): JComponent {
         val content = VerticalListPanel(CodeReviewTimelineUIUtil.VERTICAL_GAP).apply {
-            if (!item.body.isNullOrBlank()) add(commentBodyPane(cs, item.body, renderMarkdown))
             add(
                 StatusMessageComponentFactory.create(
-                    SimpleHtmlPane(HtmlChunk.text(GiteaBundle.message(reviewStateKey(item.state))).toString()),
+                    SimpleHtmlPane(HtmlChunk.text(GiteaBundle.message(reviewStateKey(item.state))).bold().toString()),
                     reviewStatusType(item.state),
                 ),
             )
+            if (!item.body.isNullOrBlank()) add(commentBodyPane(cs, item.body, renderMarkdown))
         }
         val accent = reviewAccentColor(reviewStatusType(item.state))
         val framed = VerticalListPanel(CodeReviewTimelineUIUtil.VERTICAL_GAP).apply {
