@@ -8,13 +8,16 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRThreadViewM
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaSuggestionUtil
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRCommentFieldFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRSubmittableTextViewModel
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.commentBodyPane
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.createSuggestionDiffBox
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.createThreadCommentsPanel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.withSuggestion
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.intellij.collaboration.messages.CollaborationToolsBundle
 import com.intellij.collaboration.ui.CollaborationToolsUIUtil
 import com.intellij.collaboration.ui.EditableComponentFactory
 import com.intellij.collaboration.ui.HorizontalListPanel
+import com.intellij.collaboration.ui.SimpleHtmlPane
 import com.intellij.collaboration.ui.VerticalListPanel
 import com.intellij.collaboration.ui.codereview.CodeReviewChatItemUIUtil
 import com.intellij.collaboration.ui.codereview.CodeReviewChatItemUIUtil.ComponentType
@@ -31,6 +34,7 @@ import com.intellij.openapi.editor.ComponentInlayRenderer
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.markup.RangeHighlighter
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.text.HtmlChunk
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.panels.Wrapper
@@ -46,9 +50,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.awt.Color
 import java.awt.Component
-import java.awt.FlowLayout
 import java.util.Date
 import javax.swing.*
+import javax.swing.border.EmptyBorder
 
 /** Existing comment threads (read-only display plus resolve/unresolve/reply/edit/delete) and
  * new-comment composer inlays (a line comment, drafted locally until the whole review is
@@ -62,6 +66,10 @@ import javax.swing.*
 @Suppress("UnstableApiUsage")
 object GiteaPRInlayComponentsFactory {
 
+    /** Between a thread's Resolve and Reply links, as in the GitHub plugin's inlays. */
+    private const val THREAD_ACTIONS_GAP = 14
+    private const val INLAY_VERTICAL_MARGIN = 4
+
     fun createRenderer(
         project: Project,
         cs: CoroutineScope,
@@ -70,19 +78,23 @@ object GiteaPRInlayComponentsFactory {
     ): ComponentInlayRenderer<JComponent> =
         when (model) {
             is GiteaPRInlayModel.Thread -> {
-                val card = CodeReviewCommentUIUtil.createEditorInlayPanel(createThreadPanel(project, cs, model.vm, discussionsVm))
+                val card = CodeReviewCommentUIUtil.createEditorInlayPanel(withInlayPadding(createThreadPanel(project, cs, model.vm, discussionsVm)))
                 installHoverAnchorHighlight(card, model.editor, model.editorLineIdx)
                 CodeReviewComponentInlayRenderer(withInlayMargin(card))
             }
             is GiteaPRInlayModel.NewComment -> CodeReviewComponentInlayRenderer(
-                withInlayMargin(CodeReviewCommentUIUtil.createEditorInlayPanel(createNewCommentPanel(project, cs, model.vm, discussionsVm))),
+                withInlayMargin(CodeReviewCommentUIUtil.createEditorInlayPanel(withInlayPadding(createNewCommentPanel(project, cs, model.vm, discussionsVm)))),
             )
         }
 
-    /** Breathing room between the rounded card and the surrounding code lines — the inlay
-     * machinery itself adds none (it's just a component appended after a line's end offset). */
+    /** A little room around each card, so two inlays on one line don't touch (the inlay machinery adds none). */
     private fun withInlayMargin(card: JComponent): JComponent =
-        Wrapper(card).apply { border = JBUI.Borders.empty(CodeReviewChatItemUIUtil.THREAD_TOP_MARGIN, 0) }
+        Wrapper(card).apply { border = JBUI.Borders.empty(INLAY_VERTICAL_MARGIN, 0) }
+
+    /** The platform's padding inside a compact inlay card (as the GitHub plugin's inlays have), so
+     * the first and last rows don't touch the rounded border. */
+    private fun withInlayPadding(content: JComponent): JComponent =
+        content.apply { border = EmptyBorder(CodeReviewCommentUIUtil.getInlayPadding(ComponentType.COMPACT)) }
 
     /**
      * While the card is hovered, highlights [lineIdx] in [editor] the same way
@@ -123,68 +135,76 @@ object GiteaPRInlayComponentsFactory {
         vm: GiteaPRThreadViewModel,
         discussionsVm: GiteaPRDiscussionsViewModels,
     ): JComponent {
+        val firstComment = vm.commentVMs.firstOrNull()
         val commentsPanel = createThreadCommentsPanel(vm.commentVMs) { commentVm ->
-            createCommentPanel(project, cs, discussionsVm, commentVm)
+            createCommentPanel(project, cs, discussionsVm, commentVm, if (commentVm === firstComment) threadTags(vm) else emptyList())
         }
 
-        // 4/CodeReviewCommentUIUtil.INLAY_PADDING(=10) matches ComponentType.COMPACT's own padding
-        // insets, so these rows line up with the comment rows above them. The vertical gap between
-        // rows (comments/resolve/reply) gets a little breathing room too — COMPACT's own 4px
-        // top/bottom inset per row reads as cramped when several rows stack directly.
-        val panel = VerticalListPanel(4)
-        panel.add(commentsPanel)
-        panel.add(createResolveRow(project, cs, vm).apply { border = JBUI.Borders.empty(4, 10) })
-        // Outdated threads (anchored to a diff that's no longer current) can't be replied to.
-        if (!vm.isOutdated) {
-            panel.add(replyComposer(project, cs, discussionsVm, vm.lastCommentId).apply { border = JBUI.Borders.empty(4, 10) })
+        // Resolve and Reply share one row, lined up with the comment text (as in the GitHub
+        // plugin's inlays); Reply swaps in a composer below the row.
+        val replyComposer = Wrapper()
+        val actionsRow = HorizontalListPanel(THREAD_ACTIONS_GAP).apply {
+            border = EmptyBorder(JBUI.scale(4), ComponentType.COMPACT.fullLeftShift, JBUI.scale(2), 0)
+            add(createResolveLink(project, cs, vm))
+            // Outdated threads (anchored to a diff that's no longer current) can't be replied to.
+            if (!vm.isOutdated) add(replyLink(project, cs, discussionsVm, vm.lastCommentId, replyComposer))
         }
 
-        return panel
+        return VerticalListPanel(0).apply {
+            add(commentsPanel)
+            add(actionsRow)
+            add(replyComposer)
+        }
     }
+
+    /** Tags shown next to a thread's first comment: Resolved and/or Outdated, with the platform's wording. */
+    private fun threadTags(vm: GiteaPRThreadViewModel): List<JComponent> = listOfNotNull(
+        CollaborationToolsUIUtil.createTagLabel(CollaborationToolsBundle.message("review.thread.resolved.tag")).takeIf { vm.isResolved },
+        CollaborationToolsUIUtil.createTagLabel(CollaborationToolsBundle.message("review.thread.outdated.tag")).takeIf { vm.isOutdated },
+    )
 
     /**
-     * A "Reply" link that swaps in a comment composer (same [GiteaPRCommentFieldFactory] machinery
-     * the Timeline's thread-reply/leave-a-comment fields use) when clicked, and swaps back once
-     * submitted. Stays hidden while [GiteaPRDiscussionsViewModels.currentUser] hasn't resolved yet.
+     * A "Reply" link that shows a comment composer (same [GiteaPRCommentFieldFactory] machinery the
+     * Timeline's thread-reply/leave-a-comment fields use) in [composer], and hides it again once
+     * submitted or cancelled. Stays hidden while [GiteaPRDiscussionsViewModels.currentUser] hasn't
+     * resolved yet.
      */
-    private fun replyComposer(
-        project: Project,
-        cs: CoroutineScope,
-        discussionsVm: GiteaPRDiscussionsViewModels,
-        threadId: Long,
-    ): JComponent {
-        val wrapper = Wrapper()
-        cs.launch {
-            discussionsVm.currentUser.collect { user ->
-                wrapper.setContent(user?.let { replyLink(project, cs, wrapper, discussionsVm, threadId, it) })
-                wrapper.revalidate()
-                wrapper.repaint()
-            }
-        }
-        return wrapper
-    }
-
     private fun replyLink(
         project: Project,
         cs: CoroutineScope,
-        wrapper: Wrapper,
         discussionsVm: GiteaPRDiscussionsViewModels,
         threadId: Long,
-        user: GiteaUser,
-    ): JComponent =
-        ActionLink(GiteaBundle.message("pull.request.action.reply")) {
+        composer: Wrapper,
+    ): JComponent {
+        lateinit var link: ActionLink
+        var composerOpen = false
+        fun close() {
+            composerOpen = false
+            composer.setContent(null)
+            link.isVisible = true
+            composer.revalidate()
+            composer.repaint()
+        }
+        link = ActionLink(CollaborationToolsBundle.message("review.comments.reply.action")) {
+            val user = discussionsVm.currentUser.value ?: return@ActionLink
             val replyVm = GiteaPRSubmittableTextViewModel(project, cs) { body ->
                 discussionsVm.replyToThread(threadId, body)
-                wrapper.setContent(replyLink(project, cs, wrapper, discussionsVm, threadId, user))
-                wrapper.revalidate()
-                wrapper.repaint()
+                close()
             }
-            wrapper.setContent(
-                GiteaPRCommentFieldFactory.create(cs, replyVm, discussionsVm.avatars, user, discussionsVm.mentionCandidates),
+            composerOpen = true
+            link.isVisible = false
+            composer.setContent(
+                GiteaPRCommentFieldFactory.create(
+                    cs, replyVm, discussionsVm.avatars, user, discussionsVm.mentionCandidates,
+                    onCancel = ::close, componentType = ComponentType.COMPACT, isReply = true,
+                ),
             )
-            wrapper.revalidate()
-            wrapper.repaint()
+            composer.revalidate()
+            composer.repaint()
         }
+        cs.launch { discussionsVm.currentUser.collect { link.isVisible = it != null && !composerOpen } }
+        return link
+    }
 
     /**
      * A new-comment inlay: shows the composer ([GiteaPRCommentFieldFactory], with a Cancel action
@@ -232,10 +252,15 @@ object GiteaPRInlayComponentsFactory {
             secondaryAction = if (vm.canSendAsSingleCommentReview) {
                 GiteaPRCommentFieldFactory.SecondaryAction("pull.request.action.send.single.comment.review", vm::submitAsSingleCommentReview)
             } else null,
+            componentType = ComponentType.COMPACT,
         )
         val suggestion = vm.suggestion ?: return commentField
-        return VerticalListPanel(4).apply {
-            add(createSuggestionDiffBox(cs, project, suggestion))
+        val padding = ComponentType.COMPACT.inputPaddingInsets
+        return VerticalListPanel(0).apply {
+            // Lined up with the field below, which carries the same input padding.
+            add(createSuggestionDiffBox(cs, project, suggestion).let {
+                Wrapper(it).apply { border = EmptyBorder(padding.top, padding.left, 0, padding.right) }
+            })
             add(commentField)
         }
     }
@@ -255,15 +280,8 @@ object GiteaPRInlayComponentsFactory {
         // it, so the suggested change is already applied to the working copy by definition.
         val suggestion = GiteaSuggestionUtil.detect(draft.body)
         val displayBody = suggestion?.let { GiteaSuggestionUtil.stripSuggestion(draft.body) } ?: draft.body
-        val bodyArea = JTextArea(displayBody).apply {
-            isEditable = false
-            lineWrap = true
-            wrapStyleWord = true
-            isOpaque = false
-            border = JBUI.Borders.empty(4, 0)
-        }
         val editVmFlow = MutableStateFlow<CodeReviewTextEditingViewModel?>(null)
-        val textComponent = EditableComponentFactory.wrapTextComponent(cs, bodyArea, editVmFlow)
+        val textComponent = EditableComponentFactory.wrapTextComponent(cs, commentBodyPane(cs, displayBody), editVmFlow)
         val bodyComponent = if (suggestion == null) {
             textComponent
         } else {
@@ -287,7 +305,11 @@ object GiteaPRInlayComponentsFactory {
             { size -> discussionsVm.avatars.getIcon(user, size) },
             bodyComponent,
         ) {
-            withHeader(CollaborationToolsUIUtil.createTagLabel(GiteaBundle.message("pull.request.diff.draft.badge")), actionsPanel)
+            val header = HorizontalListPanel(CodeReviewCommentUIUtil.Title.HORIZONTAL_GAP).apply {
+                add(SimpleHtmlPane(HtmlChunk.text(authorName(user)).bold().toString()))
+                add(CollaborationToolsUIUtil.createTagLabel(GiteaBundle.message("pull.request.diff.draft.badge")))
+            }
+            withHeader(header, actionsPanel)
         }
     }
 
@@ -315,12 +337,10 @@ object GiteaPRInlayComponentsFactory {
         override fun stopEditing() = onDone()
     }
 
-    private fun createResolveRow(project: Project, cs: CoroutineScope, vm: GiteaPRThreadViewModel): JComponent {
-        val row = JPanel(FlowLayout(FlowLayout.LEFT, 0, 0))
-        row.isOpaque = false
+    private fun createResolveLink(project: Project, cs: CoroutineScope, vm: GiteaPRThreadViewModel): JComponent {
         val labelKey = if (vm.isResolved) "pull.request.action.unresolve.thread" else "pull.request.action.resolve.thread"
         val errorKey = if (vm.isResolved) "pull.request.action.unresolve.thread.error" else "pull.request.action.resolve.thread.error"
-        row.add(ActionLink(GiteaBundle.message(labelKey)) {
+        return ActionLink(CodeReviewCommentUIUtil.getResolveToggleActionText(vm.isResolved)) {
             cs.launch {
                 try {
                     if (vm.isResolved) vm.unresolve() else vm.resolve()
@@ -333,8 +353,7 @@ object GiteaPRInlayComponentsFactory {
                         .notify(project)
                 }
             }
-        })
-        return row
+        }
     }
 
     private fun createCommentPanel(
@@ -342,6 +361,8 @@ object GiteaPRInlayComponentsFactory {
         cs: CoroutineScope,
         discussionsVm: GiteaPRDiscussionsViewModels,
         vm: GiteaPRCommentViewModel,
+        /** Tags shown after the author and date, e.g. Resolved/Outdated on a thread's first comment. */
+        tags: List<JComponent> = emptyList(),
     ): JComponent {
         val suggestion = if (vm.comment.path != null) vm.body?.let { GiteaSuggestionUtil.detect(it) } else null
         val displayBody = suggestion?.let { GiteaSuggestionUtil.stripSuggestion(vm.body!!) } ?: vm.body
@@ -352,7 +373,12 @@ object GiteaPRInlayComponentsFactory {
             { size -> discussionsVm.avatars.getIcon(vm.author, size) },
             content,
         ) {
-            withHeader(titleTextPane(authorName(vm.author), vm.author?.htmlUrl, vm.createdAt, vm.comment.isEdited), actionsPanel)
+            val title = titleTextPane(authorName(vm.author), vm.author?.htmlUrl, vm.createdAt, vm.comment.isEdited)
+            val header = if (tags.isEmpty()) title else HorizontalListPanel(CodeReviewCommentUIUtil.Title.HORIZONTAL_GAP).apply {
+                add(title)
+                tags.forEach(::add)
+            }
+            withHeader(header, actionsPanel)
         }
     }
 
@@ -361,7 +387,7 @@ object GiteaPRInlayComponentsFactory {
     private fun titleTextPane(name: String, url: String?, timestamp: Date?, edited: Boolean): JComponent {
         val titlePane = CodeReviewTimelineUIUtil.createTitleTextPane(name, url, timestamp ?: Date())
         if (!edited) return titlePane
-        return HorizontalListPanel(4).apply {
+        return HorizontalListPanel(CodeReviewCommentUIUtil.Title.HORIZONTAL_GAP).apply {
             add(titlePane)
             add(JLabel(GiteaBundle.message("pull.request.timeline.comment.edited")).apply {
                 foreground = UIUtil.getContextHelpForeground()
@@ -385,13 +411,7 @@ object GiteaPRInlayComponentsFactory {
         vm: GiteaPRCommentViewModel,
         displayBody: String? = vm.body,
     ): Pair<JComponent, JComponent?> {
-        val bodyArea = JTextArea(displayBody ?: "").apply {
-            isEditable = false
-            lineWrap = true
-            wrapStyleWord = true
-            isOpaque = false
-            border = JBUI.Borders.empty(4, 0)
-        }
+        val bodyArea = commentBodyPane(cs, displayBody)
         if (vm.author?.login != discussionsVm.currentUserLogin) return bodyArea to null
 
         val editVmFlow = MutableStateFlow<CodeReviewTextEditingViewModel?>(null)

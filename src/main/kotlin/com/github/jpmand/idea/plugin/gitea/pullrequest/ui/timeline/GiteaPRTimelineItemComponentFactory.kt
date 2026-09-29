@@ -4,6 +4,7 @@ import com.github.jpmand.idea.plugin.gitea.api.models.*
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaSuggestionUtil
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRCommentFieldFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRSubmittableTextViewModel
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.commentBodyPane
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.createThreadCommentsPanel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.withSuggestion
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
@@ -115,28 +116,12 @@ class GiteaPRTimelineItemComponentFactory(
         val statusType = reviewStatusType(item.state)
         val content = VerticalListPanel(4).apply {
             add(reviewStateLabel(item.state))
-            if (!item.body.isNullOrBlank()) {
-                val pane = SimpleHtmlPane(bodyHtml(item.body))
-                renderMarkdownInto(cs, pane, item.body)
-                add(pane)
-            }
+            if (!item.body.isNullOrBlank()) add(commentBodyPane(cs, item.body, renderMarkdown))
             item.threads.forEach { thread -> add(threadPanel(cs, thread)) }
             border = JBUI.Borders.compound(RoundedLineBorder(reviewAccentColor(statusType), 8, 1), JBUI.Borders.empty(8))
         }
         return chatItem(item, content,
             urlActions(item.htmlUrl, "pull.request.action.open.comment.in.browser", "pull.request.action.copy.comment.link"))
-    }
-
-    /** Renders [markdown] and swaps it into [pane] on the EDT; leaves the fallback on failure. */
-    private fun renderMarkdownInto(cs: CoroutineScope, pane: JEditorPane, markdown: String) {
-        if (markdown.isBlank()) return
-        cs.launch {
-            val html = renderMarkdown(markdown) ?: return@launch
-            withContext(Dispatchers.EDT) {
-                pane.text = html
-                pane.contentType = "text/html"
-            }
-        }
     }
 
     private fun commits(item: GiteaPRTimelineItemViewModel.Commits): JComponent {
@@ -232,8 +217,7 @@ class GiteaPRTimelineItemComponentFactory(
         authorLogin: String?,
         body: String?,
     ): Pair<JComponent, JComponent?> {
-        val pane = SimpleHtmlPane(bodyHtml(body))
-        body?.let { renderMarkdownInto(cs, pane, it) }
+        val pane = commentBodyPane(cs, body, renderMarkdown)
         if (id <= 0 || authorLogin != currentUserLogin) return pane to null
 
         val editVmFlow = MutableStateFlow<CodeReviewTextEditingViewModel?>(null)
@@ -515,10 +499,6 @@ class GiteaPRTimelineItemComponentFactory(
 
     private fun actorName(user: GiteaUser?, rawUser: String?): String = user?.let { it.fullName ?: it.login } ?: rawUser.orEmpty()
     private fun actorName(user: GiteaUser?): String = user?.let { it.fullName ?: it.login }.orEmpty()
-
-    private fun bodyHtml(body: String?): String =
-        if (body.isNullOrBlank()) "<i>${esc(GiteaBundle.message("pull.request.timeline.no.body"))}</i>"
-        else esc(body).replace("\n", "<br>")
 
     private fun esc(s: String): String = StringUtil.escapeXmlEntities(s)
 

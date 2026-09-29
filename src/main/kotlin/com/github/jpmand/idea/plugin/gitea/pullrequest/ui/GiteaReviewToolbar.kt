@@ -2,6 +2,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui
 
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.intellij.collaboration.messages.CollaborationToolsBundle
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.async.launchNow
 import com.intellij.collaboration.ui.codereview.diff.action.CodeReviewDiscussionsToggleAction
@@ -60,7 +61,7 @@ fun CoroutineScope.launchReviewToolbar(project: Project, editor: Editor, discuss
 }
 
 /**
- * A compact "N drafts" / "Finish review" action for the editor's inspection-widget corner strip
+ * A compact "Submit Review (N)…" action for the editor's inspection-widget corner strip
  * (the only per-editor toolbar hook the platform gives). Opens [GiteaSubmitReviewPopup] under the
  * button: a review body plus Approve / Request Changes / Comment and a discard button, laid out
  * like the popup the GitHub plugin shows.
@@ -70,11 +71,13 @@ fun submitReviewAction(project: Project, discussionsVm: GiteaPRDiscussionsViewMo
         override fun getActionUpdateThread() = ActionUpdateThread.BGT
 
         override fun update(e: AnActionEvent) {
-            val pending = discussionsVm.pendingReview.value
-            e.presentation.text = if (pending != null) {
-                GiteaBundle.message("pull.request.review.finish.short")
+            // The platform's wording, as the GitHub plugin's toolbar button: "Submit Review (N)…"
+            // with the comments that would go out (a pending review's, or the local drafts).
+            val count = discussionsVm.pendingReview.value?.commentsCount ?: discussionsVm.draftComments.value.size
+            e.presentation.text = if (count > 0) {
+                CollaborationToolsBundle.message("review.start.submit.action.with.comments", count)
             } else {
-                GiteaBundle.message("pull.request.review.composer.draft.count", discussionsVm.draftComments.value.size)
+                CollaborationToolsBundle.message("review.start.submit.action")
             }
             e.presentation.icon = CollaborationToolsIcons.Review.CommentUnread
             e.presentation.putClientProperty(ActionUtil.SHOW_TEXT_IN_TOOLBAR, true)
@@ -96,7 +99,7 @@ fun submitReviewAction(project: Project, discussionsVm: GiteaPRDiscussionsViewMo
 
 /**
  * Re-runs toolbar action updates whenever [discussionsVm]'s drafts or pending review change, so
- * [submitReviewAction]'s "N drafts" / "Finish review" label follows them. The platform only
+ * [submitReviewAction]'s "Submit Review (N)…" label follows them. The platform only
  * re-evaluates toolbar actions on its own schedule (typically the next UI event), which left the
  * label stale — e.g. "No draft comments" after a failed submission left a draft behind.
  */
