@@ -46,7 +46,7 @@
                     secondary="false"
                     canCloseContents="true"
                     factoryClass="com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow.GiteaPRToolWindowFactory"
-                    icon="/images/giteaLogo.svg"/>
+                    icon="/icons/toolWindowGitea.svg"/>
         <!--suppress PluginXmlI18n Name Gitea should not be translated-->
         <projectConfigurable id="settings.gitea"
                              parentId="project.propVCSSupport.Mappings" groupWeight="-600"

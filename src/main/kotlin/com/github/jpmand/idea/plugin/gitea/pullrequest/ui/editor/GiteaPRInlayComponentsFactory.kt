@@ -370,7 +370,7 @@ object GiteaPRInlayComponentsFactory {
         }
     }
 
-    private fun authorName(user: GiteaUser?): String = user?.let { it.fullName ?: it.login } ?: "unknown"
+    private fun authorName(user: GiteaUser?): String = user?.let { it.fullName ?: it.login } ?: GiteaBundle.message("pull.request.comment.author.unknown")
 
     /**
      * Renders a comment's body, swappable in-place for an editor when its own author clicks Edit

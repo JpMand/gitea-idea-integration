@@ -69,7 +69,8 @@ class GiteaPRDetailsPanel(
         /** Tighter than the platform's default [CodeReviewDetailsActionsComponentFactory.BUTTONS_GAP]/
          * [ReviewDetailsUIUtil.ACTIONS_GAPS] — this row (merge control, delete-branch checkbox,
          * close button) reads better compact. */
-        private val COMPACT_BUTTONS_GAP = JBUI.scale(4)
+        // Unscaled on purpose: HorizontalListPanel scales its gap itself.
+        private const val COMPACT_BUTTONS_GAP = CodeReviewDetailsActionsComponentFactory.BUTTONS_GAP
         private val COMPACT_ACTIONS_GAP = JBUI.scale(4)
 
         /** Cap on the "Show details" commit-info area — past this it scrolls internally instead
@@ -303,7 +304,7 @@ class GiteaPRDetailsPanel(
             add(HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
                 add(mergeControl)
             })
-            add(HorizontalListPanel(UIUtil.LARGE_VGAP).apply {
+            add(HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
                 add(requestReviewButton)
                 add(closeButton)
             })
