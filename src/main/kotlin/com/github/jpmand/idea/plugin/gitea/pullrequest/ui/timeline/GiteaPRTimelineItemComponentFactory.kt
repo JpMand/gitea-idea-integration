@@ -36,6 +36,7 @@ import com.intellij.openapi.diff.impl.patch.PatchReader
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.text.HtmlChunk
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.ColorUtil
 import com.intellij.ui.JBColor
@@ -94,7 +95,7 @@ class GiteaPRTimelineItemComponentFactory(
         is GiteaPRTimelineItemViewModel.Comment -> comment(cs, item)
         is GiteaPRTimelineItemViewModel.Review -> review(cs, item)
         is GiteaPRTimelineItemViewModel.Commits -> commits(item)
-        is GiteaPRTimelineItemViewModel.Event -> event(item)
+        is GiteaPRTimelineItemViewModel.Event -> event(cs, item)
     }
 
     // ── item kinds ─────────────────────────────────────────────────────────
@@ -125,6 +126,7 @@ class GiteaPRTimelineItemComponentFactory(
     }
 
     private fun commits(item: GiteaPRTimelineItemViewModel.Commits): JComponent {
+        // One status line around the whole list, as in the GitHub plugin, not one per commit.
         val list = VerticalListPanel(4).apply {
             item.commits.forEach { c -> add(commitRow(c)) }
         }
@@ -137,8 +139,11 @@ class GiteaPRTimelineItemComponentFactory(
         )
         return CodeReviewChatItemUIUtil.build(
             ComponentType.FULL,
-            { AllIcons.Vcs.Branch },
-            VerticalListPanel(4).apply { add(header); add(list) },
+            { size -> avatars.getIcon(item.actor, size) },
+            VerticalListPanel(4).apply {
+                add(header)
+                add(StatusMessageComponentFactory.create(list, StatusMessageType.INFO))
+            },
         ) {
             withHeader(
                 CodeReviewTimelineUIUtil.createTitleTextPane(actorName(item.actor, item.rawActor), item.actor?.htmlUrl, item.timestamp),
@@ -148,35 +153,35 @@ class GiteaPRTimelineItemComponentFactory(
     }
 
     /** One commit: hash (linked, opens the commit) + message title (plain text, not a link) on
-     * the first row, committer + commit timestamp on a second — same blue accent bar the review
-     * verdict's border uses for [StatusMessageType.INFO], since a commit is informational the
-     * same way a plain review comment is. */
+     * the first row, committer + commit time (formatted like the item headers) on a second. */
     private fun commitRow(c: GiteaTimelineItem.Commit): JComponent {
         val titleRow = HorizontalListPanel(6).apply {
             add(ActionLink(c.shortSha) { onOpenCommit(c.sha) })
             add(JBLabel(c.messageTitle))
         }
-        val metaRow = JBLabel("${actorName(c.actor, c.rawAuthor)} ${DateFormatUtil.formatDateTime(c.timestamp)}").apply {
+        val metaRow = JBLabel("${actorName(c.actor, c.rawAuthor)} ${DateFormatUtil.formatPrettyDateTime(c.timestamp)}").apply {
             foreground = UIUtil.getContextHelpForeground()
             font = JBFont.small()
         }
-        val row = VerticalListPanel(0).apply { add(titleRow); add(metaRow) }
-        return StatusMessageComponentFactory.create(row, StatusMessageType.INFO)
+        return VerticalListPanel(0).apply { add(titleRow); add(metaRow) }
     }
 
-    private fun event(item: GiteaPRTimelineItemViewModel.Event): JComponent {
+    /**
+     * An activity event as a full timeline item, as the GitHub plugin shows them: the actor's
+     * avatar, name and date in the header, and what happened as a grey status line under it.
+     * Before, it was a bare status line without avatar or date, flush with the tab's left edge.
+     */
+    private fun event(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel.Event): JComponent {
         val sha = item.newValue
-        if (item.kind == GiteaTimelineItem.Event.Kind.REFERENCED_FROM_COMMIT && sha != null) {
-            val prefixHtml = "<b>${esc(actorName(item.actor))}</b> " +
-                esc(GiteaBundle.message("pull.request.timeline.event.referenced.from.commit", "").trimEnd())
-            val row = HorizontalListPanel(4).apply {
-                add(SimpleHtmlPane(prefixHtml))
+        val content = if (item.kind == GiteaTimelineItem.Event.Kind.REFERENCED_FROM_COMMIT && sha != null) {
+            HorizontalListPanel(4).apply {
+                add(JBLabel(GiteaBundle.message("pull.request.timeline.event.referenced.from.commit", "").trimEnd()))
                 add(ActionLink(sha.take(7)) { onOpenCommit(sha) })
             }
-            return StatusMessageComponentFactory.create(row, StatusMessageType.SECONDARY_INFO)
+        } else {
+            SimpleHtmlPane(HtmlChunk.text(eventText(item)).toString())
         }
-        val text = "<b>${esc(actorName(item.actor))}</b> ${esc(eventText(item))}"
-        return StatusMessageComponentFactory.create(SimpleHtmlPane(text), StatusMessageType.SECONDARY_INFO)
+        return chatItem(item, StatusMessageComponentFactory.create(content, StatusMessageType.SECONDARY_INFO), emptyList())
     }
 
     // ── shell + helpers ────────────────────────────────────────────────────
@@ -325,7 +330,7 @@ class GiteaPRTimelineItemComponentFactory(
     private fun titleTextPane(name: String, url: String?, timestamp: Date?, edited: Boolean): JComponent {
         val titlePane = CodeReviewTimelineUIUtil.createTitleTextPane(name, url, timestamp ?: Date())
         if (!edited) return titlePane
-        return HorizontalListPanel(4).apply {
+        return HorizontalListPanel(CodeReviewCommentUIUtil.Title.HORIZONTAL_GAP).apply {
             add(titlePane)
             add(JBLabel(GiteaBundle.message("pull.request.timeline.comment.edited")).apply {
                 foreground = UIUtil.getContextHelpForeground()

@@ -3,7 +3,16 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRCommentFieldFactory
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.intellij.collaboration.ui.LoadingLabel
+import com.intellij.collaboration.ui.SimpleHtmlPane
 import com.intellij.collaboration.ui.VerticalListPanel
+import com.intellij.collaboration.ui.codereview.CodeReviewChatItemUIUtil.ComponentType
+import com.intellij.collaboration.ui.codereview.CodeReviewTimelineUIUtil
+import com.intellij.collaboration.ui.codereview.CodeReviewTitleUIUtil
+import com.intellij.collaboration.ui.codereview.list.error.ErrorStatusPanelFactory
+import com.intellij.collaboration.ui.codereview.list.error.ErrorStatusPresenter
+import com.intellij.collaboration.ui.setHtmlBody
+import com.intellij.collaboration.ui.util.swingAction
 import com.intellij.collaboration.ui.icon.IconsProvider
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.components.ActionLink
@@ -21,6 +30,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.swing.JComponent
 import javax.swing.JPanel
+import javax.swing.border.EmptyBorder
 import javax.swing.ScrollPaneConstants
 
 /**
@@ -43,13 +53,15 @@ object GiteaPRTimelineComponentFactory {
         avatars: IconsProvider<GiteaUser>,
         onRefresh: () -> Unit,
     ): JComponent {
-        val titleLabel = JBLabel().apply {
-            font = JBFont.h2()
-            border = JBUI.Borders.empty(4, 16, 8, 16)
+        // The platform's review title: bold, with a grey "#N" that links to the PR, as in the GitHub plugin.
+        val titleLabel = SimpleHtmlPane().apply {
+            font = JBFont.h2().asBold()
+            border = JBUI.Borders.empty(CodeReviewTimelineUIUtil.HEADER_VERT_PADDING, CodeReviewTimelineUIUtil.ITEM_HOR_PADDING)
         }
 
         cs.launch {
-            vm.pr.map { "${it.title} ${vm.number}" }.distinctUntilChanged().collect { titleLabel.text = it }
+            vm.pr.map { CodeReviewTitleUIUtil.createTitleText(it.title, vm.number, it.htmlUrl, GiteaBundle.message("pull.request.details.title.tooltip")) }
+                .distinctUntilChanged().collect { titleLabel.setHtmlBody(it) }
         }
 
         val description = Wrapper()
@@ -100,14 +112,25 @@ object GiteaPRTimelineComponentFactory {
                     res == null -> {
                         itemComponents.clear()
                         itemsPanel.removeAll()
-                        itemsPanel.add(info(GiteaBundle.message("pull.request.timeline.loading")))
+                        itemsPanel.add(LoadingLabel().apply { border = CodeReviewTimelineUIUtil.ITEM_BORDER })
                     }
                     else -> res.fold(
                         onSuccess = { items -> renderItems(items) },
-                        onFailure = {
+                        onFailure = { error ->
                             itemComponents.clear()
                             itemsPanel.removeAll()
-                            itemsPanel.add(info(GiteaBundle.message("pull.request.timeline.error")))
+                            // The platform's error styling, with Retry.
+                            itemsPanel.add(
+                                ErrorStatusPanelFactory.create(
+                                    error,
+                                    ErrorStatusPresenter.simple(
+                                        GiteaBundle.message("pull.request.timeline.error"),
+                                        descriptionProvider = { it.message },
+                                        actionProvider = { swingAction(GiteaBundle.message("pull.request.error.retry")) { onRefresh() } },
+                                    ),
+                                    ErrorStatusPanelFactory.Alignment.LEFT,
+                                ).apply { border = CodeReviewTimelineUIUtil.ITEM_BORDER },
+                            )
                         },
                     )
                 }
@@ -117,11 +140,13 @@ object GiteaPRTimelineComponentFactory {
         }
 
         val commentField = JPanel(java.awt.BorderLayout()).apply {
-            border = JBUI.Borders.empty(8, 16)
+            isOpaque = false
+            border = EmptyBorder(ComponentType.FULL.inputPaddingInsets)
             add(commentFieldPanel(cs, vm, avatars), java.awt.BorderLayout.CENTER)
         }
 
         val column = VerticalListPanel(0).apply {
+            border = JBUI.Borders.empty(CodeReviewTimelineUIUtil.VERT_PADDING, 0)
             add(titleLabel)
             add(description)
             add(itemsPanel)
@@ -130,7 +155,7 @@ object GiteaPRTimelineComponentFactory {
 
         val refreshBar = JPanel(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 0, 0)).apply {
             isOpaque = false
-            border = JBUI.Borders.empty(4, 12)
+            border = JBUI.Borders.empty(4, CodeReviewTimelineUIUtil.ITEM_HOR_PADDING)
             add(ActionLink(GiteaBundle.message("pull.request.timeline.refresh")) {
                 // An explicit refresh rebuilds every item, so relative times ("5 minutes ago")
                 // are re-rendered too; reloads triggered elsewhere keep reusing components.
@@ -170,9 +195,4 @@ object GiteaPRTimelineComponentFactory {
         return wrapper
     }
 
-    private fun info(text: String): JComponent =
-        JBLabel(text).apply {
-            foreground = UIUtil.getContextHelpForeground()
-            border = JBUI.Borders.empty(12, 16)
-        }
 }
