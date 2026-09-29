@@ -5,8 +5,8 @@ import com.github.jpmand.idea.plugin.gitea.api.models.GiteaCommitStatusState
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
-import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRReviewerState
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.computeReviewerStates
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.toReviewState
 import com.intellij.collaboration.ui.codereview.details.data.CodeReviewCIJob
 import com.intellij.collaboration.ui.codereview.details.data.CodeReviewCIJobState
 import com.intellij.collaboration.ui.codereview.details.data.ReviewState
@@ -14,18 +14,7 @@ import com.intellij.collaboration.ui.codereview.details.model.CodeReviewStatusVi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 /**
@@ -112,11 +101,5 @@ class GiteaPRStatusViewModel(
             isRequired = state != CodeReviewCIJobState.SKIPPED,
             detailsUrl = targetUrl ?: initialPr.htmlUrl,
         )
-    }
-
-    private fun GiteaPRReviewerState.toReviewState(): ReviewState = when (this) {
-        GiteaPRReviewerState.APPROVED -> ReviewState.ACCEPTED
-        GiteaPRReviewerState.CHANGES_REQUESTED -> ReviewState.WAIT_FOR_UPDATES
-        GiteaPRReviewerState.COMMENTED, GiteaPRReviewerState.NEEDS_REVIEW -> ReviewState.NEED_REVIEW
     }
 }

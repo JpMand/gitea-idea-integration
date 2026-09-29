@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReview
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewState
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
+import com.intellij.collaboration.ui.codereview.details.data.ReviewState
 
 /**
  * Domain-level reviewer state for list/details presentation, decoupled from [GiteaReviewState]
@@ -53,6 +54,13 @@ fun computeReviewerStates(
     }
 
     return result
+}
+
+/** The platform's review state for [this], which drives the reviewer avatar outline and status text. */
+fun GiteaPRReviewerState.toReviewState(): ReviewState = when (this) {
+    GiteaPRReviewerState.APPROVED -> ReviewState.ACCEPTED
+    GiteaPRReviewerState.CHANGES_REQUESTED -> ReviewState.WAIT_FOR_UPDATES
+    GiteaPRReviewerState.COMMENTED, GiteaPRReviewerState.NEEDS_REVIEW -> ReviewState.NEED_REVIEW
 }
 
 /** [computeReviewerStates]'s result, ordered approved-first for display. */

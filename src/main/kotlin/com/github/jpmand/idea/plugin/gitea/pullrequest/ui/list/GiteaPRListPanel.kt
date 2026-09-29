@@ -12,7 +12,10 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.filters.GiteaPRListSea
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.giteaReviewErrorPanel
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.messages.CollaborationToolsBundle
+import com.intellij.collaboration.ui.CollaborationToolsUIUtil
 import com.intellij.collaboration.ui.codereview.avatar.Avatar
+import com.intellij.collaboration.ui.codereview.avatar.CodeReviewAvatarUtils
+import com.intellij.collaboration.ui.codereview.details.ReviewDetailsUIUtil
 import com.intellij.collaboration.ui.codereview.list.NamedCollection
 import com.intellij.collaboration.ui.codereview.list.ReviewListComponentFactory
 import com.intellij.collaboration.ui.codereview.list.ReviewListItemPresentation
@@ -33,7 +36,12 @@ import com.intellij.openapi.application.EDT
 import com.intellij.openapi.util.NlsSafe
 import com.intellij.ui.ColorHexUtil
 import com.intellij.ui.PopupHandler
+import com.intellij.ui.ScrollableContentBorder
+import com.intellij.ui.Side
 import com.intellij.ui.SimpleTextAttributes
+import com.intellij.ui.components.panels.Wrapper
+import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.UIUtil
 import com.intellij.util.ui.StatusText
 import icons.CollaborationToolsIcons
 import kotlinx.coroutines.CoroutineScope
@@ -106,7 +114,11 @@ class GiteaPRListPanel(
         }
         PopupHandler.installPopupMenu(l, popupGroup, "GiteaPRListPopup")
 
-        val searchPanel = GiteaPRListSearchPanelFactory(vm.searchVm).create(cs)
+        // Wrapped, so the factory's own padding is kept and the extra side margin comes on top (as GitHub's list).
+        val searchPanel = Wrapper(GiteaPRListSearchPanelFactory(vm.searchVm).create(cs)).apply {
+            isOpaque = false
+            border = JBUI.Borders.empty(0, 10)
+        }
         // wrapWithLazyVerticalScroll requires the raw JList<?> (it hooks scroll listeners onto
         // it directly), so the list can't itself be replaced by wrapComponent's wrapper here.
         // wrapComponent returns a NEW JComponent wrapping its argument rather than mutating it
@@ -125,19 +137,32 @@ class GiteaPRListPanel(
             }
         }
 
-        val errorPanel = giteaReviewErrorPanel(
+        fun errorPanel() = giteaReviewErrorPanel(
             cs, vm.error, GiteaBundle.message("pull.request.list.load.error"), onRetry = vm::refresh, logInAgain = logInAgain,
         )
+        // A failure with rows still shown (e.g. loading the next page) stays a banner above them;
+        // with nothing to show, the error takes the list's place, centred, as in the GitHub plugin.
+        val listWithBanner = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            add(errorPanel(), BorderLayout.NORTH)
+            add(scrollPaneWithData, BorderLayout.CENTER)
+        }
+        val centredError = CollaborationToolsUIUtil.moveToCenter(errorPanel())
+        val content = Wrapper(listWithBanner)
+        cs.launch(Dispatchers.EDT) {
+            vm.error.collect { error ->
+                content.setContent(if (error != null && l.model.size == 0) centredError else listWithBanner)
+                content.revalidate()
+                content.repaint()
+            }
+        }
+        ScrollableContentBorder.setup(scrollPane, Side.TOP)
 
         return JPanel(BorderLayout()).apply {
+            background = UIUtil.getListBackground()
+            border = JBUI.Borders.emptyTop(8)
             add(searchPanel, BorderLayout.NORTH)
-            add(
-                JPanel(BorderLayout()).apply {
-                    add(errorPanel, BorderLayout.NORTH)
-                    add(scrollPaneWithData, BorderLayout.CENTER)
-                },
-                BorderLayout.CENTER,
-            )
+            add(CollaborationToolsUIUtil.wrapWithProgressStripe(cs, vm.isLoading, content), BorderLayout.CENTER)
         }
     }
 
@@ -183,8 +208,13 @@ class GiteaPRListPanel(
         // whole page eagerly) — returns null (no group shown yet) until the fetch resolves,
         // at which point this row is re-rendered automatically. See GiteaPRListViewModel.
         val reviewers = vm.reviewsFor(pr.number)?.let { reviews ->
-            sortedReviewerStates(computeReviewerStates(pr.requestedReviewers, reviews)).map { (user, _) ->
-                UserPresentation.Simple(user.login, user.fullName, avatarIconsProvider.getIcon(user, Avatar.Sizes.OUTLINED))
+            sortedReviewerStates(computeReviewerStates(pr.requestedReviewers, reviews)).map { (user, state) ->
+                // Outlined in the review state's colour, as the GitHub plugin's list does.
+                val avatar = CodeReviewAvatarUtils.createIconWithOutline(
+                    avatarIconsProvider.getIcon(user, Avatar.Sizes.OUTLINED),
+                    ReviewDetailsUIUtil.getReviewStateIconBorder(state.toReviewState()),
+                )
+                UserPresentation.Simple(user.login, user.fullName, avatar)
             }
         } ?: emptyList()
 
