@@ -73,19 +73,12 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
             { giteaSettings.cloneWithSsh = it })
       }
 
-      // Scoped to the project's current default account (there's no account-selector UI here) —
-      // switch the default account first to configure this for a different one.
-      defaultAccountHolder.account?.let { account ->
-        row {
-          checkBox(message("settings.reviewer.list.all.users"))
-            .bindSelected(
-              { giteaSettings.isListAllUsersAsReviewer(account.id) },
-              { giteaSettings.setListAllUsersAsReviewer(account.id, it) })
-            // It only applies to one account; say which.
-            .comment(message("settings.reviewer.list.all.users.comment", account.name))
-        }
+      row {
+        checkBox(message("settings.reviewer.list.all.users"))
+          .bindSelected(
+            { giteaSettings.allUsersArePotentialReviewers },
+            { giteaSettings.allUsersArePotentialReviewers = it })
       }
-
       addWarningForMemoryOnlyPasswordSafeAndGet(
         scope,
         service<GiteaAccountManager>().canPersistCredentials,
@@ -108,10 +101,16 @@ class GiteaSettings : SerializablePersistentStateComponent<GiteaSettings.State>(
   data class State(
     val connectionTimeout: Int = 5_000,
     val cloneWithSsh: Boolean = false,
+    val allUsersArePotentialReviewers : Boolean = false
     /** [GiteaAccount.id] -> whether the Request Review picker should offer every user on the
      * instance rather than just the repo's collaborators. Default (absent) is collaborators-only. */
-    val listAllUsersAsReviewerByAccount: Map<String, Boolean> = emptyMap(),
   )
+
+  var allUsersArePotentialReviewers : Boolean
+    get() = state.allUsersArePotentialReviewers
+    set(value) {
+      updateState { it.copy(allUsersArePotentialReviewers = value) }
+    }
 
   var connectionTimeout: Int
     get() = state.connectionTimeout
@@ -124,13 +123,6 @@ class GiteaSettings : SerializablePersistentStateComponent<GiteaSettings.State>(
     set(value) {
       updateState { it.copy(cloneWithSsh = value) }
     }
-
-  fun isListAllUsersAsReviewer(accountId: String): Boolean =
-    state.listAllUsersAsReviewerByAccount[accountId] ?: false
-
-  fun setListAllUsersAsReviewer(accountId: String, value: Boolean) {
-    updateState { it.copy(listAllUsersAsReviewerByAccount = it.listAllUsersAsReviewerByAccount + (accountId to value)) }
-  }
 
   companion object {
     fun getInstance(): GiteaSettings =
