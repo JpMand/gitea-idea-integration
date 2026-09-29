@@ -36,7 +36,10 @@ import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.text.HtmlChunk
 import com.intellij.openapi.util.text.StringUtil
+import com.intellij.ui.ColorUtil
+import com.intellij.ui.JBColor
 import com.intellij.ui.PopupHandler
+import com.intellij.ui.RoundedLineBorder
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.panels.Wrapper
@@ -104,9 +107,9 @@ class GiteaPRTimelineItemComponentFactory(
     }
 
     /**
-     * A review laid out as in the GitHub plugin: one timeline item for the review itself (its body
-     * and a status line with the verdict), then each of its threads as its own full-width item.
-     * They're stacked in one component, so the timeline still treats the review as one item.
+     * A review as one timeline item: the reviewer's avatar and name as its header, then a frame in
+     * the verdict's colour around the review body, its status line and each of its threads, so the
+     * whole review reads as one unit.
      */
     private fun review(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel.Review): JComponent {
         val content = VerticalListPanel(CodeReviewTimelineUIUtil.VERTICAL_GAP).apply {
@@ -118,13 +121,27 @@ class GiteaPRTimelineItemComponentFactory(
                 ),
             )
         }
-        val reviewItem = chatItem(item, content,
-            urlActions(item.htmlUrl, "pull.request.action.open.comment.in.browser", "pull.request.action.copy.comment.link"))
-        if (item.threads.isEmpty()) return reviewItem
-        return VerticalListPanel(0).apply {
-            add(reviewItem)
+        val accent = reviewAccentColor(reviewStatusType(item.state))
+        val framed = VerticalListPanel(CodeReviewTimelineUIUtil.VERTICAL_GAP).apply {
+            border = JBUI.Borders.compound(RoundedLineBorder(accent, JBUI.scale(REVIEW_FRAME_ARC), 1), JBUI.Borders.empty(8, 0))
+            add(Wrapper(content).apply { border = JBUI.Borders.empty(0, 8) })
             item.threads.forEach { thread -> threadItem(cs, thread)?.let { add(it) } }
         }
+        val actions = urlActions(item.htmlUrl, "pull.request.action.open.comment.in.browser", "pull.request.action.copy.comment.link")
+        if (actions.isNotEmpty()) PopupHandler.installPopupMenu(content, DefaultActionGroup(actions), "GiteaPRTimelinePopup")
+        return CodeReviewChatItemUIUtil.build(ComponentType.FULL, { size -> avatars.getIcon(item.actor, size) }, framed) {
+            maxContentWidth = null
+            withHeader(titleTextPane(actorName(item.actor), item.actor?.htmlUrl, item.timestamp, false), null)
+        }
+    }
+
+    /** The platform's status-line colour for [type], so the review's frame matches its verdict line. */
+    private fun reviewAccentColor(type: StatusMessageType): JBColor = when (type) {
+        StatusMessageType.SUCCESS -> JBColor.namedColor("Review.MetaInfo.StatusLine.Green", ColorUtil.fromHex("62B543B3"))
+        StatusMessageType.WARNING, StatusMessageType.ERROR ->
+            JBColor.namedColor("Review.MetaInfo.StatusLine.Orange", ColorUtil.fromHex("F26522B3"))
+        StatusMessageType.INFO -> JBColor.namedColor("Review.MetaInfo.StatusLine.Blue", ColorUtil.fromHex("40B6E0B2"))
+        StatusMessageType.SECONDARY_INFO -> JBColor.namedColor("Review.MetaInfo.StatusLine.Gray", ColorUtil.fromHex("9AA7B0B3"))
     }
 
     private fun commits(item: GiteaPRTimelineItemViewModel.Commits): JComponent {
@@ -530,5 +547,7 @@ class GiteaPRTimelineItemComponentFactory(
         const val THREAD_DIFF_TEXT_GAP = 8
         /** Between a thread's Resolve and Reply links, as in the GitHub plugin. */
         const val THREAD_ACTIONS_GAP = 14
+        /** Corner rounding of a review's coloured frame. */
+        const val REVIEW_FRAME_ARC = 12
     }
 }
