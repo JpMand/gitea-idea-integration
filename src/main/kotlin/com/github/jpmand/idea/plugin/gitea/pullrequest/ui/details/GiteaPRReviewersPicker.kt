@@ -2,6 +2,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.intellij.collaboration.ui.CollaborationToolsUIUtil
 import com.intellij.collaboration.util.CollectionDelta
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
@@ -9,11 +10,11 @@ import com.intellij.openapi.ui.popup.JBPopupListener
 import com.intellij.openapi.ui.popup.LightweightWindowEvent
 import com.intellij.ui.CheckBoxList
 import com.intellij.ui.awt.RelativePoint
-import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.ScrollPaneFactory
+import com.intellij.util.ui.JBDimension
 import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.CompletableDeferred
 import java.awt.BorderLayout
-import java.awt.Dimension
 import javax.swing.JButton
 import javax.swing.JPanel
 
@@ -42,6 +43,7 @@ suspend fun showReviewersPicker(
 
     lateinit var popup: JBPopup
     val applyButton = JButton(GiteaBundle.message("pull.request.action.request.review.apply")).apply {
+        with(CollaborationToolsUIUtil) { isDefault = true }
         addActionListener {
             result.complete(CollectionDelta(currentlyRequested, checkBoxList.getCheckedItems()))
             popup.closeOk(null)
@@ -49,11 +51,12 @@ suspend fun showReviewersPicker(
     }
 
     val panel = JPanel(BorderLayout()).apply {
-        preferredSize = Dimension(JBUI.scale(280), JBUI.scale(320))
-        add(JBScrollPane(checkBoxList), BorderLayout.CENTER)
+        preferredSize = JBDimension(280, 320)
+        add(ScrollPaneFactory.createScrollPane(checkBoxList, true), BorderLayout.CENTER)
         add(
             JPanel(BorderLayout()).apply {
-                border = JBUI.Borders.empty(4)
+                // A separator line above the footer, as popups with a bottom button bar have.
+                border = JBUI.Borders.compound(JBUI.Borders.customLineTop(JBUI.CurrentTheme.Popup.separatorColor()), JBUI.Borders.empty(6, 8))
                 add(applyButton, BorderLayout.EAST)
             },
             BorderLayout.SOUTH,

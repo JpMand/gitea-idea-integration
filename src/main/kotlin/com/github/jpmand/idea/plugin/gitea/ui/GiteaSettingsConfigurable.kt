@@ -6,7 +6,6 @@ import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaProjectDe
 import com.github.jpmand.idea.plugin.gitea.authentication.ui.GiteaAccountsDetailsProvider
 import com.github.jpmand.idea.plugin.gitea.authentication.ui.GiteaAccountsListModel
 import com.github.jpmand.idea.plugin.gitea.authentication.ui.GiteaAccountsPanelActionsController
-import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPullRequestsSettings
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle.message
 import com.github.jpmand.idea.plugin.gitea.util.GiteaPluginProjectScopeProvider
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil.SERVICE_DISPLAY_NAME
@@ -22,6 +21,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.ui.dsl.builder.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.serialization.Serializable
 import org.jetbrains.annotations.ApiStatus
 
 @Suppress("UnstableApiUsage")
@@ -32,7 +32,6 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
     val defaultAccountHolder = project.service<GiteaProjectDefaultAccountHolder>()
     val accountManager = service<GiteaAccountManager>()
     val giteaSettings = GiteaSettings.getInstance()
-    val prSettings = project.service<GiteaPullRequestsSettings>()
 
     val scope = scopeProvider.childScope(
       javaClass.name, disposable!!,
@@ -56,15 +55,8 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
           .align(Align.FILL)
       }.resizableRow()
 
-      row {
-        checkBox(message("settings.automatically.mark.as.viewed"))
-          .bindSelected(
-            { giteaSettings.isAutomaticallyMarkAsViewed },
-            { giteaSettings.isAutomaticallyMarkAsViewed = it })
-      }
-
-      row {
-        message("settings.connection.timeout")
+      // The label goes in the form's label column, so it lines up like other settings pages.
+      row(message("settings.connection.timeout")) {
         intTextField(range = 0..60)
           .columns(2)
           .bindIntText({ giteaSettings.connectionTimeout / 1000 }, { giteaSettings.connectionTimeout = it * 1000 })
@@ -82,28 +74,16 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
       }
 
       row {
-        checkBox(message("settings.editor.review.enabled"))
+        checkBox(message("settings.reviewer.list.all.users"))
           .bindSelected(
-            { prSettings.editorReviewEnabled },
-            { prSettings.editorReviewEnabled = it })
+            { giteaSettings.allUsersArePotentialReviewers },
+            { giteaSettings.allUsersArePotentialReviewers = it })
       }
-
-      // Scoped to the project's current default account (there's no account-selector UI here) —
-      // switch the default account first to configure this for a different one.
-      defaultAccountHolder.account?.let { account ->
-        row {
-          checkBox(message("settings.reviewer.list.all.users"))
-            .bindSelected(
-              { giteaSettings.isListAllUsersAsReviewer(account.id) },
-              { giteaSettings.setListAllUsersAsReviewer(account.id, it) })
-        }
-      }
-
       addWarningForMemoryOnlyPasswordSafeAndGet(
         scope,
         service<GiteaAccountManager>().canPersistCredentials,
         ::panel
-      ).align(AlignX.RIGHT)
+      ).align(AlignX.LEFT)
     }
   }
 }
@@ -116,19 +96,20 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
   category = SettingsCategory.TOOLS
 )
 class GiteaSettings : SerializablePersistentStateComponent<GiteaSettings.State>(State()) {
+  // Without a generated serializer the platform silently saves and loads nothing for this state.
+  @Serializable
   data class State(
-    val automaticallyMarkAsViewed: Boolean = false,
     val connectionTimeout: Int = 5_000,
     val cloneWithSsh: Boolean = false,
+    val allUsersArePotentialReviewers : Boolean = false
     /** [GiteaAccount.id] -> whether the Request Review picker should offer every user on the
      * instance rather than just the repo's collaborators. Default (absent) is collaborators-only. */
-    val listAllUsersAsReviewerByAccount: Map<String, Boolean> = emptyMap(),
   )
 
-  var isAutomaticallyMarkAsViewed: Boolean
-    get() = state.automaticallyMarkAsViewed
+  var allUsersArePotentialReviewers : Boolean
+    get() = state.allUsersArePotentialReviewers
     set(value) {
-      updateState { it.copy(automaticallyMarkAsViewed = value) }
+      updateState { it.copy(allUsersArePotentialReviewers = value) }
     }
 
   var connectionTimeout: Int
@@ -142,13 +123,6 @@ class GiteaSettings : SerializablePersistentStateComponent<GiteaSettings.State>(
     set(value) {
       updateState { it.copy(cloneWithSsh = value) }
     }
-
-  fun isListAllUsersAsReviewer(accountId: String): Boolean =
-    state.listAllUsersAsReviewerByAccount[accountId] ?: false
-
-  fun setListAllUsersAsReviewer(accountId: String, value: Boolean) {
-    updateState { it.copy(listAllUsersAsReviewerByAccount = it.listAllUsersAsReviewerByAccount + (accountId to value)) }
-  }
 
   companion object {
     fun getInstance(): GiteaSettings =

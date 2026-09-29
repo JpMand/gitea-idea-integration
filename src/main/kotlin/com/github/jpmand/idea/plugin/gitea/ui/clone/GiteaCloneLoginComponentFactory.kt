@@ -38,7 +38,7 @@ internal object GiteaCloneLoginComponentFactory {
     ): JComponent {
         val loginModel = loginVm.tokenLoginModel
         val titlePanel = JBUI.Panels.simplePanel().apply {
-            val title = JBLabel(GiteaBundle.message("clone.dialog.login.title"), UIUtil.ComponentStyle.LARGE).apply {
+            val title = JBLabel(GiteaBundle.message("clone.dialog.login.title")).apply {
                 font = JBFont.label().biggerOn(5.0f)
             }
             addToLeft(title)

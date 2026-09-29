@@ -25,7 +25,6 @@ internal class GiteaPullRequestsSettings :
     @Serializable
     data class State(
         val selectedUrlAndAccountId: Pair<String, String>? = null,
-        val editorReviewEnabled: Boolean = true,
         val changesGrouping: Set<String> = setOf(
             ChangesGroupingSupport.DIRECTORY_GROUPING,
             ChangesGroupingSupport.MODULE_GROUPING
@@ -43,14 +42,6 @@ internal class GiteaPullRequestsSettings :
         set(value) {
             updateStateAndEmit {
                 it.copy(selectedUrlAndAccountId = value)
-            }
-        }
-
-    var editorReviewEnabled: Boolean
-        get() = state.editorReviewEnabled
-        set(value) {
-            updateStateAndEmit {
-                it.copy(editorReviewEnabled = value)
             }
         }
 

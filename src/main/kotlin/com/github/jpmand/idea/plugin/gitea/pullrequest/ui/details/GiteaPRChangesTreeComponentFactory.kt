@@ -6,10 +6,14 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.pr.GiteaPRFileStatusEnum
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.intellij.collaboration.ui.CollaborationToolsUIUtil
 import com.intellij.collaboration.ui.LoadingLabel
 import com.intellij.collaboration.ui.codereview.CodeReviewProgressTreeModelFromDetails
 import com.intellij.collaboration.ui.codereview.changes.CodeReviewChangeListComponentFactory
 import com.intellij.collaboration.ui.codereview.details.model.CodeReviewChangeList
+import com.intellij.collaboration.ui.codereview.list.error.ErrorStatusPanelFactory
+import com.intellij.collaboration.ui.codereview.list.error.ErrorStatusPresenter
+import com.intellij.collaboration.ui.util.swingAction
 import com.intellij.collaboration.util.RefComparisonChange
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
@@ -23,11 +27,7 @@ import com.intellij.ui.components.panels.Wrapper
 import com.intellij.util.ui.JBUI
 import com.intellij.vcsUtil.VcsUtil
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.*
 import java.io.File
 import javax.swing.JComponent
 
@@ -53,13 +53,15 @@ object GiteaPRChangesTreeComponentFactory {
         onOpenChange: (String) -> Unit,
     ): JComponent {
         val wrapper = Wrapper(LoadingLabel())
+        // Bumped by the error panel's Retry to load the same selection again.
+        val retries = MutableStateFlow(0)
 
         cs.launch {
             combine(
                 selectedCommitFlow.distinctUntilChangedBy { it?.sha },
                 prFlow.distinctUntilChangedBy { Triple(it.number, it.diffBaseSha, it.head.sha) },
-                ::Pair,
-            ).collectLatest { (selectedCommit, pr) ->
+                retries,
+            ) { commit, pr, _ -> commit to pr }.collectLatest { (selectedCommit, pr) ->
                 wrapper.setContent(LoadingLabel())
                 wrapper.repaint()
 
@@ -107,7 +109,18 @@ object GiteaPRChangesTreeComponentFactory {
                     throw e
                 } catch (e: Exception) {
                     thisLogger().warn("Failed to load changed files for PR #${pr.number}", e)
-                    label(GiteaBundle.message("pull.request.details.changes.unavailable"))
+                    // An error, not "no changes": platform error styling, centred, with Retry.
+                    CollaborationToolsUIUtil.moveToCenter(
+                        ErrorStatusPanelFactory.create(
+                            e,
+                            ErrorStatusPresenter.simple(
+                                GiteaBundle.message("pull.request.details.changes.unavailable"),
+                                descriptionProvider = { it.message },
+                                actionProvider = { swingAction(GiteaBundle.message("pull.request.error.retry")) { retries.value++ } },
+                            ),
+                            ErrorStatusPanelFactory.Alignment.CENTER,
+                        ),
+                    )
                 }
                 wrapper.setContent(component)
                 wrapper.revalidate()

@@ -110,7 +110,8 @@ internal fun suggestionForRange(range: Range, headLines: List<String>, newLines:
     return anchorLine to suggestion
 }
 
-private val SUGGESTION_BAR_COLOR: Color = JBColor(0x0E8577, 0x3FB6A8)
+/** A theme key (with the previous teal as its default), so themes can recolour the bar. */
+private val SUGGESTION_BAR_COLOR: Color = JBColor.namedColor("Gitea.Review.SuggestionGutterBar", JBColor(0x0E8577, 0x3FB6A8))
 private const val BAR_WIDTH = 4
 
 /**

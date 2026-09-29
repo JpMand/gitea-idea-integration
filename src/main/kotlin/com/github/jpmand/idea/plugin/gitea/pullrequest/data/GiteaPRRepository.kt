@@ -97,7 +97,7 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     /**
      * Candidate reviewers for the Request Review picker: either the repo's collaborators, or every
      * user on the instance (via `/users/search`, which needs no admin rights), per [listAllUsers]
-     * — see `GiteaSettings.isListAllUsersAsReviewer`. Falls back to the collaborators list whenever
+     * — see `GiteaSettings.allUsersArePotentialReviewers`. Falls back to the collaborators list whenever
      * the "all users" search is forbidden or comes back empty, same 403-tolerant treatment as
      * [loadPossibleAuthors].
      */

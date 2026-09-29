@@ -12,6 +12,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.GiteaPRDetails
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.GiteaPRStatusViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.giteaReviewErrorPanel
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.intellij.collaboration.ui.CollaborationToolsUIUtil
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CoroutineScope
@@ -72,13 +73,12 @@ class GiteaPRDetailsTab(
             ),
             BorderLayout.NORTH,
         )
-        add(
-            GiteaPRDetailsPanel(
-                project, cs, detailsVm, statusVm, discussionsVm, changesComponent,
-                onShowTimeline = onShowTimeline,
-                onRefresh = refresh,
-            ).create(),
-            BorderLayout.CENTER,
-        )
+        val details = GiteaPRDetailsPanel(
+            project, cs, detailsVm, statusVm, discussionsVm, changesComponent,
+            onShowTimeline = onShowTimeline,
+            onRefresh = refresh,
+        ).create()
+        // The platform progress stripe while the PR is re-fetched (on open and on Refresh).
+        add(CollaborationToolsUIUtil.wrapWithProgressStripe(cs, detailsVm.isLoading, details), BorderLayout.CENTER)
     }
 }

@@ -27,6 +27,7 @@ import com.intellij.ui.EditorTextField
 import com.intellij.ui.components.panels.HorizontalLayout
 import com.intellij.util.ui.InlineIconButton
 import com.intellij.util.ui.JBDimension
+import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
 import icons.CollaborationToolsIcons
 import kotlinx.coroutines.CoroutineScope
@@ -37,7 +38,6 @@ import net.miginfocom.layout.CC
 import net.miginfocom.layout.LC
 import net.miginfocom.swing.MigLayout
 import java.awt.Component
-import java.awt.Font
 import java.awt.event.ActionListener
 import javax.swing.JButton
 import javax.swing.JComponent
@@ -128,7 +128,7 @@ internal object GiteaSubmitReviewPopup {
 
     private fun createPanel(cs: CoroutineScope, vm: GiteaSubmitReviewViewModel, editor: EditorTextField): JComponent {
         val titleLabel = JLabel(CollaborationToolsBundle.message("review.submit.review.title")).apply {
-            font = font.deriveFont(font.style or Font.BOLD)
+            font = JBFont.label().asBold()
         }
         val titlePanel = JPanel(HorizontalLayout(TITLE_ACTIONS_GAP)).apply {
             isOpaque = false

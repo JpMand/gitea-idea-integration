@@ -1,7 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.authentication.ui
 
-import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
+import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.ValidationInfo
@@ -93,9 +93,9 @@ constructor(
   override fun createCenterPanel(): JComponent =
     JBUI.Panels.simplePanel(UIUtil.DEFAULT_HGAP, UIUtil.DEFAULT_VGAP).apply {
       myDescription?.let { addToTop(it) }
-      addToCenter(JBScrollPane(myAccountsList).apply {
-        preferredSize = JBUI.size(150, 20 * (myAccountsList.itemsCount + 1))
-      })
+      // Sized by rows (not an assumed 20px row height), between 3 and 8 visible accounts.
+      myAccountsList.visibleRowCount = myAccountsList.itemsCount.coerceIn(3, 8)
+      addToCenter(JBScrollPane(myAccountsList))
       mySetDefaultCheckBox?.let { addToBottom(it) }
     }
 

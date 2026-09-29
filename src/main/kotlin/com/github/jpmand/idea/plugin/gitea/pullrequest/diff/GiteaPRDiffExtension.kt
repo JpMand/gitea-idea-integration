@@ -1,6 +1,5 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.diff
 
-import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPullRequestsSettings
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRDiffEditorModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRInlayComponentsFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
@@ -8,7 +7,6 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.REVIEW_UI_INSTALL_RETR
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.REVIEW_UI_INSTALL_RETRY_DELAY_MS
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.async.launchNow
-import com.intellij.openapi.components.service
 import com.intellij.collaboration.ui.codereview.diff.viewer.showCodeReview
 import com.intellij.diff.DiffContext
 import com.intellij.diff.DiffExtension
@@ -35,7 +33,6 @@ class GiteaPRDiffExtension : DiffExtension() {
     override fun onViewerCreated(viewer: FrameDiffTool.DiffViewer, context: DiffContext, request: DiffRequest) {
         if (viewer !is DiffViewerBase) return
         val project = context.project ?: return
-        if (!project.service<GiteaPullRequestsSettings>().editorReviewEnabled) return
         val discussionsVm = context.getUserData(GiteaPRDiscussionsViewModels.CONTEXT_KEY) ?: return
         val fileVm = request.getUserData(GiteaPRDiffFileViewModel.CONTEXT_KEY) ?: return
 

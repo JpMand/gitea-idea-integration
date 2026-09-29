@@ -14,7 +14,14 @@ import com.intellij.collaboration.ui.HorizontalListPanel
 import com.intellij.collaboration.ui.ScrollablePanel
 import com.intellij.collaboration.ui.SimpleHtmlPane
 import com.intellij.collaboration.ui.VerticalListPanel
+import com.intellij.collaboration.messages.CollaborationToolsBundle
+import com.intellij.collaboration.ui.codereview.avatar.CodeReviewAvatarUtils
 import com.intellij.collaboration.ui.codereview.details.*
+import com.intellij.collaboration.ui.codereview.timeline.StatusMessageComponentFactory
+import com.intellij.collaboration.ui.codereview.timeline.StatusMessageType
+import com.intellij.openapi.editor.actions.IncrementalFindAction
+import com.intellij.openapi.fileTypes.FileTypes
+import com.intellij.ui.EditorTextField
 import com.intellij.ide.BrowserUtil
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
@@ -66,11 +73,8 @@ class GiteaPRDetailsPanel(
 ) {
 
     companion object {
-        /** Tighter than the platform's default [CodeReviewDetailsActionsComponentFactory.BUTTONS_GAP]/
-         * [ReviewDetailsUIUtil.ACTIONS_GAPS] — this row (merge control, delete-branch checkbox,
-         * close button) reads better compact. */
-        private val COMPACT_BUTTONS_GAP = JBUI.scale(4)
-        private val COMPACT_ACTIONS_GAP = JBUI.scale(4)
+        // Unscaled on purpose: HorizontalListPanel scales its gap itself.
+        private const val COMPACT_BUTTONS_GAP = CodeReviewDetailsActionsComponentFactory.BUTTONS_GAP
 
         /** Cap on the "Show details" commit-info area — past this it scrolls internally instead
          * of pushing the changes tree/status/actions rows down or off-screen. */
@@ -115,51 +119,73 @@ class GiteaPRDetailsPanel(
         val resolveConflictsLink = MutableStateFlow<Either<String, ActionListener>>(
             Either.right(ActionListener { vm.branchesVm.resolveConflicts() }),
         )
-        val statusComponent = VerticalListPanel(4).apply {
+        // Each status row carries its own vertical padding, so no extra gap between them.
+        val statusRows = VerticalListPanel(0).apply {
             add(CodeReviewDetailsStatusComponentFactory.createCiComponent(cs, statusVm))
-            add(CodeReviewDetailsStatusComponentFactory.createNeedReviewerComponent(cs, statusVm.reviewerStates))
             add(
                 CodeReviewDetailsStatusComponentFactory.createConflictsComponent(
                     cs, statusVm.hasConflicts, resolveConflictsLink, vm.branchesVm.isResolvingConflicts,
                 ),
             )
+            add(CodeReviewDetailsStatusComponentFactory.createNeedReviewerComponent(cs, statusVm.reviewerStates))
+            // One row per reviewer (avatar outlined by state + "approved"/"requested changes"), as in GitHub.
+            add(
+                CodeReviewDetailsStatusComponentFactory.createReviewersReviewStateComponent(
+                    cs, statusVm.reviewerStates,
+                    reviewerActionProvider = { null },
+                    reviewerNameProvider = { user -> user.fullName ?: user.login },
+                    avatarKeyProvider = { user -> user },
+                    iconProvider = { state, user, size ->
+                        CodeReviewAvatarUtils.createIconWithOutline(
+                            discussionsVm.avatars.getIcon(user, size), ReviewDetailsUIUtil.getReviewStateIconBorder(state),
+                        )
+                    },
+                ),
+            )
+        }
+        val statusComponent = ScrollPaneFactory.createScrollPane(statusRows, true).apply {
+            isOpaque = false
+            viewport.isOpaque = false
+            horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
         }
 
         val actionsComponent = createActionsComponent()
         val reviewComponent = reviewComposerPanel(cs, discussionsVm)
 
-        // Title/nav-bar/branch row: always fully visible, never scrolls on its own.
-        val header = VerticalListPanel(0).apply {
-            border = JBUI.Borders.empty(8, 8, 0, 8)
-            add(pad(titleComponent, ReviewDetailsUIUtil.TITLE_GAPS.top, ReviewDetailsUIUtil.TITLE_GAPS.bottom))
-            add(pad(navBar, 0, 8))
-            add(pad(commitsAndBranch, 0, 4))
+        // Title with its links underneath, 8px apart, like the platform's ReviewDetailsUIUtil.createTitlePanel.
+        val titlePanel = VerticalListPanel(8).apply {
+            isOpaque = false
+            add(titleComponent)
+            add(navBar)
         }
 
         // The view must track the viewport's width: otherwise a long commit message lays out at
         // its full unwrapped width, clipping the text and pushing "Hide details" out of view.
         val commitInfoView = ScrollablePanel(SwingConstants.VERTICAL, java.awt.BorderLayout()).apply {
             isOpaque = false
-            border = JBUI.Borders.empty(0, 8)
             add(commitInfo, java.awt.BorderLayout.CENTER)
         }
         val commitInfoScrollPane = ScrollPaneFactory.createScrollPane(commitInfoView, true).apply {
             horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
         }
 
-        // shrinkY(0) on the header/commit-info rows keeps them at their preferred height always —
-        // the changes tree (the sole push/grow row) is what absorbs a shrinking tool-window
-        // height first; only once it's already at its own minimum does MigLayout start shrinking
-        // the remaining non-push rows (status, then actions).
-        return JPanel(MigLayout(LC().insets("0").fill().flowY().noGrid().gridGap("0", "0"))).apply {
+        // Sections are spaced with the platform's review-details gaps (16 left, 14 right), the
+        // same layout as the GitHub plugin's details panel. shrinkY(0) on the header/commit-info
+        // rows keeps them at their preferred height always — the changes tree (the sole push/grow
+        // row) is what absorbs a shrinking tool-window height first.
+        return JPanel(MigLayout(LC().insets("0").fill().flowY().noGrid().hideMode(3))).apply {
             isOpaque = false
             // Only vertically: a row that can't shrink horizontally lays out at its unwrapped width.
-            add(header, CC().growX().shrinkY(0f))
-            add(commitInfoScrollPane, CC().growX().shrinkY(0f).maxHeight("${JBUI.scale(COMMIT_INFO_MAX_HEIGHT)}"))
-            add(changesComponent, CC().grow().push())
-            add(pad(statusComponent, ReviewDetailsUIUtil.STATUSES_GAPS.top, ReviewDetailsUIUtil.STATUSES_GAPS.bottom), CC().growX())
-            add(pad(actionsComponent, COMPACT_ACTIONS_GAP, COMPACT_ACTIONS_GAP), CC().growX())
-            add(pad(reviewComponent, COMPACT_ACTIONS_GAP, COMPACT_ACTIONS_GAP), CC().growX())
+            add(titlePanel, CC().growX().shrinkY(0f).gaps(ReviewDetailsUIUtil.TITLE_GAPS))
+            add(commitsAndBranch, CC().growX().shrinkY(0f).gaps(ReviewDetailsUIUtil.COMMIT_POPUP_BRANCHES_GAPS))
+            add(
+                commitInfoScrollPane,
+                CC().growX().shrinkY(0f).maxHeight("${JBUI.scale(COMMIT_INFO_MAX_HEIGHT)}").gaps(ReviewDetailsUIUtil.COMMIT_INFO_GAPS),
+            )
+            add(changesComponent, CC().grow().push().shrinkPrioY(200))
+            add(statusComponent, CC().growX().maxHeight("${ReviewDetailsUIUtil.STATUSES_MAX_HEIGHT}").gaps(ReviewDetailsUIUtil.STATUSES_GAPS))
+            add(actionsComponent, CC().growX().minHeight("pref").gaps(ReviewDetailsUIUtil.ACTIONS_GAPS))
+            add(reviewComponent, CC().growX().minHeight("pref").gaps(ReviewDetailsUIUtil.ACTIONS_GAPS))
         }
     }
 
@@ -192,7 +218,7 @@ class GiteaPRDetailsPanel(
      * the selected verdict never loses what's been typed.
      */
     private fun startReviewPanel(cs: CoroutineScope, discussionsVm: GiteaPRDiscussionsViewModels): JComponent {
-        val textArea = reviewTextArea()
+        val textArea = reviewTextField()
         val draftCountLabel = JBLabel().apply {
             foreground = UIUtil.getContextHelpForeground()
             font = JBFont.small()
@@ -227,9 +253,10 @@ class GiteaPRDetailsPanel(
             add(cancelButton)
         }
         bindBusyState(cs, discussionsVm, buttons)
-        return VerticalListPanel(4).apply {
+        return VerticalListPanel(6).apply {
+            isOpaque = false
             add(draftCountLabel)
-            add(JBScrollPane(textArea))
+            add(textArea)
             add(buttons)
         }
     }
@@ -237,7 +264,7 @@ class GiteaPRDetailsPanel(
     /** Same select-then-confirm verdict group as [startReviewPanel], minus "Save pending" — a
      * pending review already exists at this point. */
     private fun finishReviewPanel(cs: CoroutineScope, discussionsVm: GiteaPRDiscussionsViewModels, pending: GiteaReview): JComponent {
-        val textArea = reviewTextArea().apply { text = pending.body.orEmpty() }
+        val textArea = reviewTextField().apply { text = pending.body.orEmpty() }
         val cancelButton = JButton(GiteaBundle.message("pull.request.action.cancel.review")).apply {
             addActionListener { confirmAndCancelReview(project, discussionsVm) }
         }
@@ -259,9 +286,10 @@ class GiteaPRDetailsPanel(
             add(cancelButton)
         }
         bindBusyState(cs, discussionsVm, buttons)
-        return VerticalListPanel(4).apply {
-            add(JBLabel(GiteaBundle.message("pull.request.review.pending.banner")).apply { font = JBFont.label().asBold() })
-            add(JBScrollPane(textArea))
+        return VerticalListPanel(6).apply {
+            isOpaque = false
+            add(StatusMessageComponentFactory.create(JBLabel(GiteaBundle.message("pull.request.review.pending.banner")), StatusMessageType.INFO))
+            add(textArea)
             add(buttons)
         }
     }
@@ -270,7 +298,22 @@ class GiteaPRDetailsPanel(
     private fun OptionSpec.unlessAuthor(discussionsVm: GiteaPRDiscussionsViewModels): OptionSpec? =
         takeUnless { discussionsVm.viewerIsAuthor }
 
-    private fun reviewTextArea(): JBTextArea = JBTextArea(3, 40).apply { lineWrap = true; wrapStyleWord = true }
+    /** A multi-line editor field like the submit-review popup's: soft wraps, grows with its text, platform placeholder. */
+    private fun reviewTextField(): EditorTextField =
+        EditorTextField("", project, FileTypes.PLAIN_TEXT).apply {
+            setOneLineMode(false)
+            setPlaceholder(CollaborationToolsBundle.message("review.comment.placeholder"))
+            setShowPlaceholderWhenFocused(true)
+            addSettingsProvider {
+                it.settings.isUseSoftWraps = true
+                it.setVerticalScrollbarVisible(true)
+                it.scrollPane.viewportBorder = JBUI.Borders.emptyLeft(4)
+                it.putUserData(IncrementalFindAction.SEARCH_DISABLED, true)
+            }
+            // At least three lines, so the field reads as a text area before anything is typed.
+            minimumSize = JBUI.size(0, 3 * getFontMetrics(font).height + JBUI.scale(8))
+            preferredSize = minimumSize
+        }
 
     /** [JComponent.setEnabled] doesn't propagate to children in Swing — disable each button
      * directly so the whole row is inert while a review submission is in flight. */
@@ -303,7 +346,7 @@ class GiteaPRDetailsPanel(
             add(HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
                 add(mergeControl)
             })
-            add(HorizontalListPanel(UIUtil.LARGE_VGAP).apply {
+            add(HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
                 add(requestReviewButton)
                 add(closeButton)
             })
@@ -340,7 +383,10 @@ class GiteaPRDetailsPanel(
     }
 
     private fun actionButton(bundleKey: String, action: () -> Unit): JButton =
-        JButton(GiteaBundle.message(bundleKey)).apply { addActionListener { action() } }
+        JButton(GiteaBundle.message(bundleKey)).apply {
+            isOpaque = false
+            addActionListener { action() }
+        }
 
     /**
      * Loads candidate reviewers (respecting the per-account "list all users" setting, see
@@ -351,6 +397,7 @@ class GiteaPRDetailsPanel(
     private fun createRequestReviewButton(): JButton {
         lateinit var button: JButton
         button = JButton(GiteaBundle.message("pull.request.action.request.review")).apply {
+            isOpaque = false
             addActionListener {
                 cs.launch {
                     try {
@@ -383,7 +430,7 @@ class GiteaPRDetailsPanel(
      * select/confirm split on top).
      */
     private fun createMergeControl(): Pair<JComponent, JBOptionButton> {
-        val deleteBranchCheckBox = JBCheckBox(GiteaBundle.message("pull.request.merge.dialog.delete.branch"))
+        val deleteBranchCheckBox = JBCheckBox(GiteaBundle.message("pull.request.merge.dialog.delete.branch")).apply { isOpaque = false }
         val strategies = listOf(
             MergePullRequestOption.Do.MERGE,
             MergePullRequestOption.Do.SQUASH,
@@ -459,9 +506,7 @@ class GiteaPRDetailsPanel(
         )
     }
 
-    private fun pad(c: JComponent, top: Int, bottom: Int): JComponent =
-        JPanel(MigLayout(LC().fillX().insets("$top", "0", "$bottom", "0"))).apply {
-            isOpaque = false
-            add(c, CC().growX().pushX())
-        }
+    /** Spaces a MigLayout cell by [insets] (already scaled). The platform's own `CC.gap(Insets)` is internal API. */
+    private fun CC.gaps(insets: java.awt.Insets): CC =
+        gapTop("${insets.top}").gapLeft("${insets.left}").gapBottom("${insets.bottom}").gapRight("${insets.right}")
 }

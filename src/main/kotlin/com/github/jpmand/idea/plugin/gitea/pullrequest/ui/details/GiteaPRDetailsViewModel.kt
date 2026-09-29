@@ -176,7 +176,7 @@ class GiteaPRDetailsViewModel(
     /** Everyone who can be asked for a review, except the PR's author (Gitea rejects that with
      * "poster of pr can't be reviewer", failing the whole update). */
     suspend fun loadPossibleReviewers(): List<GiteaUser> =
-        repository.loadPossibleReviewers(GiteaSettings.getInstance().isListAllUsersAsReviewer(repository.accountId))
+        repository.loadPossibleReviewers(GiteaSettings.getInstance().allUsersArePotentialReviewers)
             .filterNot { it.login.equals(_pr.value.author.login, ignoreCase = true) }
 
     /**

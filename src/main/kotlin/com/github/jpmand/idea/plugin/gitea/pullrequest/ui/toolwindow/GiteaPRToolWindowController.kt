@@ -22,20 +22,14 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
-import com.intellij.ui.HyperlinkLabel
-import com.intellij.ui.components.JBLabel
+import com.intellij.ui.SimpleTextAttributes
+import com.intellij.ui.components.JBPanelWithEmptyText
 import com.intellij.ui.content.Content
 import com.intellij.ui.content.ContentManagerEvent
 import com.intellij.ui.content.ContentManagerListener
-import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.*
-import java.awt.GridBagConstraints
-import java.awt.GridBagLayout
 import javax.swing.JComponent
-import javax.swing.JPanel
-import javax.swing.SwingConstants
-import javax.swing.event.HyperlinkEvent
 
 /**
  * Manages the "Gitea Pull Requests" tool window as a tab container:
@@ -136,7 +130,6 @@ class GiteaPRToolWindowController(
             false,
         ).apply {
             isCloseable = false
-            isPinned = true
         }
         replaceListContent(content)
         currentCtx = ctx
@@ -164,6 +157,7 @@ class GiteaPRToolWindowController(
             onShowTimeline = { openTimelineEditor(repository, pr, ctx) },
         )
         val content = cm.factory.createContent(tab.component, "#${pr.number}", false).apply {
+            description = "${ctx.repo.repositoryPath}: ${pr.title}"
             isCloseable = true
             isPinnable = false
             setDisposer(Disposable { tabJob.cancel() })
@@ -223,26 +217,16 @@ class GiteaPRToolWindowController(
             .forEach { fileEditorManager.closeFile(it) }
     }
 
-    private fun createEmptyStatePanel(): JComponent {
-        val titleLabel = JBLabel(GiteaBundle.message("pull.request.toolwindow.empty.login.title")).apply {
-            foreground = UIUtil.getContextHelpForeground()
-            horizontalAlignment = SwingConstants.CENTER
-        }
-        val settingsLink = HyperlinkLabel(GiteaBundle.message("pull.request.toolwindow.empty.login.action")).apply {
-            addHyperlinkListener { e ->
-                if (e.eventType == HyperlinkEvent.EventType.ACTIVATED) {
+    /** The platform's centred empty text on the list background, as the other review tool windows show it. */
+    private fun createEmptyStatePanel(): JComponent =
+        JBPanelWithEmptyText().apply {
+            background = UIUtil.getListBackground()
+            emptyText
+                .appendText(GiteaBundle.message("pull.request.toolwindow.empty.login.title"))
+                .appendSecondaryText(GiteaBundle.message("pull.request.toolwindow.empty.login.action"), SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES) {
                     ShowSettingsUtil.getInstance().showSettingsDialog(project, GiteaSettingsConfigurable::class.java)
                 }
-            }
         }
-        return JPanel(GridBagLayout()).apply {
-            val c = GridBagConstraints()
-            c.gridx = 0; c.gridy = 0; c.insets = JBUI.insetsBottom(UIUtil.DEFAULT_VGAP)
-            add(titleLabel, c)
-            c.gridy = 1; c.insets = JBUI.emptyInsets()
-            add(settingsLink, c)
-        }
-    }
 
     override fun dispose() {
         // cs is a disposed scope bound to this Disposable and is cancelled automatically.

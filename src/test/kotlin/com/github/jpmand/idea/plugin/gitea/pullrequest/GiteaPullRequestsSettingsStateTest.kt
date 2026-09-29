@@ -17,7 +17,6 @@ class GiteaPullRequestsSettingsStateTest {
   fun `state round-trips through its generated serializer`() {
     val state = GiteaPullRequestsSettings.State(
       selectedUrlAndAccountId = "http://localhost:3000/acme/webapp" to "account-1",
-      editorReviewEnabled = false,
       changesGrouping = setOf("directory"),
       editorReviewViewOption = DiscussionsViewOption.ALL,
       viewedPrFiles = mapOf(1 to setOf("src/App.java", "README.md")),

@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.mention.GITEA_MENTION_CANDIDATES_KEY
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.intellij.collaboration.messages.CollaborationToolsBundle
 import com.intellij.collaboration.ui.codereview.CodeReviewChatItemUIUtil
 import com.intellij.collaboration.ui.codereview.comment.CodeReviewCommentTextFieldFactory
 import com.intellij.collaboration.ui.codereview.comment.CodeReviewSubmittableTextViewModelBase
@@ -17,6 +18,7 @@ import kotlinx.coroutines.launch
 import java.awt.event.ActionEvent
 import javax.swing.AbstractAction
 import javax.swing.JComponent
+import javax.swing.border.EmptyBorder
 
 /**
  * A markdown comment editor (platform [CodeReviewSubmittableTextViewModelBase] +
@@ -70,6 +72,12 @@ object GiteaPRCommentFieldFactory {
         /** An optional extra option in the primary button's dropdown — `null` (the default) omits
          * it, matching every existing caller. */
         secondaryAction: SecondaryAction? = null,
+        /** How big the avatar is: [CodeReviewChatItemUIUtil.ComponentType.FULL] in the Conversation
+         * tab, [CodeReviewChatItemUIUtil.ComponentType.COMPACT] inside a diff/editor inlay, which
+         * also gets the platform's input padding there. */
+        componentType: CodeReviewChatItemUIUtil.ComponentType = CodeReviewChatItemUIUtil.ComponentType.FULL,
+        /** Replying to a thread — the shortcut hint then says "to reply" instead of "to comment". */
+        isReply: Boolean = false,
     ): JComponent {
         val submitAction = object : AbstractAction(GiteaBundle.message(primaryActionLabelKey)) {
             override fun actionPerformed(e: ActionEvent?) = vm.submitComment()
@@ -89,15 +97,21 @@ object GiteaPRCommentFieldFactory {
             secondaryActions = MutableStateFlow(secondaryActions),
             additionalActions = MutableStateFlow(emptyList()),
             cancelAction = MutableStateFlow(cancelAction),
-            submitHint = MutableStateFlow(GiteaBundle.message("pull.request.timeline.comment.placeholder")),
+            // The platform's "<shortcut> to comment/reply" hint, not a placeholder.
+            submitHint = MutableStateFlow(
+                CollaborationToolsBundle.message(
+                    if (isReply) "review.comments.reply.hint" else "review.comment.hint",
+                    CommentInputActionsComponentFactory.submitShortcutText,
+                ),
+            ),
         )
-        val iconConfig = CommentTextFieldFactory.IconConfig.of(
-            CodeReviewChatItemUIUtil.ComponentType.FULL, avatars, iconUser,
-        )
+        val iconConfig = CommentTextFieldFactory.IconConfig.of(componentType, avatars, iconUser)
         return CodeReviewCommentTextFieldFactory.createIn(cs, vm, config, iconConfig) { editor ->
             if (mentionCandidates != null) {
                 cs.launch { mentionCandidates.collect { editor.putUserData(GITEA_MENTION_CANDIDATES_KEY, it) } }
             }
+        }.apply {
+            if (componentType != CodeReviewChatItemUIUtil.ComponentType.FULL) border = EmptyBorder(componentType.inputPaddingInsets)
         }
     }
 }

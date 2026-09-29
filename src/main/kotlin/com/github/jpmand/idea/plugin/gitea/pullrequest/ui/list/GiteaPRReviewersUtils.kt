@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReview
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewState
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
+import com.intellij.collaboration.ui.codereview.details.data.ReviewState
 
 /**
  * Domain-level reviewer state for list/details presentation, decoupled from [GiteaReviewState]
@@ -27,10 +28,13 @@ private val REVIEWER_DISPLAY_ORDER = listOf(
  * Computes one review-state per reviewer, combining requested-but-not-yet-reviewed reviewers
  * with actual reviews (the latest review per author wins). Reviewers with no review yet — either
  * merely requested or otherwise absent from [reviews] — are [GiteaPRReviewerState.NEEDS_REVIEW].
+ * The PR's author ([authorLogin]) is left out: replying to a thread leaves them a comment review,
+ * and Gitea lists them among `requested_reviewers` afterwards, but they aren't a reviewer.
  */
 fun computeReviewerStates(
     requestedReviewers: List<GiteaUser>,
     reviews: List<GiteaReview>,
+    authorLogin: String? = null,
 ): Map<GiteaUser, GiteaPRReviewerState> {
     // Reviews are returned oldest-first; keep the last one seen per author as that author's current state.
     val latestByAuthor = LinkedHashMap<GiteaUser, GiteaReview>()
@@ -51,8 +55,16 @@ fun computeReviewerStates(
     for (reviewer in requestedReviewers) {
         result.putIfAbsent(reviewer, GiteaPRReviewerState.NEEDS_REVIEW)
     }
+    if (authorLogin != null) result.keys.removeAll { it.login.equals(authorLogin, ignoreCase = true) }
 
     return result
+}
+
+/** The platform's review state for [this], which drives the reviewer avatar outline and status text. */
+fun GiteaPRReviewerState.toReviewState(): ReviewState = when (this) {
+    GiteaPRReviewerState.APPROVED -> ReviewState.ACCEPTED
+    GiteaPRReviewerState.CHANGES_REQUESTED -> ReviewState.WAIT_FOR_UPDATES
+    GiteaPRReviewerState.COMMENTED, GiteaPRReviewerState.NEEDS_REVIEW -> ReviewState.NEED_REVIEW
 }
 
 /** [computeReviewerStates]'s result, ordered approved-first for display. */
