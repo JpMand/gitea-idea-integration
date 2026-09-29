@@ -208,7 +208,7 @@ class GiteaPRListPanel(
         // whole page eagerly) — returns null (no group shown yet) until the fetch resolves,
         // at which point this row is re-rendered automatically. See GiteaPRListViewModel.
         val reviewers = vm.reviewsFor(pr.number)?.let { reviews ->
-            sortedReviewerStates(computeReviewerStates(pr.requestedReviewers, reviews)).map { (user, state) ->
+            sortedReviewerStates(computeReviewerStates(pr.requestedReviewers, reviews, pr.author.login)).map { (user, state) ->
                 // Outlined in the review state's colour, as the GitHub plugin's list does.
                 val avatar = CodeReviewAvatarUtils.createIconWithOutline(
                     avatarIconsProvider.getIcon(user, Avatar.Sizes.OUTLINED),

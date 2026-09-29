@@ -69,7 +69,7 @@ class GiteaPRStatusViewModel(
             prFlow.map { it.requestedReviewers }.distinctUntilChanged().collectLatest { requestedReviewers ->
                 try {
                     val reviews = repository.loadReviews(initialPr.number.toInt())
-                    val states = computeReviewerStates(requestedReviewers, reviews)
+                    val states = computeReviewerStates(requestedReviewers, reviews, initialPr.author.login)
                     _reviewerStates.value = states.mapValues { (_, state) -> state.toReviewState() }
                 } catch (e: CancellationException) {
                     throw e

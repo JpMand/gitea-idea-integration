@@ -38,6 +38,18 @@ class GiteaPRReviewersUtilsTest {
     }
 
     @Test
+    fun `the PR author is never listed as a reviewer`() {
+        val bob = user("bob")
+        val carol = user("carol")
+        val states = computeReviewerStates(
+            requestedReviewers = listOf(bob, carol),
+            reviews = listOf(review(bob, GiteaReviewState.COMMENT)),
+            authorLogin = "Bob",
+        )
+        assertEquals(mapOf(carol to GiteaPRReviewerState.NEEDS_REVIEW), states)
+    }
+
+    @Test
     fun `requested reviewer with no review yet needs review`() {
         val bob = user("bob")
         val states = computeReviewerStates(requestedReviewers = listOf(bob), reviews = emptyList())

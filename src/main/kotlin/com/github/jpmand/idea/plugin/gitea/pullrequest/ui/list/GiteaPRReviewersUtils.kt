@@ -28,10 +28,13 @@ private val REVIEWER_DISPLAY_ORDER = listOf(
  * Computes one review-state per reviewer, combining requested-but-not-yet-reviewed reviewers
  * with actual reviews (the latest review per author wins). Reviewers with no review yet — either
  * merely requested or otherwise absent from [reviews] — are [GiteaPRReviewerState.NEEDS_REVIEW].
+ * The PR's author ([authorLogin]) is left out: replying to a thread leaves them a comment review,
+ * and Gitea lists them among `requested_reviewers` afterwards, but they aren't a reviewer.
  */
 fun computeReviewerStates(
     requestedReviewers: List<GiteaUser>,
     reviews: List<GiteaReview>,
+    authorLogin: String? = null,
 ): Map<GiteaUser, GiteaPRReviewerState> {
     // Reviews are returned oldest-first; keep the last one seen per author as that author's current state.
     val latestByAuthor = LinkedHashMap<GiteaUser, GiteaReview>()
@@ -52,6 +55,7 @@ fun computeReviewerStates(
     for (reviewer in requestedReviewers) {
         result.putIfAbsent(reviewer, GiteaPRReviewerState.NEEDS_REVIEW)
     }
+    if (authorLogin != null) result.keys.removeAll { it.login.equals(authorLogin, ignoreCase = true) }
 
     return result
 }
