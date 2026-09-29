@@ -55,8 +55,8 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
           .align(Align.FILL)
       }.resizableRow()
 
-      row {
-        label(message("settings.connection.timeout"))
+      // The label goes in the form's label column, so it lines up like other settings pages.
+      row(message("settings.connection.timeout")) {
         intTextField(range = 0..60)
           .columns(2)
           .bindIntText({ giteaSettings.connectionTimeout / 1000 }, { giteaSettings.connectionTimeout = it * 1000 })
@@ -81,6 +81,8 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
             .bindSelected(
               { giteaSettings.isListAllUsersAsReviewer(account.id) },
               { giteaSettings.setListAllUsersAsReviewer(account.id, it) })
+            // It only applies to one account; say which.
+            .comment(message("settings.reviewer.list.all.users.comment", account.name))
         }
       }
 
@@ -88,7 +90,7 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
         scope,
         service<GiteaAccountManager>().canPersistCredentials,
         ::panel
-      ).align(AlignX.RIGHT)
+      ).align(AlignX.LEFT)
     }
   }
 }
