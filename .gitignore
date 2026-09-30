@@ -5,6 +5,7 @@
 .kotlin
 .qodana
 build
-.claude
+# Claude Code: .claude/ (project skills) is shared; personal settings are not.
+.claude/settings.local.json
 # Starter/Driver framework cache + downloaded IDE builds/test artifacts (integrationTest task)
 out

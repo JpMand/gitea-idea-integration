@@ -1,3 +1,8 @@
+---
+name: ui-testing
+description: Set up and drive the Gitea plugin in a real sandbox IDE from a headless cloud container - local Gitea 1.27 in Docker with test data, IDE with the Remote-Robot server on a virtual display, click/type/screenshot driver. Use when verifying or screenshotting UI changes, reproducing a UI bug, or preparing the environment to build and test the plugin.
+---
+
 # UI verification in a cloud session
 
 How to check the plugin's UI in a real IDE from a headless Claude Code cloud container (no human at
@@ -28,16 +33,16 @@ Run `./gradlew clean check buildPlugin verifyPlugin` before handing work over.
 
 ## Setting up UI verification
 
-All scripts are idempotent and keep their state (tokens, fixture clone, logs, screenshots) in
-`$GITEA_UI_STATE`, default `~/.gitea-ui`.
+Scripts are in `scripts/` next to this file. All are idempotent and keep their state (tokens,
+fixture clone, logs, screenshots) in `$GITEA_UI_STATE`, default `~/.gitea-ui`.
 
 ```bash
-tools/ui-testing/setup-env.sh        # packages, dockerd, Xvfb :99 + openbox, tea; restarts gitea if it exists
-tools/ui-testing/gitea-up.sh         # fresh Gitea + fixture (destroys the previous one)
-tools/ui-testing/ide.sh start        # builds and starts the sandbox IDE with the robot server on :8082
-tools/ui-testing/login-and-clone.sh  # first run only: adds alice's account, clones acme/webapp
-tools/ui-testing/ui.py shot overview # -> ~/.gitea-ui/shots/overview.png, then look at it with Read
-tools/ui-testing/ide.sh off          # ALWAYS before committing: restores build.gradle.kts
+.claude/skills/ui-testing/scripts/setup-env.sh        # packages, dockerd, Xvfb :99 + openbox, tea; restarts gitea if it exists
+.claude/skills/ui-testing/scripts/gitea-up.sh         # fresh Gitea + fixture (destroys the previous one)
+.claude/skills/ui-testing/scripts/ide.sh start        # builds and starts the sandbox IDE with the robot server on :8082
+.claude/skills/ui-testing/scripts/login-and-clone.sh  # first run only: adds alice's account, clones acme/webapp
+.claude/skills/ui-testing/scripts/ui.py shot overview # -> ~/.gitea-ui/shots/overview.png, then look at it with Read
+.claude/skills/ui-testing/scripts/ide.sh off          # ALWAYS before committing: restores build.gradle.kts
 ```
 
 After a container restart, run `setup-env.sh` again (Docker, Xvfb and the IDE don't survive it).
