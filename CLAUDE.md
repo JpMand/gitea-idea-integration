@@ -1,23 +1,11 @@
 # CLAUDE.md – Gitea IntelliJ Plugin
 
-Project conventions, architecture and commands are in **`AGENTS.md`**. Read it first if it isn't
-already in your context. This file adds what is specific to working as Claude Code on this repo.
+Project conventions, architecture and commands are in `AGENTS.md`, imported here so Claude Code
+loads it too:
 
-## Working with the maintainer (JpMand)
+@AGENTS.md
 
-- **No GitHub writes unless asked.** Don't post PR comments, reviews or replies, don't open or
-  edit issues, and don't open PRs unless the maintainer asks in the current conversation. Drafts
-  of replies go in the chat for them to post.
-- **Show, then finish.** For a visual change, show screenshots (and variants when there is a
-  choice) and let the maintainer pick before calling the task done.
-- **Commits:** no `Co-Authored-By` or `Claude-Session` lines (see `AGENTS.md`). Clear
-  imperative subject; the body says why, not just what.
-- **When you can't push**, deliver a patch: `git format-patch` with the `From:` line set to
-  `JpMand <jpborghetti@hotmail.com>`, and check it applies with `git am` on a clean checkout of
-  the target branch.
-- **Scope:** keep each PR to its purpose. Note unrelated findings for a later PR instead of
-  fixing them in passing.
-- `internal_docs/` (a local platform knowledge base) is never committed.
+The rest of this file adds what is specific to working as Claude Code on this repo.
 
 ## Branches
 
