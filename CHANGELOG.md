@@ -7,8 +7,7 @@
 ### Added
 
 - Pull request review, read-write: a tool window with a PR list (status/label/author/sort
-  filters), per-PR detail tabs (changes tree, activity timeline), a REST-based diff viewer, and
-  mark-as-viewed
+  filters), per-PR detail tabs (changes tree, activity timeline), and a REST-based diff viewer
 - Review authoring: comment on lines in the diff editor or directly in the regular project editor
   (for any file belonging to a PR whose head branch matches the current local branch), start a
   pending review, submit with a verdict (approve / request changes / comment), resolve/unresolve

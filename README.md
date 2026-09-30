@@ -32,7 +32,6 @@ clone repositories, and review pull requests without leaving the IDE.
 - Per-PR detail tab: description, participants, labels, status checks
 - Activity timeline of comments, reviews and state changes
 - Diff viewer with the PR's changed files and a directory-grouped changes tree
-- Mark files as viewed
 
 ### Server support
 - Any Gitea instance (self-hosted or cloud), including instances on a sub-path

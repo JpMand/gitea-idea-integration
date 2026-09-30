@@ -30,8 +30,6 @@ internal class GiteaPullRequestsSettings :
             ChangesGroupingSupport.MODULE_GROUPING
         ),
         val editorReviewViewOption: DiscussionsViewOption = DiscussionsViewOption.UNRESOLVED_ONLY,
-        /** PR number -> repo-relative paths the user has marked "viewed" in the changes tree. */
-        val viewedPrFiles: Map<Int, Set<String>> = emptyMap(),
         /** PR number -> not-yet-submitted inline review comments, so drafts survive closing and
          * reopening the diff/PR (see [GiteaPRDraftComment]). */
         val draftComments: Map<Int, List<GiteaPRDraftComment>> = emptyMap(),
@@ -61,23 +59,6 @@ internal class GiteaPullRequestsSettings :
             }
         }
     val changesGroupingState: StateFlow<Set<String>> = stateFlow.mapState { it.changesGrouping }
-
-    // ── Per-PR "viewed" file state (persisted across sessions) ────────────────
-
-    fun viewedFilesState(prNumber: Int): StateFlow<Set<String>> =
-        stateFlow.mapState { it.viewedPrFiles[prNumber].orEmpty() }
-
-    fun isViewed(prNumber: Int, path: String): Boolean =
-        state.viewedPrFiles[prNumber].orEmpty().contains(path)
-
-    fun setViewed(prNumber: Int, paths: Collection<String>, viewed: Boolean) {
-        if (paths.isEmpty()) return
-        updateStateAndEmit { st ->
-            val current = st.viewedPrFiles[prNumber].orEmpty()
-            val next = if (viewed) current + paths else current - paths.toSet()
-            st.copy(viewedPrFiles = st.viewedPrFiles + (prNumber to next))
-        }
-    }
 
     // ── Per-PR draft comments (persisted across sessions) ──────────────────
 
