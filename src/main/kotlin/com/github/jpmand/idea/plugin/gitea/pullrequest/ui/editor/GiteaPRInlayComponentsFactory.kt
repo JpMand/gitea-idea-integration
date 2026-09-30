@@ -13,6 +13,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.createSuggestionDiffBo
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.createThreadCommentsPanel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.withSuggestion
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.intellij.collaboration.async.mapState
 import com.intellij.collaboration.messages.CollaborationToolsBundle
 import com.intellij.collaboration.ui.CollaborationToolsUIUtil
 import com.intellij.collaboration.ui.EditableComponentFactory
@@ -248,10 +249,13 @@ object GiteaPRInlayComponentsFactory {
     ): JComponent {
         val commentField = GiteaPRCommentFieldFactory.create(
             cs, vm.textVm, discussionsVm.avatars, user, discussionsVm.mentionCandidates, onCancel = vm::cancel,
-            primaryActionLabelKey = "pull.request.action.start.review",
-            secondaryAction = if (vm.canSendAsSingleCommentReview) {
-                GiteaPRCommentFieldFactory.SecondaryAction("pull.request.action.send.single.comment.review", vm::submitAsSingleCommentReview)
-            } else null,
+            primaryActionLabelKey = vm.reviewInProgress.mapState { inProgress ->
+                if (inProgress) "pull.request.action.add.review.comment" else "pull.request.action.start.review"
+            },
+            secondaryAction = vm.reviewInProgress.mapState { inProgress ->
+                if (inProgress) null
+                else GiteaPRCommentFieldFactory.SecondaryAction("pull.request.action.send.single.comment.review", vm::submitAsSingleCommentReview)
+            },
             componentType = ComponentType.COMPACT,
         )
         val suggestion = vm.suggestion ?: return commentField

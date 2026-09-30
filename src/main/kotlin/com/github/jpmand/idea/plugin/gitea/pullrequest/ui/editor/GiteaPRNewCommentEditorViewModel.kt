@@ -53,11 +53,11 @@ class GiteaPRNewCommentEditorViewModel(
     private val _draft = MutableStateFlow(initialDraft)
     val draft: StateFlow<GiteaPRDraftComment?> = _draft.asStateFlow()
 
-    /** Whether to offer "Send Single Comment Review" alongside "Start Review" — only when this
-     * would be the *only* comment in the review (checked once, when the composer opens): sending a
-     * single-comment review while other drafts already exist would silently bundle them all in,
-     * contradicting the button's own "single comment" label. */
-    val canSendAsSingleCommentReview: Boolean = discussionsVm.draftComments.value.isEmpty()
+    /** Whether a review is already under way (drafts, or a pending review on the server). The
+     * composer then says "Add Review Comment" instead of "Start Review", and doesn't offer "Send
+     * Single Comment Review": that would bundle the other comments in, contradicting its own
+     * "single comment" label. Live, so an already-open composer follows along. */
+    val reviewInProgress: StateFlow<Boolean> = discussionsVm.reviewInProgress
 
     val textVm = GiteaPRSubmittableTextViewModel(project, cs, requireNonBlank = suggestion == null) { body ->
         _draft.value = discussionsVm.addDraft(path, newLine, oldLine, fullBodyOf(body))
@@ -71,10 +71,11 @@ class GiteaPRNewCommentEditorViewModel(
      * follows it with a `COMMENT`-verdict review containing just that one comment — skipping the
      * usual "compose, then separately submit the review" two-step flow. [discussionsVm.submitReview]
      * manages its own busy-state/error notification and always submits whatever the *current* draft
-     * batch is (fire-and-forget, not awaited) — [canSendAsSingleCommentReview] is what keeps that
-     * batch to just this one comment in the common case.
+     * batch is (fire-and-forget, not awaited) — [reviewInProgress] is what keeps that batch to
+     * just this one comment, and is checked again here in case it changed since the menu opened.
      */
     fun submitAsSingleCommentReview() {
+        if (reviewInProgress.value) return
         val body = textVm.text.value
         if (suggestion == null && body.isBlank()) return
         // Shown as a draft row until the review goes through, so a failed submission leaves the

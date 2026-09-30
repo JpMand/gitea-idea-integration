@@ -31,9 +31,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -222,6 +225,12 @@ class GiteaPRDiscussionsViewModels(
     // with its own view model) all see the same drafts.
     private val _draftComments: StateFlow<List<GiteaPRDraftComment>> = settings.draftCommentsState(prNumber)
     val draftComments: StateFlow<List<GiteaPRDraftComment>> = _draftComments
+
+    /** Whether a review is already under way: local drafts exist, or a pending review is saved on
+     * the server. New inline comments then join that review instead of starting one. */
+    val reviewInProgress: StateFlow<Boolean> = combine(_draftComments, _pendingReview) { drafts, pending ->
+        drafts.isNotEmpty() || pending != null
+    }.stateIn(cs, SharingStarted.Eagerly, _draftComments.value.isNotEmpty() || _pendingReview.value != null)
 
     private fun updateDrafts(transform: (List<GiteaPRDraftComment>) -> List<GiteaPRDraftComment>) {
         settings.setDraftComments(prNumber, transform(_draftComments.value))
