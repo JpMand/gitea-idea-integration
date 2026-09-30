@@ -104,9 +104,7 @@ class GiteaPRTimelineItemComponentFactory(
 
     private fun comment(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel.Comment): JComponent {
         val (pane, actionsPanel) = commentBodyAndActions(cs, item.id, item.actor?.login, item.body)
-        return chatItem(item, pane,
-            urlActions(item.htmlUrl, "pull.request.action.open.comment.in.browser", "pull.request.action.copy.comment.link"),
-            actionsPanel, edited = item.edited, action = HtmlChunk.text(GiteaBundle.message("pull.request.timeline.commented")))
+        return chatItem(item, pane, commentUrlActions(item.htmlUrl), actionsPanel, edited = item.edited, action = HtmlChunk.text(GiteaBundle.message("pull.request.timeline.commented")))
     }
 
     /**
@@ -117,8 +115,8 @@ class GiteaPRTimelineItemComponentFactory(
     private fun review(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel.Review): JComponent {
         val threads = item.threads.mapNotNull { thread -> threadItem(cs, thread) }
         val body = item.body?.takeIf { it.isNotBlank() }?.let { commentBodyPane(cs, it, renderMarkdown) }
-        val actions = urlActions(item.htmlUrl, "pull.request.action.open.comment.in.browser", "pull.request.action.copy.comment.link")
-        if (body != null && actions.isNotEmpty()) PopupHandler.installPopupMenu(body, DefaultActionGroup(actions), "GiteaPRTimelinePopup")
+        val actions = urlActions(item.htmlUrl, "pull.request.action.view.review.in.browser", "pull.request.action.copy.review.url")
+        body?.let { installMenu(it, actions) }
         val content = if (body == null && threads.isEmpty()) {
             emptyContent()
         } else {
@@ -133,7 +131,7 @@ class GiteaPRTimelineItemComponentFactory(
             maxContentWidth = null
             withHeader(
                 titleTextPane(actorName(item.actor), item.actor?.htmlUrl, item.timestamp, false,
-                    action = HtmlChunk.text(GiteaBundle.message(reviewStateKey(item.state)))),
+                    action = HtmlChunk.text(GiteaBundle.message(reviewStateKey(item.state))), menu = actions),
                 null,
             )
         }
@@ -219,16 +217,14 @@ class GiteaPRTimelineItemComponentFactory(
         /** What the actor did, shown between their name and the date ("commented"). */
         action: HtmlChunk? = null,
     ): JComponent {
-        if (actions.isNotEmpty()) {
-            PopupHandler.installPopupMenu(content, DefaultActionGroup(actions), "GiteaPRTimelinePopup")
-        }
+        installMenu(content, actions)
         return CodeReviewChatItemUIUtil.build(
             ComponentType.FULL,
             { size -> avatars.getIcon(item.actor, size) },
             content,
         ) {
             withHeader(
-                titleTextPane(actorName(item.actor), item.actor?.htmlUrl, item.timestamp, edited, action),
+                titleTextPane(actorName(item.actor), item.actor?.htmlUrl, item.timestamp, edited, action, menu = actions),
                 actionsPanel,
             )
         }
@@ -296,6 +292,8 @@ class GiteaPRTimelineItemComponentFactory(
         val suggestion = if (first.path != null) first.body?.let { GiteaSuggestionUtil.detect(it) } else null
         val displayBody = suggestion?.let { GiteaSuggestionUtil.stripSuggestion(first.body!!) } ?: first.body
         val (bodyComponent, actionsPanel) = commentBodyAndActions(cs, first.id, first.author?.login, displayBody)
+        val firstActions = commentUrlActions(first.htmlUrl)
+        installMenu(bodyComponent, firstActions)
         val firstContent = VerticalListPanel(THREAD_DIFF_TEXT_GAP).apply {
             diffHunkComponent(cs, thread.path, first.diffHunk)?.let { add(it) }
             add(withSuggestion(cs, project, first.path, bodyComponent, displayBody.isNullOrBlank(), suggestion))
@@ -310,7 +308,7 @@ class GiteaPRTimelineItemComponentFactory(
             firstContent,
         ) {
             maxContentWidth = null
-            val title = titleTextPane(actorName(first.author), first.author?.htmlUrl, first.createdAt, first.isEdited)
+            val title = titleTextPane(actorName(first.author), first.author?.htmlUrl, first.createdAt, first.isEdited, menu = firstActions)
             val header = if (tags.isEmpty()) title else HorizontalListPanel(CodeReviewCommentUIUtil.Title.HORIZONTAL_GAP).apply {
                 add(title)
                 tags.forEach(::add)
@@ -364,13 +362,15 @@ class GiteaPRTimelineItemComponentFactory(
         val suggestion = if (comment.path != null) comment.body?.let { GiteaSuggestionUtil.detect(it) } else null
         val displayBody = suggestion?.let { GiteaSuggestionUtil.stripSuggestion(comment.body!!) } ?: comment.body
         val (bodyComponent, actionsPanel) = commentBodyAndActions(cs, comment.id, comment.author?.login, displayBody)
+        val actions = commentUrlActions(comment.htmlUrl)
+        installMenu(bodyComponent, actions)
         val content = withSuggestion(cs, project, comment.path, bodyComponent, displayBody.isNullOrBlank(), suggestion)
         return CodeReviewChatItemUIUtil.build(
             ComponentType.FULL_SECONDARY,
             { size -> avatars.getIcon(comment.author, size) },
             content,
         ) {
-            withHeader(titleTextPane(actorName(comment.author), comment.author?.htmlUrl, comment.createdAt, comment.isEdited), actionsPanel)
+            withHeader(titleTextPane(actorName(comment.author), comment.author?.htmlUrl, comment.createdAt, comment.isEdited, menu = actions), actionsPanel)
         }
     }
 
@@ -379,9 +379,12 @@ class GiteaPRTimelineItemComponentFactory(
      * "Bob commented 2 minutes ago" — plus a small "edited" suffix when [edited]. Built like the platform's
      * [CodeReviewTimelineUIUtil.createTitleTextPane], which has no room for the [action] text.
      * Links in [action] open in the browser, except [COMMIT_LINK_PREFIX] ones, which open the
-     * commit in the IDE.
+     * commit in the IDE. [menu] is its right-click menu.
      */
-    private fun titleTextPane(name: String, url: String?, timestamp: Date?, edited: Boolean, action: HtmlChunk? = null): JComponent {
+    private fun titleTextPane(
+        name: String, url: String?, timestamp: Date?, edited: Boolean,
+        action: HtmlChunk? = null, menu: List<AnAction> = emptyList(),
+    ): JComponent {
         val author = (if (url != null) HtmlChunk.link(url, name) else HtmlChunk.text(name))
             .wrapWith(HtmlChunk.span().setClass("author-name")).bold()
         val html = HtmlBuilder().append(author)
@@ -395,6 +398,7 @@ class GiteaPRTimelineItemComponentFactory(
                 else BrowserUtil.browse(href)
             }
         }
+        installMenu(titlePane, menu)
         if (!edited) return titlePane
         return HorizontalListPanel(CodeReviewCommentUIUtil.Title.HORIZONTAL_GAP).apply {
             add(titlePane)
@@ -495,6 +499,14 @@ class GiteaPRTimelineItemComponentFactory(
         GiteaReviewState.REQUEST_CHANGES -> StatusMessageType.ERROR
         GiteaReviewState.PENDING -> StatusMessageType.SECONDARY_INFO
         GiteaReviewState.COMMENT, GiteaReviewState.REQUEST_REVIEW -> StatusMessageType.INFO
+    }
+
+    /** "View Comment in Browser" / "Copy Comment URL" for a comment's web page. */
+    private fun commentUrlActions(url: String?): List<AnAction> =
+        urlActions(url, "pull.request.action.view.comment.in.browser", "pull.request.action.copy.comment.url")
+
+    private fun installMenu(component: JComponent, actions: List<AnAction>) {
+        if (actions.isNotEmpty()) PopupHandler.installPopupMenu(component, DefaultActionGroup(actions), "GiteaPRTimelinePopup")
     }
 
     private fun urlActions(url: String?, openKey: String, copyKey: String): List<AnAction> {
