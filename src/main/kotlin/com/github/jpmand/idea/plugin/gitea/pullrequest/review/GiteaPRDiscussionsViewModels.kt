@@ -110,8 +110,8 @@ class GiteaPRDiscussionsViewModels(
     private val _mentionCandidates = MutableStateFlow<List<GiteaUser>>(emptyList())
     val mentionCandidates: StateFlow<List<GiteaUser>> = _mentionCandidates.asStateFlow()
 
-    /** The signed-in account's own not-yet-submitted review for this PR, if any — surfaced as a
-     * "finish your review" prompt instead of the "start a review" composer. */
+    /** The signed-in account's own not-yet-submitted review for this PR, if any — the submit
+     * popup then finishes that review instead of creating a new one. */
     private val _pendingReview = MutableStateFlow<GiteaReview?>(null)
     val pendingReview: StateFlow<GiteaReview?> = _pendingReview.asStateFlow()
 
@@ -183,7 +183,7 @@ class GiteaPRDiscussionsViewModels(
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                // Best-effort — a failed lookup just means no "finish your review" prompt shows.
+                // Best-effort — a failed lookup just means the pending review isn't picked up.
             }
         }
     }
