@@ -93,8 +93,13 @@ Docs: [Plugin Services](https://plugins.jetbrains.com/docs/intellij/plugin-servi
 - Unit-test patterns (base classes, JSON deserialization, fixtures) → `src/test/kotlin/CLAUDE.md`
   (loads automatically when working in that tree).
 
-There is no automated UI / integration test suite — verify UI changes manually via `runIde`
-against a Docker Gitea.
+There is no automated UI / integration test suite. UI changes are verified in the sandbox IDE
+against a local Gitea in Docker. In a Claude Code cloud session, where nobody watches the screen,
+follow **`tools/ui-testing/README.md`**: it has scripted setup (Xvfb, Docker Gitea 1.27.3 with a
+test fixture, the IDE with the Remote-Robot server), a click/screenshot driver, and the pitfalls to
+avoid. The IDE is 2026.2.1 and needs JDK 25, which Gradle downloads by itself. Run
+`tools/ui-testing/ide.sh off` before committing: it restores the `build.gradle.kts` block the UI
+setup adds.
 
 ---
 
