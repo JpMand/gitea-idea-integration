@@ -34,6 +34,8 @@ Gradle libs versions are managed by the Gradle Version Catalog (`gradle/libs.ver
 
 ## Plugin Template Scaffold
 Bootstrapped from the [IntelliJ Platform Plugin Template](https://github.com/JetBrains/intellij-platform-plugin-template). CI workflows (`.github/workflows/`), Marketplace signing secrets, `CHANGELOG.md`-driven `changeNotes`, and `.github/dependabot.yml` are all template-standard — read those files or the template README for specifics.
+The plugin's Marketplace description is the `README.md` section between the `Plugin description`
+markers; keep it and `CHANGELOG.md` true to the code.
 
 ---
 
@@ -93,8 +95,12 @@ Docs: [Plugin Services](https://plugins.jetbrains.com/docs/intellij/plugin-servi
 - Unit-test patterns (base classes, JSON deserialization, fixtures) → `src/test/kotlin/CLAUDE.md`
   (loads automatically when working in that tree).
 
-There is no automated UI / integration test suite — verify UI changes manually via `runIde`
-against a Docker Gitea.
+There is no automated UI / integration test suite. UI changes are verified in the sandbox IDE
+against a local Gitea in Docker. For a headless environment (e.g. a Claude Code cloud session),
+**`.claude/skills/ui-testing/SKILL.md`** has scripted setup (Xvfb, Docker Gitea 1.27.3 with a test
+fixture, the IDE with the Remote-Robot server), a click/screenshot driver, and the pitfalls to
+avoid. Its `scripts/ide.sh off` must run before committing: it restores the `build.gradle.kts`
+block the UI setup adds.
 
 ---
 
