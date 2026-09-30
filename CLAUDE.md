@@ -7,15 +7,6 @@ loads it too:
 
 The rest of this file adds what is specific to working as Claude Code on this repo.
 
-## Branches
-
-- `main` and `releases/*` are protected: change them only through PRs.
-- `releases/ide-<version>` (e.g. `releases/ide-2026.2`) carries a release for one IDE line;
-  the next platform line (2026.3) breaks APIs the plugin uses, so each line gets its own branch.
-- The plugin's version and IDE range are in `gradle.properties`. `CHANGELOG.md` feeds the
-  plugin's change notes, and the README section between the `Plugin description` markers
-  becomes its description: keep both true to the code.
-
 ## Before handing work over
 
 1. `./gradlew clean check buildPlugin verifyPlugin`: all tests pass, and the verifier says

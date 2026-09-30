@@ -34,6 +34,8 @@ Gradle libs versions are managed by the Gradle Version Catalog (`gradle/libs.ver
 
 ## Plugin Template Scaffold
 Bootstrapped from the [IntelliJ Platform Plugin Template](https://github.com/JetBrains/intellij-platform-plugin-template). CI workflows (`.github/workflows/`), Marketplace signing secrets, `CHANGELOG.md`-driven `changeNotes`, and `.github/dependabot.yml` are all template-standard — read those files or the template README for specifics.
+The plugin's Marketplace description is the `README.md` section between the `Plugin description`
+markers; keep it and `CHANGELOG.md` true to the code.
 
 ---
 
