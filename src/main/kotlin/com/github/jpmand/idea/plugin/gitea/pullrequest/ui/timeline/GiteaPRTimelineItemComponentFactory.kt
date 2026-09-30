@@ -34,6 +34,7 @@ import com.intellij.openapi.diff.impl.patch.PatchReader
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.text.HtmlBuilder
 import com.intellij.openapi.util.text.HtmlChunk
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.ColorUtil
@@ -53,16 +54,18 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import java.awt.Dimension
 import java.awt.datatransfer.StringSelection
 import java.util.*
 import javax.swing.JComponent
+import javax.swing.JPanel
 import javax.swing.border.EmptyBorder
 
 /**
  * Renders one [GiteaPRTimelineItemViewModel] using the platform timeline-item shell
- * ([CodeReviewChatItemUIUtil.build] / [CodeReviewTimelineUIUtil.createTitleTextPane] /
- * [StatusMessageComponentFactory] / [TimelineThreadCommentsPanel]) — the same building blocks the
- * bundled GitLab/GitHub timeline factories use.
+ * ([CodeReviewChatItemUIUtil.build] / [StatusMessageComponentFactory] /
+ * [TimelineThreadCommentsPanel]) — the same building blocks the bundled GitLab/GitHub timeline
+ * factories use — with its own header pane (see [titleTextPane]).
  */
 @Suppress("UnstableApiUsage")
 class GiteaPRTimelineItemComponentFactory(
@@ -103,39 +106,40 @@ class GiteaPRTimelineItemComponentFactory(
         val (pane, actionsPanel) = commentBodyAndActions(cs, item.id, item.actor?.login, item.body)
         return chatItem(item, pane,
             urlActions(item.htmlUrl, "pull.request.action.open.comment.in.browser", "pull.request.action.copy.comment.link"),
-            actionsPanel, edited = item.edited)
+            actionsPanel, edited = item.edited, action = HtmlChunk.text(GiteaBundle.message("pull.request.timeline.commented")))
     }
 
     /**
-     * A review as one timeline item: the reviewer's avatar and name as its header, then a frame in
-     * the verdict's colour around the review body, its status line and each of its threads, so the
-     * whole review reads as one unit.
+     * A review as one timeline item: "Carol requested changes · 2 minutes ago" as its header, then
+     * a frame in the verdict's colour around the review body and each of its threads, so the whole
+     * review reads as one unit. A review with neither gets no frame, just the header.
      */
     private fun review(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel.Review): JComponent {
-        val content = VerticalListPanel(CodeReviewTimelineUIUtil.VERTICAL_GAP).apply {
-            add(
-                StatusMessageComponentFactory.create(
-                    SimpleHtmlPane(HtmlChunk.text(GiteaBundle.message(reviewStateKey(item.state))).bold().toString()),
-                    reviewStatusType(item.state),
-                ),
-            )
-            if (!item.body.isNullOrBlank()) add(commentBodyPane(cs, item.body, renderMarkdown))
-        }
-        val accent = reviewAccentColor(reviewStatusType(item.state))
-        val framed = VerticalListPanel(CodeReviewTimelineUIUtil.VERTICAL_GAP).apply {
-            border = JBUI.Borders.compound(RoundedLineBorder(accent, JBUI.scale(REVIEW_FRAME_ARC), 1), JBUI.Borders.empty(8, 0))
-            add(Wrapper(content).apply { border = JBUI.Borders.empty(0, 8) })
-            item.threads.forEach { thread -> threadItem(cs, thread)?.let { add(it) } }
-        }
+        val threads = item.threads.mapNotNull { thread -> threadItem(cs, thread) }
+        val body = item.body?.takeIf { it.isNotBlank() }?.let { commentBodyPane(cs, it, renderMarkdown) }
         val actions = urlActions(item.htmlUrl, "pull.request.action.open.comment.in.browser", "pull.request.action.copy.comment.link")
-        if (actions.isNotEmpty()) PopupHandler.installPopupMenu(content, DefaultActionGroup(actions), "GiteaPRTimelinePopup")
-        return CodeReviewChatItemUIUtil.build(ComponentType.FULL, { size -> avatars.getIcon(item.actor, size) }, framed) {
+        if (body != null && actions.isNotEmpty()) PopupHandler.installPopupMenu(body, DefaultActionGroup(actions), "GiteaPRTimelinePopup")
+        val content = if (body == null && threads.isEmpty()) {
+            emptyContent()
+        } else {
+            VerticalListPanel(CodeReviewTimelineUIUtil.VERTICAL_GAP).apply {
+                val accent = reviewAccentColor(reviewStatusType(item.state))
+                border = JBUI.Borders.compound(RoundedLineBorder(accent, JBUI.scale(REVIEW_FRAME_ARC), 1), JBUI.Borders.empty(8, 0))
+                if (body != null) add(Wrapper(body).apply { border = JBUI.Borders.empty(0, 8) })
+                threads.forEach { add(it) }
+            }
+        }
+        return CodeReviewChatItemUIUtil.build(ComponentType.FULL, { size -> avatars.getIcon(item.actor, size) }, content) {
             maxContentWidth = null
-            withHeader(titleTextPane(actorName(item.actor), item.actor?.htmlUrl, item.timestamp, false), null)
+            withHeader(
+                titleTextPane(actorName(item.actor), item.actor?.htmlUrl, item.timestamp, false,
+                    action = HtmlChunk.text(GiteaBundle.message(reviewStateKey(item.state)))),
+                null,
+            )
         }
     }
 
-    /** The platform's status-line colour for [type], so the review's frame matches its verdict line. */
+    /** The platform's status-line colour for [type], so the review's frame shows its verdict. */
     private fun reviewAccentColor(type: StatusMessageType): JBColor = when (type) {
         StatusMessageType.SUCCESS -> JBColor.namedColor("Review.MetaInfo.StatusLine.Green", ColorUtil.fromHex("62B543B3"))
         StatusMessageType.WARNING, StatusMessageType.ERROR ->
@@ -149,23 +153,18 @@ class GiteaPRTimelineItemComponentFactory(
         val list = VerticalListPanel(4).apply {
             item.commits.forEach { c -> add(commitRow(c)) }
         }
-        val header = JBLabel(
-            GiteaBundle.message(
-                if (item.commits.size == 1) "pull.request.timeline.commit.added.one"
-                else "pull.request.timeline.commit.added.many",
-                item.commits.size,
-            ),
+        val action = GiteaBundle.message(
+            if (item.commits.size == 1) "pull.request.timeline.commit.added.one"
+            else "pull.request.timeline.commit.added.many",
+            item.commits.size,
         )
         return CodeReviewChatItemUIUtil.build(
             ComponentType.FULL,
             { size -> avatars.getIcon(item.actor, size) },
-            VerticalListPanel(4).apply {
-                add(header)
-                add(StatusMessageComponentFactory.create(list, StatusMessageType.INFO))
-            },
+            StatusMessageComponentFactory.create(list, StatusMessageType.INFO),
         ) {
             withHeader(
-                CodeReviewTimelineUIUtil.createTitleTextPane(actorName(item.actor, item.rawActor), item.actor?.htmlUrl, item.timestamp),
+                titleTextPane(actorName(item.actor, item.rawActor), item.actor?.htmlUrl, item.timestamp, false, action = HtmlChunk.text(action)),
                 null,
             )
         }
@@ -186,21 +185,27 @@ class GiteaPRTimelineItemComponentFactory(
     }
 
     /**
-     * An activity event as a full timeline item, as the GitHub plugin shows them: the actor's
-     * avatar, name and date in the header, and what happened as a grey status line under it.
-     * Before, it was a bare status line without avatar or date, flush with the tab's left edge.
+     * An activity event as a one-line timeline item: the actor's avatar, then "Bob requested a
+     * review from alice · 2 minutes ago". A commit it references links to that commit in the IDE.
      */
     private fun event(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel.Event): JComponent {
         val sha = item.newValue
-        val content = if (item.kind == GiteaTimelineItem.Event.Kind.REFERENCED_FROM_COMMIT && sha != null) {
-            HorizontalListPanel(4).apply {
-                add(JBLabel(GiteaBundle.message("pull.request.timeline.event.referenced.from.commit", "").trimEnd()))
-                add(ActionLink(sha.take(7)) { onOpenCommit(sha) })
-            }
+        val action = if (item.kind == GiteaTimelineItem.Event.Kind.REFERENCED_FROM_COMMIT && sha != null) {
+            HtmlChunk.fragment(
+                HtmlChunk.text(GiteaBundle.message("pull.request.timeline.event.referenced.from.commit", "").trimEnd()),
+                HtmlChunk.nbsp(),
+                HtmlChunk.link(COMMIT_LINK_PREFIX + sha, sha.take(7)),
+            )
         } else {
-            SimpleHtmlPane(HtmlChunk.text(eventText(item)).toString())
+            HtmlChunk.text(eventText(item))
         }
-        return chatItem(item, StatusMessageComponentFactory.create(content, StatusMessageType.SECONDARY_INFO), emptyList())
+        return chatItem(item, emptyContent(), emptyList(), action = action)
+    }
+
+    /** Stands in for an item's content when everything it has to say fits in its header. */
+    private fun emptyContent(): JComponent = JPanel(null).apply {
+        isOpaque = false
+        preferredSize = Dimension(0, 0)
     }
 
     // ── shell + helpers ────────────────────────────────────────────────────
@@ -211,6 +216,8 @@ class GiteaPRTimelineItemComponentFactory(
         actions: List<AnAction>,
         actionsPanel: JComponent? = null,
         edited: Boolean = false,
+        /** What the actor did, shown between their name and the date ("commented"). */
+        action: HtmlChunk? = null,
     ): JComponent {
         if (actions.isNotEmpty()) {
             PopupHandler.installPopupMenu(content, DefaultActionGroup(actions), "GiteaPRTimelinePopup")
@@ -221,7 +228,7 @@ class GiteaPRTimelineItemComponentFactory(
             content,
         ) {
             withHeader(
-                titleTextPane(actorName(item.actor), item.actor?.htmlUrl, item.timestamp, edited),
+                titleTextPane(actorName(item.actor), item.actor?.htmlUrl, item.timestamp, edited, action),
                 actionsPanel,
             )
         }
@@ -367,9 +374,27 @@ class GiteaPRTimelineItemComponentFactory(
         }
     }
 
-    /** [CodeReviewTimelineUIUtil.createTitleTextPane] plus a small "edited" suffix when [edited]. */
-    private fun titleTextPane(name: String, url: String?, timestamp: Date?, edited: Boolean): JComponent {
-        val titlePane = CodeReviewTimelineUIUtil.createTitleTextPane(name, url, timestamp ?: Date())
+    /**
+     * An item's header: the author in bold (linked to their profile), what they did, and when —
+     * "Bob commented 2 minutes ago" — plus a small "edited" suffix when [edited]. Built like the platform's
+     * [CodeReviewTimelineUIUtil.createTitleTextPane], which has no room for the [action] text.
+     * Links in [action] open in the browser, except [COMMIT_LINK_PREFIX] ones, which open the
+     * commit in the IDE.
+     */
+    private fun titleTextPane(name: String, url: String?, timestamp: Date?, edited: Boolean, action: HtmlChunk? = null): JComponent {
+        val author = (if (url != null) HtmlChunk.link(url, name) else HtmlChunk.text(name))
+            .wrapWith(HtmlChunk.span().setClass("author-name")).bold()
+        val html = HtmlBuilder().append(author)
+        if (action != null) html.append(HtmlChunk.nbsp()).append(action)
+        html.append(HtmlChunk.nbsp()).append(DateFormatUtil.formatPrettyDateTime(timestamp ?: Date()))
+        val titlePane = SimpleHtmlPane(addBrowserListener = false).apply {
+            setHtmlBody(html.toString())
+            onHyperlinkActivated { e ->
+                val href = e.description.orEmpty()
+                if (href.startsWith(COMMIT_LINK_PREFIX)) onOpenCommit(href.removePrefix(COMMIT_LINK_PREFIX))
+                else BrowserUtil.browse(href)
+            }
+        }
         if (!edited) return titlePane
         return HorizontalListPanel(CodeReviewCommentUIUtil.Title.HORIZONTAL_GAP).apply {
             add(titlePane)
@@ -549,5 +574,7 @@ class GiteaPRTimelineItemComponentFactory(
         const val THREAD_ACTIONS_GAP = 14
         /** Corner rounding of a review's coloured frame. */
         const val REVIEW_FRAME_ARC = 12
+        /** Marks a header link that opens a commit in the IDE rather than in the browser. */
+        const val COMMIT_LINK_PREFIX = "gitea-commit:"
     }
 }
