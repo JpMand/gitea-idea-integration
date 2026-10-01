@@ -259,7 +259,23 @@ class GiteaPRTimelineItemComponentFactory(
                 editVm.requestFocus()
             })
             add(CodeReviewCommentUIUtil.createDeleteCommentIconButton {
-                cs.launch { onDeleteComment(id) }
+                cs.launch {
+                    try {
+                        onDeleteComment(id)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        LOG.warn("Couldn't delete comment $id", e)
+                        NotificationGroupManager.getInstance()
+                            .getNotificationGroup("Gitea")
+                            .createNotification(
+                                GiteaBundle.message("pull.request.action.delete.comment.error"),
+                                e.localizedMessage.orEmpty(),
+                                NotificationType.ERROR,
+                            )
+                            .notify(project)
+                    }
+                }
             })
         }
         return bodyComponent to actionsPanel
