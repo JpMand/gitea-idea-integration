@@ -491,12 +491,15 @@ class GiteaPRTimelineItemComponentFactory(
     private fun diffHunkComponent(cs: CoroutineScope, path: String?, diffHunk: String?): JComponent? {
         if (diffHunk.isNullOrBlank() || path.isNullOrBlank()) return null
         val hunk = try {
-            PatchReader(PatchHunkUtil.createPatchFromHunk(path, diffHunk)).readTextPatches().firstOrNull()?.hunks?.firstOrNull()
+            PatchReader(PatchHunkUtil.createPatchFromHunk(path, normalizeDiffHunk(diffHunk))).readTextPatches().firstOrNull()?.hunks?.firstOrNull()
         } catch (e: Exception) {
             LOG.warn("Failed to parse diff hunk for $path", e)
             null
-        } ?: return null
-        if (hunk.lines.isEmpty()) return null
+        }
+        if (hunk == null || hunk.lines.isEmpty()) {
+            LOG.debug("No diff lines in the hunk of a comment on $path, showing it without a diff")
+            return null
+        }
 
         // Bounds leading context to DIFF_CONTEXT_SIZE lines before the anchor, matching the
         // platform's own default (can't reference TimelineDiffComponentFactory.DIFF_CONTEXT_SIZE
