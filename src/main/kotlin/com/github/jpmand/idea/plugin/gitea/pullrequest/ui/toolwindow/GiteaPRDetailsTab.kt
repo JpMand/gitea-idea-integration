@@ -13,13 +13,21 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.GiteaPRStatusV
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.giteaReviewErrorPanel
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.CollaborationToolsUIUtil
+import com.intellij.collaboration.ui.codereview.diff.model.DiffViewerScrollRequest
+import com.intellij.openapi.application.EDT
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.awt.BorderLayout
 import javax.swing.JComponent
 import javax.swing.JPanel
+
+private val LOG = logger<GiteaPRDetailsTab>()
 
 /**
  * Builds the read-only PR-details content hosted as a closeable tool-window tab (`#<number>`).
@@ -29,7 +37,7 @@ import javax.swing.JPanel
 @Suppress("UnstableApiUsage")
 class GiteaPRDetailsTab(
     private val project: Project,
-    cs: CoroutineScope,
+    private val cs: CoroutineScope,
     repository: GiteaPRRepository,
     pr: GiteaPullRequest,
     onShowTimeline: () -> Unit,
@@ -47,19 +55,32 @@ class GiteaPRDetailsTab(
     private val changesComponent = GiteaPRChangesTreeComponentFactory.create(
         cs, project, detailsVm.prFlow, repository, discussionsVm,
         selectedCommitFlow = detailsVm.changesVm.selectedCommit,
-        onOpenChange = { relPath ->
-            val list = diffVm.changes.value?.result?.getOrNull()?.selectedChanges?.list.orEmpty()
-            val idx = list.indexOfFirst { it.file.filename == relPath }
-            if (idx >= 0) {
-                diffVm.showChange(idx, null)
-                FileEditorManager.getInstance(project).openFile(diffFile, true)
-            }
-        },
+        onOpenChange = { relPath -> showDiff(relPath, null) },
     )
 
     private val refresh: () -> Unit = {
         detailsVm.refresh()
         discussionsVm.reload()
+    }
+
+    /**
+     * Opens the PR diff on [path] — a file's current name or, for a renamed file, its old one —
+     * scrolled by [scrollRequest], once the PR's changed files have loaded. Does nothing for a
+     * file that isn't part of the PR diff (any more).
+     */
+    fun showDiff(path: String, scrollRequest: DiffViewerScrollRequest?) {
+        cs.launch {
+            val files = diffVm.changes.first { it?.result != null }?.result?.getOrNull()?.selectedChanges?.list.orEmpty()
+            val idx = files.indexOfFirst { it.file.filename == path || it.file.previousFilename == path }
+            if (idx < 0) {
+                LOG.debug("$path is not among the ${files.size} changed files of the PR diff")
+                return@launch
+            }
+            withContext(Dispatchers.EDT) {
+                diffVm.showChange(idx, scrollRequest)
+                FileEditorManager.getInstance(project).openFile(diffFile, true)
+            }
+        }
     }
 
     /** Selects the given commit in the changes tree — used when a "referenced/added commit" is

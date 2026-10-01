@@ -83,6 +83,7 @@ class GiteaPRDiffViewModel(
             _changesState.value = ComputedResult.success(
                 SimpleState(ListSelection.createAt(current.selectedChanges.list, idx))
             )
+            scrollRequest?.let(change::requestScroll)
         }
     }
 
@@ -92,6 +93,7 @@ class GiteaPRDiffViewModel(
             _changesState.value = ComputedResult.success(
                 SimpleState(ListSelection.createAt(current.selectedChanges.list, changeIdx))
             )
+            scrollRequest?.let(current.selectedChanges.list[changeIdx]::requestScroll)
         }
     }
 

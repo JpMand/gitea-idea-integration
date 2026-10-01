@@ -7,6 +7,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimeli
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineItemComponentFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow.GiteaPRCommitSelectionRequests
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow.GiteaPRShowDiffRequests
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.ui.icon.AsyncImageIconsProvider
 import com.intellij.collaboration.ui.icon.CachingIconsProvider
@@ -60,6 +61,9 @@ class GiteaPRTimelineFileEditor(
         },
         onOpenCommit = { sha ->
             project.service<GiteaPRCommitSelectionRequests>().request(file.pr, file.repository, file.ctx, sha)
+        },
+        onShowThreadDiff = { thread ->
+            project.service<GiteaPRShowDiffRequests>().request(file.pr, file.repository, file.ctx, thread)
         },
         onReplyToThread = { threadId, body ->
             LOG.info("PR #${file.pr.number}: replying to thread $threadId")

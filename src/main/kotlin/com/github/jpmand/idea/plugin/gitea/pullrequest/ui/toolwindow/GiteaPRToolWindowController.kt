@@ -81,6 +81,9 @@ class GiteaPRToolWindowController(
         cs.launch {
             project.service<GiteaPRCommitSelectionRequests>().requests.collect { req -> handleCommitSelection(req) }
         }
+        cs.launch {
+            project.service<GiteaPRShowDiffRequests>().requests.collect { req -> handleShowDiff(req) }
+        }
     }
 
     private fun updateContent(ctx: GiteaPRDataContext?) {
@@ -190,6 +193,13 @@ class GiteaPRToolWindowController(
         toolWindow.activate(null)
         val tab = openOrFocusDetailTab(req.ctx, req.repository, req.pr)
         tab.selectCommitBySha(req.commitSha)
+    }
+
+    /** Opens the given PR's diff on a file, through its Details tab (opened if needed), which owns
+     * the diff — see [GiteaPRShowDiffRequests]. */
+    private fun handleShowDiff(req: GiteaPRShowDiffRequests.Request) {
+        LOG.debug("Showing ${req.path} in the diff of PR #${req.pr.number}")
+        openOrFocusDetailTab(req.ctx, req.repository, req.pr).showDiff(req.path, req.scrollRequest)
     }
 
     private fun openTimelineEditor(repository: GiteaPRRepository, pr: GiteaPullRequest, ctx: GiteaPRDataContext) {

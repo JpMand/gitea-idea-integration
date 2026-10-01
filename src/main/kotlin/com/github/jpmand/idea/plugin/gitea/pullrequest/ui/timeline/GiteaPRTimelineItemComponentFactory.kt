@@ -56,6 +56,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import java.awt.Dimension
 import java.awt.datatransfer.StringSelection
+import java.awt.event.ActionListener
 import java.util.*
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -84,6 +85,8 @@ class GiteaPRTimelineItemComponentFactory(
      * selected in the changes tree — used by both the "added N commits" block and a
      * "referenced from commit" event, instead of opening the commit in a browser. */
     private val onOpenCommit: (sha: String) -> Unit,
+    /** Opens the PR diff on a review thread's file — the file name above the thread's diff hunk. */
+    private val onShowThreadDiff: (GiteaReviewThread) -> Unit,
     /** Replies to an existing review-comment thread, identified by its anchor comment id. */
     private val onReplyToThread: suspend (threadId: Long, body: String) -> Unit,
     /** Resolves/unresolves a review-comment thread, identified by its anchor comment id. */
@@ -321,7 +324,7 @@ class GiteaPRTimelineItemComponentFactory(
         val firstActions = commentUrlActions(first.htmlUrl)
         installMenu(bodyComponent, firstActions)
         val firstContent = VerticalListPanel(THREAD_DIFF_TEXT_GAP).apply {
-            diffHunkComponent(cs, thread.path, first.diffHunk)?.let { add(it) }
+            diffHunkComponent(cs, thread.path, first.diffHunk) { onShowThreadDiff(thread) }?.let { add(it) }
             add(withSuggestion(cs, project, first.path, bodyComponent, displayBody.isNullOrBlank(), suggestion))
         }
         val tags = listOfNotNull(
@@ -488,7 +491,7 @@ class GiteaPRTimelineItemComponentFactory(
      * [com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewComment.newLine]/`oldLine`
      * through [PatchHunkUtil.findHunkLineIndex] to locate it.
      */
-    private fun diffHunkComponent(cs: CoroutineScope, path: String?, diffHunk: String?): JComponent? {
+    private fun diffHunkComponent(cs: CoroutineScope, path: String?, diffHunk: String?, onFileNameClick: () -> Unit): JComponent? {
         if (diffHunk.isNullOrBlank() || path.isNullOrBlank()) return null
         val hunk = try {
             PatchReader(PatchHunkUtil.createPatchFromHunk(path, normalizeDiffHunk(diffHunk))).readTextPatches().firstOrNull()?.hunks?.firstOrNull()
@@ -512,7 +515,7 @@ class GiteaPRTimelineItemComponentFactory(
         val diffComponent = TimelineDiffComponentFactory.createDiffComponentIn(
             cs, project, EditorFactory.getInstance(), truncatedHunk, anchorRange,
         )
-        return TimelineDiffComponentFactory.createDiffWithHeader(cs, path, flowOf(null), diffComponent)
+        return TimelineDiffComponentFactory.createDiffWithHeader(cs, path, flowOf(ActionListener { onFileNameClick() }), diffComponent)
     }
 
     private fun reviewStateKey(state: GiteaReviewState): String = when (state) {
