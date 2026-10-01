@@ -37,10 +37,10 @@ class GiteaOpenInBrowserActionGroup : GlobalHostedGitRepositoryReferenceActionGr
 object GiteaURLUtil {
 
     fun getWebURI(repository: URI, revision: String): URI =
-        repository.resolveRelative("src/commit").resolveRelative(revision)
+        repository.resolveRelative("commit").resolveRelative(revision)
 
     fun getWebURI(repository: URI, revision: String, relativePath: String, lineRange: IntRange?): URI {
-        val fileUri = repository.resolveRelative("src/commit").resolveRelative(revision)
+        val fileUri = repository.resolveRelative("commit").resolveRelative(revision)
             .resolveRelative(URLUtil.encodePath(relativePath))
         return if (lineRange != null) {
             val fragmentBuilder = StringBuilder()
