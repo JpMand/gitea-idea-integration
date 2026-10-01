@@ -5,11 +5,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussions
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.giteaWriteActionNotImplemented
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
-import com.intellij.collaboration.ui.Either
-import com.intellij.collaboration.ui.HorizontalListPanel
-import com.intellij.collaboration.ui.ScrollablePanel
-import com.intellij.collaboration.ui.SimpleHtmlPane
-import com.intellij.collaboration.ui.VerticalListPanel
+import com.intellij.collaboration.ui.*
 import com.intellij.collaboration.ui.codereview.avatar.CodeReviewAvatarUtils
 import com.intellij.collaboration.ui.codereview.details.*
 import com.intellij.ide.BrowserUtil
@@ -25,7 +21,9 @@ import com.intellij.openapi.util.NlsSafe
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.awt.RelativePoint
-import com.intellij.ui.components.*
+import com.intellij.ui.components.ActionLink
+import com.intellij.ui.components.JBCheckBox
+import com.intellij.ui.components.JBOptionButton
 import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
