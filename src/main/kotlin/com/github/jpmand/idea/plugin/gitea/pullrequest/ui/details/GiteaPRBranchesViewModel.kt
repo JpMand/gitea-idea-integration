@@ -5,7 +5,6 @@ import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.util.GiteaGitRepositoryMapping
-import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.ui.codereview.details.model.CodeReviewBranches
 import com.intellij.collaboration.ui.codereview.details.model.CodeReviewBranchesViewModel
 import com.intellij.notification.NotificationGroupManager
@@ -28,6 +27,9 @@ import git4idea.repo.GitRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlin.coroutines.resume
+import com.intellij.openapi.diagnostic.logger
+
+private val LOG = logger<GiteaPRBranchesViewModel>()
 
 /**
  * Where a PR's head commit is fetched to locally.
@@ -124,7 +126,7 @@ class GiteaPRBranchesViewModel(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            GiteaUtil.LOG.debug("Local mergeability check failed for PR #${pr.number}", e)
+            LOG.debug("Local mergeability check failed for PR #${pr.number}", e)
             null
         }
     }

@@ -11,7 +11,6 @@ import com.github.jpmand.idea.plugin.gitea.data.GiteaImageLoader
 import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPullRequestsSettings
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
-import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.async.mapState
 import com.intellij.collaboration.ui.codereview.diff.DiscussionsViewOption
 import com.intellij.collaboration.ui.codereview.editor.CodeReviewInEditorViewModel
@@ -39,6 +38,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.intellij.openapi.diagnostic.logger
+
+private val LOG = logger<GiteaPRDiscussionsViewModels>()
 
 /**
  * Central ViewModel for the review discussion layer of a single PR.
@@ -336,7 +338,7 @@ class GiteaPRDiscussionsViewModels(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            GiteaUtil.LOG.warn("Couldn't discard the empty pending review left by a failed submission", e)
+            LOG.warn("Couldn't discard the empty pending review left by a failed submission", e)
         }
         reloadPendingReview()
     }

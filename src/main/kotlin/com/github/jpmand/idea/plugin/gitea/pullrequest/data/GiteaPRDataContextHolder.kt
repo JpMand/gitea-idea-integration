@@ -8,7 +8,6 @@ import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountMa
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaProjectDefaultAccountHolder
 import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPullRequestsSettings
 import com.github.jpmand.idea.plugin.gitea.util.GiteaGitRepositoryMapping
-import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
@@ -25,6 +24,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
+import com.intellij.openapi.diagnostic.logger
+
+private val LOG = logger<GiteaPRDataContextHolder>()
 
 /**
  * Project service that tracks the active [GiteaPRDataContext].
@@ -75,7 +77,7 @@ class GiteaPRDataContextHolder(
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        GiteaUtil.LOG.warn("Couldn't resolve the Gitea account for the pull requests tool window", e)
+                        LOG.warn("Couldn't resolve the Gitea account for the pull requests tool window", e)
                     }
                 }
         }
