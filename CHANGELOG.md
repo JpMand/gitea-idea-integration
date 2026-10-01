@@ -28,6 +28,11 @@
 - "Gitea" tab in _Get from Version Control_ for cloning
 - Open-in-browser / copy-link actions and an annotation-gutter action
 - Declared notification group so Gitea notifications can be muted in Settings
+- View in Browser / Copy URL context menu on timeline comments, reviews and review-thread comments
+- The file name above a review comment's diff preview opens the PR diff at the commented line
+- Diagnostic logging across the plugin: user actions and key state changes at INFO, failures at
+  WARN, flow detail at DEBUG (enable `#com.github.jpmand.idea.plugin.gitea` in Debug Log
+  Settings); REST request bodies only at TRACE, and never tokens
 
 ### Changed
 
@@ -56,6 +61,16 @@
 - Composing a brand-new inline comment now offers "Send Single Comment Review" alongside "Start
   Review" (as one split button) when no other draft is already in progress, to post that single
   comment as its own review immediately instead of always staging it as a draft
+- The Pull Requests tool window only appears when the project has a git remote on the server of
+  a Gitea account with a stored token, and hides again when that's no longer true
+- Inline comment composers say "Add Review Comment" while a review is in progress
+- The review composer was removed from the PR Details tab; reviews are started from inline
+  comments and submitted from the diff header
+- Timeline items show their event ("reviewed", "requested changes", …) on the author/time line
+- The changes tree no longer has a "viewed" checkbox: Gitea's API has no viewed state, so it was
+  kept only in this IDE
+- Open in Browser / Copy Link on a commit now opens the commit page (message and diff) instead of
+  the repository tree at that commit
 
 ### Fixed
 
@@ -91,6 +106,9 @@
 - Draft comments no longer disappear from the diff/live editor after closing and reopening the
   file — they were persisted correctly all along, just never redrawn until re-created
 - Resolve/Unresolve reverted from a button back to a link (read better that way)
+- Review comments on a line right after a "No newline at end of file" marker showed no diff
+  preview: Gitea stores a malformed hunk for them, which is now repaired before rendering
+- A failed comment delete shows an error instead of crashing the timeline
 
 ## [0.0.1] - 2026-03-13
 
