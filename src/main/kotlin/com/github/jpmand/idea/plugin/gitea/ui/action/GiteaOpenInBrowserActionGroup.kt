@@ -36,11 +36,14 @@ class GiteaOpenInBrowserActionGroup : GlobalHostedGitRepositoryReferenceActionGr
 
 object GiteaURLUtil {
 
+    /** The commit's page, with its message and diff: `<repo>/commit/<sha>`. */
     fun getWebURI(repository: URI, revision: String): URI =
         repository.resolveRelative("commit").resolveRelative(revision)
 
+    /** The file as of [revision]: `<repo>/src/commit/<sha>/<path>#L1-L5`. Gitea has no file route
+     * under `commit/` (it answers 404), unlike the commit page above. */
     fun getWebURI(repository: URI, revision: String, relativePath: String, lineRange: IntRange?): URI {
-        val fileUri = repository.resolveRelative("commit").resolveRelative(revision)
+        val fileUri = repository.resolveRelative("src/commit").resolveRelative(revision)
             .resolveRelative(URLUtil.encodePath(relativePath))
         return if (lineRange != null) {
             val fragmentBuilder = StringBuilder()
