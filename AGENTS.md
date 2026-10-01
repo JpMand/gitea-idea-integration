@@ -44,7 +44,7 @@ markers; keep it and `CHANGELOG.md` true to the code.
 Top-level packages under `…/gitea/`:
 - `api/` — HTTP client + JSON. `GiteaApi` (token auth via `HttpApiHelper`), `GiteaApiManager` (client factory), `GiteaJsonDeSerializer` (Jackson singleton, SNAKE_CASE), `GiteaServerPath` (URL parsing). `rest/` = suspend-fun wrappers, `rest/dto/` = generated DTOs, `models/` = domain objects (`.toXxx()` / `fromDto` from DTOs).
 - `authentication/` — `account/` (XML-serialized account state + PasswordSafe), `extensions/` (silent-then-interactive auth providers), `ui/` (login dialogs).
-- `pullrequest/` — the PR review feature.
+- `pullrequest/` — the PR review feature. Everything in it hangs off `GiteaPRDataContextHolder.context` (an account with a token on the server of a project git remote); the Pull Requests tool window is available only while it is set.
 - `ui/` — `GiteaSettingsConfigurable` (Settings > VCS > Gitea) + clone UI.
 - `util/` — `GiteaBundle` i18n wrapper.
 
