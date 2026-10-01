@@ -103,7 +103,12 @@ class GiteaPRDataContextHolder(
             defaultAccount?.takeIf { it in accounts },
             project.service<GiteaPullRequestsSettings>().selectedUrlAndAccountId,
         ) { it.repository.getWebURI().toString() }
+        LOG.debug("Resolving the PR context: ${repos.size} known repositories, ${accounts.size} accounts, ${candidates.size} candidates")
         if (chosen == null) {
+            if (_context.value != null) {
+                LOG.info("No PR context: no account with a token on the server of a project git remote " +
+                    "(${repos.size} known repositories, ${accounts.size} accounts)")
+            }
             _context.value = null
             contextToken = null
             return
@@ -116,8 +121,13 @@ class GiteaPRDataContextHolder(
         val current = _context.value
         if (current != null && current.account.id == account.id && current.account.server == account.server &&
             current.repo.getWebURI() == repo.getWebURI() && contextToken == token
-        ) return
+        ) {
+            LOG.debug("PR context unchanged: ${account.name}@${account.server} on $repo")
+            return
+        }
 
+        LOG.info("PR context: ${account.name}@${account.server} on $repo" +
+            if (current != null && current.account.id == account.id && current.repo.getWebURI() == repo.getWebURI()) " (token changed)" else "")
         contextToken = token
         _context.value = GiteaPRDataContext(account, repo, service<GiteaApiManager>().getClient(account.server, token))
     }

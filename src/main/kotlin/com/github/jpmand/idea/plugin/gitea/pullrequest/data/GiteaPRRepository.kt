@@ -9,7 +9,10 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.toChangedFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineItemViewModel
 import com.intellij.collaboration.api.HttpStatusErrorException
+import com.intellij.openapi.diagnostic.logger
 import java.util.*
+
+private val LOG = logger<GiteaPRRepository>()
 
 /**
  * Data-access layer for PR operations scoped to a single [GiteaPRDataContext].
@@ -66,7 +69,9 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         try {
             loadAllCollaborators()
         } catch (e: HttpStatusErrorException) {
-            if (e.statusCode == 403) emptyList() else throw e
+            if (e.statusCode != 403) throw e
+            LOG.debug("$owner/$repo: no permission to list collaborators (403)")
+            emptyList()
         }
     }
 
@@ -106,14 +111,18 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
             val users = try {
                 ctx.api.userSearch(limit = 100).data.orEmpty().map { GiteaUser.fromDto(it) }
             } catch (e: HttpStatusErrorException) {
-                if (e.statusCode == 403) emptyList() else throw e
+                if (e.statusCode != 403) throw e
+                LOG.debug("No permission to search users (403), falling back to collaborators")
+                emptyList()
             }
             if (users.isNotEmpty()) return@giteaApiCall users
         }
         try {
             loadAllCollaborators()
         } catch (e: HttpStatusErrorException) {
-            if (e.statusCode == 403) emptyList() else throw e
+            if (e.statusCode != 403) throw e
+            LOG.debug("$owner/$repo: no permission to list collaborators (403)")
+            emptyList()
         }
     }
 
@@ -275,7 +284,9 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         try {
             ctx.api.getFileContents(owner, repo, path, ref).decodeContent() ?: ""
         } catch (e: HttpStatusErrorException) {
-            if (e.statusCode == 404) "" else throw e
+            if (e.statusCode != 404) throw e
+            LOG.debug("$path doesn't exist at $ref (404), using empty content")
+            ""
         }
     }
 

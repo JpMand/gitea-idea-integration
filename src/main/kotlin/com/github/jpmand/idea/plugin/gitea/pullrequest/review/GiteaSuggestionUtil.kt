@@ -1,8 +1,11 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.review
 
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.diff.impl.patch.PatchHunkUtil
 import com.intellij.openapi.diff.impl.patch.PatchLine
 import com.intellij.openapi.diff.impl.patch.PatchReader
+
+private val LOG = logger<GiteaSuggestionUtil>()
 
 /**
  * A reviewer's proposed replacement for a contiguous range of lines — this plugin's emulation of
@@ -84,6 +87,7 @@ object GiteaSuggestionUtil {
             PatchReader(PatchHunkUtil.createPatchFromHunk("suggestion", hunkText))
                 .readTextPatches().firstOrNull()?.hunks?.firstOrNull()
         } catch (e: Exception) {
+            LOG.debug("A suggestion block couldn't be parsed as a diff hunk; shown as plain text", e)
             null
         } ?: return null
 

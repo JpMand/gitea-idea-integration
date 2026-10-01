@@ -28,7 +28,7 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
-import com.intellij.openapi.diagnostic.thisLogger
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.diff.impl.patch.PatchHunkUtil
 import com.intellij.openapi.diff.impl.patch.PatchReader
 import com.intellij.openapi.editor.EditorFactory
@@ -60,6 +60,8 @@ import java.util.*
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.border.EmptyBorder
+
+private val LOG = logger<GiteaPRTimelineItemComponentFactory>()
 
 /**
  * Renders one [GiteaPRTimelineItemViewModel] using the platform timeline-item shell
@@ -271,7 +273,15 @@ class GiteaPRTimelineItemComponentFactory(
     ) : CodeReviewSubmittableTextViewModelBase(project, cs, initialText), CodeReviewTextEditingViewModel {
         override fun save() {
             submit { newBody ->
-                onEditComment(commentId, newBody)
+                try {
+                    onEditComment(commentId, newBody)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // Shown in the field by the platform; logged here so it isn't lost.
+                    LOG.warn("Couldn't edit comment $commentId", e)
+                    throw e
+                }
                 onDone()
             }
         }
@@ -348,6 +358,7 @@ class GiteaPRTimelineItemComponentFactory(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    LOG.warn("${GiteaBundle.message(errorKey)} (thread ${thread.id})", e)
                     NotificationGroupManager.getInstance()
                         .getNotificationGroup("Gitea")
                         .createNotification(GiteaBundle.message(labelKey), GiteaBundle.message(errorKey), NotificationType.ERROR)
@@ -466,7 +477,7 @@ class GiteaPRTimelineItemComponentFactory(
         val hunk = try {
             PatchReader(PatchHunkUtil.createPatchFromHunk(path, diffHunk)).readTextPatches().firstOrNull()?.hunks?.firstOrNull()
         } catch (e: Exception) {
-            thisLogger().warn("Failed to parse diff hunk for $path", e)
+            LOG.warn("Failed to parse diff hunk for $path", e)
             null
         } ?: return null
         if (hunk.lines.isEmpty()) return null

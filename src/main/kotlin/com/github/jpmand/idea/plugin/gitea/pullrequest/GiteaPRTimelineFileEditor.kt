@@ -11,6 +11,7 @@ import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.ui.icon.AsyncImageIconsProvider
 import com.intellij.collaboration.ui.icon.CachingIconsProvider
 import com.intellij.openapi.components.service
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.fileEditor.FileEditorState
 import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
@@ -28,6 +29,8 @@ import java.beans.PropertyChangeListener
 import java.util.Date
 import javax.swing.JComponent
 
+private val LOG = logger<GiteaPRTimelineFileEditor>()
+
 /** Editor tab rendering a PR's activity timeline (Conversation). */
 @Suppress("UnstableApiUsage")
 class GiteaPRTimelineFileEditor(
@@ -44,11 +47,13 @@ class GiteaPRTimelineFileEditor(
         project, avatarIconsProvider, { m -> GiteaUtil.safeConvertMarkdownToHtml(m) },
         currentUserLogin = file.ctx.account.name,
         onEditComment = { id, body ->
+            LOG.info("PR #${file.pr.number}: editing comment $id")
             file.repository.editComment(id, body)
             vm.updateCommentBody(id, body, Date())
             notifyReviewChanged()
         },
         onDeleteComment = { id ->
+            LOG.info("PR #${file.pr.number}: deleting comment $id")
             file.repository.deleteComment(id)
             vm.removeComment(id)
             notifyReviewChanged()
@@ -57,16 +62,19 @@ class GiteaPRTimelineFileEditor(
             project.service<GiteaPRCommitSelectionRequests>().request(file.pr, file.repository, file.ctx, sha)
         },
         onReplyToThread = { threadId, body ->
+            LOG.info("PR #${file.pr.number}: replying to thread $threadId")
             val reply = file.repository.replyToComment(file.pr.number.toInt(), threadId, body)
             vm.appendReply(threadId, reply)
             notifyReviewChanged()
         },
         onResolveThread = { threadId ->
+            LOG.info("PR #${file.pr.number}: resolving thread $threadId")
             file.repository.resolveComment(threadId)
             vm.updateThreadResolved(threadId, resolved = true)
             notifyReviewChanged()
         },
         onUnresolveThread = { threadId ->
+            LOG.info("PR #${file.pr.number}: unresolving thread $threadId")
             file.repository.unresolveComment(threadId)
             vm.updateThreadResolved(threadId, resolved = false)
             notifyReviewChanged()

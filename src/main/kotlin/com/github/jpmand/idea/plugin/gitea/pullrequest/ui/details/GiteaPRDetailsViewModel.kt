@@ -12,9 +12,12 @@ import com.intellij.collaboration.ui.codereview.details.data.ReviewRequestState
 import com.intellij.collaboration.ui.codereview.details.model.CodeReviewDetailsViewModel
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+
+private val LOG = logger<GiteaPRDetailsViewModel>()
 
 /**
  * Details view model: title/description/status/branches/commits, plus close/reopen.
@@ -82,15 +85,18 @@ class GiteaPRDetailsViewModel(
 
     /** Re-fetches the PR and its commits. */
     fun refresh() {
+        LOG.debug("PR #$prNumber: refreshing details")
         changesVm.reload()
         cs.launch(Dispatchers.IO) {
             _isLoading.value = true
             _error.value = null
             try {
                 _pr.value = repository.loadPullRequest(prNumber)
+                LOG.debug("PR #$prNumber: loaded (state ${_pr.value.state}, merged ${_pr.value.merged}, head ${_pr.value.head.sha})")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                LOG.warn("PR #$prNumber: couldn't load the pull request", e)
                 _error.value = e
             } finally {
                 withContext(NonCancellable) { _isLoading.value = false }
@@ -105,10 +111,12 @@ class GiteaPRDetailsViewModel(
     fun reopenPullRequest() = editState("open", "pull.request.action.reopen.error")
 
     private fun editState(state: String, errorKey: String) {
+        LOG.info("PR #$prNumber: setting state to $state")
         cs.launch(Dispatchers.IO) {
             _isActionInProgress.value = true
             try {
                 _pr.value = repository.editPullRequest(prNumber, EditPullRequestOption(state = state))
+                LOG.info("PR #$prNumber: state is now ${_pr.value.state}")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -132,10 +140,12 @@ class GiteaPRDetailsViewModel(
      */
     fun markReadyForReview() {
         val newTitle = DRAFT_PREFIX_RE.replaceFirst(_pr.value.title, "")
+        LOG.info("PR #$prNumber: marking ready for review (draft prefix ${if (newTitle == _pr.value.title) "not found" else "removed"})")
         cs.launch(Dispatchers.IO) {
             _isActionInProgress.value = true
             try {
                 _pr.value = repository.editPullRequest(prNumber, EditPullRequestOption(title = newTitle))
+                LOG.info("PR #$prNumber: draft is now ${_pr.value.draft}")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -149,11 +159,13 @@ class GiteaPRDetailsViewModel(
     // ── Merge ────────────────────────────────────────────────────────────
 
     fun mergePullRequest(method: MergePullRequestOption.Do, deleteBranch: Boolean) {
+        LOG.info("PR #$prNumber: merging ($method, delete branch $deleteBranch)")
         cs.launch(Dispatchers.IO) {
             _isActionInProgress.value = true
             try {
                 repository.mergePullRequest(prNumber, MergePullRequestOption(`do` = method, deleteBranchAfterMerge = deleteBranch))
                 _pr.value = repository.loadPullRequest(prNumber)
+                LOG.info("PR #$prNumber: merged ${_pr.value.merged}")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -185,12 +197,14 @@ class GiteaPRDetailsViewModel(
      * `requestedReviewers` changes, so no extra plumbing is needed here.
      */
     fun requestReview(newLogins: List<String>, removedLogins: List<String>) {
+        LOG.info("PR #$prNumber: updating requested reviewers (add $newLogins, remove $removedLogins)")
         cs.launch(Dispatchers.IO) {
             _isActionInProgress.value = true
             try {
                 repository.requestReviewers(prNumber, newLogins)
                 repository.removeReviewRequest(prNumber, removedLogins)
                 _pr.value = repository.loadPullRequest(prNumber)
+                LOG.info("PR #$prNumber: requested reviewers now ${_pr.value.requestedReviewers.map { it.login }}")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -204,6 +218,7 @@ class GiteaPRDetailsViewModel(
     /** An error notification titled by [bundleKey], with [cause]'s message (Gitea's own, for API
      * failures) as its text. */
     private suspend fun notifyError(bundleKey: String, cause: Throwable? = null) {
+        LOG.warn("PR #$prNumber: ${GiteaBundle.message(bundleKey)}", cause)
         withContext(Dispatchers.Main) {
             NotificationGroupManager.getInstance()
                 .getNotificationGroup("Gitea")

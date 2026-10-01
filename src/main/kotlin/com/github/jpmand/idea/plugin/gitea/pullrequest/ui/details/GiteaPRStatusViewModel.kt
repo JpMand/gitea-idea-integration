@@ -11,11 +11,14 @@ import com.intellij.collaboration.ui.codereview.details.data.CodeReviewCIJob
 import com.intellij.collaboration.ui.codereview.details.data.CodeReviewCIJobState
 import com.intellij.collaboration.ui.codereview.details.data.ReviewState
 import com.intellij.collaboration.ui.codereview.details.model.CodeReviewStatusViewModel
+import com.intellij.openapi.diagnostic.logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+
+private val LOG = logger<GiteaPRStatusViewModel>()
 
 /**
  * Feeds the read-only "status" section of the PR details view (CI checks, missing-reviewer
@@ -59,7 +62,8 @@ class GiteaPRStatusViewModel(
                 _ciJobs.value = statuses.map { it.toCiJob() }
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                LOG.warn("PR #${initialPr.number}: couldn't load the commit statuses", e)
                 _ciJobs.value = emptyList()
             }
         }
@@ -73,7 +77,8 @@ class GiteaPRStatusViewModel(
                     _reviewerStates.value = states.mapValues { (_, state) -> state.toReviewState() }
                 } catch (e: CancellationException) {
                     throw e
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    LOG.warn("PR #${initialPr.number}: couldn't load the reviews", e)
                     _reviewerStates.value = emptyMap()
                 }
             }

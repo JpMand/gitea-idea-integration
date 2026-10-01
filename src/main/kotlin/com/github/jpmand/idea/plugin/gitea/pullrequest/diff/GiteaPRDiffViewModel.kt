@@ -6,6 +6,7 @@ import com.intellij.collaboration.ui.codereview.diff.model.CodeReviewDiffProcess
 import com.intellij.collaboration.ui.codereview.diff.model.DiffViewerScrollRequest
 import com.intellij.collaboration.util.ComputedResult
 import com.intellij.openapi.ListSelection
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -21,6 +22,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private val LOG = logger<GiteaPRDiffViewModel>()
 
 /**
  * The PR's changed files for the diff viewer, compared from [GiteaPullRequest.diffBaseSha] to the
@@ -51,6 +54,7 @@ class GiteaPRDiffViewModel(
                     _changesState.value = ComputedResult.loading()
                     try {
                         val files = withContext(Dispatchers.IO) { repository.loadChangedFiles(pr.number.toInt()) }
+                        LOG.debug("PR #${pr.number}: diff has ${files.size} changed files (${pr.diffBaseSha}..${pr.head.sha})")
                         val fileVms = files.map { file ->
                             GiteaPRDiffFileViewModel(this, project, repository, file, pr.diffBaseSha, pr.head.sha)
                         }
@@ -63,6 +67,7 @@ class GiteaPRDiffViewModel(
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
+                        LOG.warn("PR #${pr.number}: couldn't load the changed files for the diff", e)
                         _changesState.value = ComputedResult.failure(e)
                     }
                     awaitCancellation()

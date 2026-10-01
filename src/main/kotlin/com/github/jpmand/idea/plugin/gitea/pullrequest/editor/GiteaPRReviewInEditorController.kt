@@ -108,6 +108,7 @@ class GiteaPRReviewInEditorController : EditorFactoryListener {
             LOG.warn("Failed to load head content for '${changedFile.filename}'", e)
             return
         }
+        LOG.debug("In-editor review on ${changedFile.filename} for PR #${current.pr.number} at ${current.pr.head.sha}")
 
         coroutineScope {
             val sync = GiteaPRLiveDiffSync(this, headContent, editor.document)

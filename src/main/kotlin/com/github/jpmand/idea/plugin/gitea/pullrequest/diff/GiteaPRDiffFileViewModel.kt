@@ -7,6 +7,7 @@ import com.intellij.collaboration.util.ComputedResult
 import com.intellij.diff.DiffContentFactory
 import com.intellij.diff.requests.DiffRequest
 import com.intellij.diff.requests.SimpleDiffRequest
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
@@ -20,6 +21,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
+
+private val LOG = logger<GiteaPRDiffFileViewModel>()
 
 @Suppress("UnstableApiUsage")
 class GiteaPRDiffFileViewModel(
@@ -48,6 +51,7 @@ class GiteaPRDiffFileViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                LOG.warn("Couldn't load the diff of ${file.filename} ($baseSha..$headSha)", e)
                 emit(ComputedResult.failure(e))
             }
         }.stateIn(cs, SharingStarted.Eagerly, null)
@@ -57,6 +61,7 @@ class GiteaPRDiffFileViewModel(
     }
 
     private suspend fun buildDiffRequest(): DiffRequest {
+        LOG.trace("Loading the diff of ${file.filename} (${file.status}, $baseSha..$headSha)")
         val baseFilename = if (file.status == GiteaPRFileStatusEnum.RENAMED) {
             file.previousFilename ?: file.filename
         } else {

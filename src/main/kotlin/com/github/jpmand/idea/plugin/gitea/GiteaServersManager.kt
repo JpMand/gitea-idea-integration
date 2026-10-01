@@ -4,10 +4,13 @@ import com.github.jpmand.idea.plugin.gitea.api.*
 import com.github.jpmand.idea.plugin.gitea.api.rest.checkIsGiteaServer
 import com.github.jpmand.idea.plugin.gitea.api.rest.getServerVersion
 import com.intellij.openapi.components.serviceAsync
+import com.intellij.openapi.diagnostic.fileLogger
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
+
+private val LOG = fileLogger()
 
 interface GiteaServersManager {
     val earliestSupportedVersion: GiteaVersion
@@ -35,6 +38,7 @@ internal class CachingGiteaServersManager(private val serviceCs: CoroutineScope)
         testCache.getOrPut(server) {
             serviceCs.async(Dispatchers.IO + CoroutineName("Gitea Server Tester")) {
                 serviceAsync<GiteaApiManager>().getUnauthenticatedClient(server).rest.checkIsGiteaServer()
+                    .also { LOG.info("$server is ${if (it) "" else "not "}a Gitea server") }
             }
         }.await()
 
@@ -56,5 +60,6 @@ private suspend fun getServerMetadata(api: GiteaApi): GiteaServerMetadata {
     // fromString never throws for a non-blank string; an unrecognisable version parses as 0.0.0
     // and fails the floor check rather than crashing the login flow.
     val version = GiteaVersion.fromString(dto.version ?: "0")
+    LOG.info("${api.server} reports version '${dto.version}', read as $version")
     return GiteaServerMetadata(version)
 }

@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContextHolder
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.components.service
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
@@ -14,6 +15,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+
+private val LOG = logger<GiteaPRToolWindowFactory>()
 
 /**
  * The "Gitea Pull Requests" tool window. It is available only while
@@ -40,6 +43,7 @@ class GiteaPRToolWindowFactory : ToolWindowFactory, DumbAware {
             .map { it != null }
             .distinctUntilChanged()
             .collect { available ->
+                LOG.info("Pull Requests tool window ${if (available) "available" else "hidden"} in ${toolWindow.project.name}")
                 withContext(Dispatchers.EDT) { toolWindow.isAvailable = available }
             }
     }

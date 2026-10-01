@@ -12,11 +12,14 @@ import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountMa
 import com.intellij.collaboration.auth.ui.LazyLoadingAccountsDetailsProvider
 import com.intellij.collaboration.auth.ui.cancelOnRemoval
 import com.intellij.collaboration.util.ResultUtil.runCatchingUser
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.util.io.URLUtil
 import icons.CollaborationToolsIcons
 import kotlinx.coroutines.CoroutineScope
 import java.awt.Image
 import kotlin.coroutines.cancellation.CancellationException
+
+private val LOG = logger<GiteaAccountsDetailsProvider>()
 
 @Suppress("UnstableApiUsage")
 class GiteaAccountsDetailsProvider(
@@ -48,6 +51,7 @@ class GiteaAccountsDetailsProvider(
       val details = runCatchingUser {
         giteaApiCall { api.currentUser() }
       }.getOrElse {
+        LOG.warn("Couldn't load the details of ${account.name}@${account.server}", it)
         // An invalid or expired token gets the panel's "Log In" link, so it can be replaced
         // without removing and re-adding the account.
         return Result.Error(it.localizedMessage, it is GiteaHttpError.Unauthorized)
@@ -56,6 +60,7 @@ class GiteaAccountsDetailsProvider(
     } catch (ce: CancellationException) {
       throw ce
     } catch (e: Exception) {
+      LOG.warn("Couldn't load the details of ${account.name}@${account.server}", e)
       return Result.Error(e.message, false)
     }
   }

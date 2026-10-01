@@ -6,12 +6,15 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListQuickFilter
 import com.intellij.collaboration.ui.codereview.list.search.ReviewListSearchHistoryModel
 import com.intellij.collaboration.ui.codereview.list.search.ReviewListSearchPanelViewModelBase
+import com.intellij.openapi.diagnostic.logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.shareIn
+
+private val LOG = logger<GiteaPRListSearchPanelViewModel>()
 
 @Suppress("UnstableApiUsage")
 class GiteaPRListSearchPanelViewModel(
@@ -59,11 +62,11 @@ class GiteaPRListSearchPanelViewModel(
     // ── Lazily-loaded dropdown option sources (only fetched once the popup is opened) ────────
 
     val labelOptions: Flow<Result<List<GiteaLabel>>> =
-        flow { emit(runCatching { repository.loadLabels() }) }
+        flow { emit(runCatching { repository.loadLabels() }.onFailure { LOG.warn("Couldn't load the labels", it) }) }
             .shareIn(scope, SharingStarted.Lazily, replay = 1)
 
     val authorOptions: Flow<Result<List<GiteaUser>>> =
-        flow { emit(runCatching { repository.loadPossibleAuthors() }) }
+        flow { emit(runCatching { repository.loadPossibleAuthors() }.onFailure { LOG.warn("Couldn't load the authors", it) }) }
             .shareIn(scope, SharingStarted.Lazily, replay = 1)
 }
 

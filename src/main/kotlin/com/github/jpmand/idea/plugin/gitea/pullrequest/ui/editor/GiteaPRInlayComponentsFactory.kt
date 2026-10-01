@@ -31,6 +31,7 @@ import com.intellij.diff.util.DiffDrawUtil
 import com.intellij.diff.util.TextDiffType
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.editor.ComponentInlayRenderer
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.markup.RangeHighlighter
@@ -54,6 +55,8 @@ import java.awt.Component
 import java.util.Date
 import javax.swing.*
 import javax.swing.border.EmptyBorder
+
+private val LOG = logger<GiteaPRInlayComponentsFactory>()
 
 /** Existing comment threads (read-only display plus resolve/unresolve/reply/edit/delete) and
  * new-comment composer inlays (a line comment, drafted locally until the whole review is
@@ -351,6 +354,7 @@ object GiteaPRInlayComponentsFactory {
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    LOG.warn("${GiteaBundle.message(errorKey)} (thread ${vm.id})", e)
                     NotificationGroupManager.getInstance()
                         .getNotificationGroup("Gitea")
                         .createNotification(GiteaBundle.message(labelKey), GiteaBundle.message(errorKey), NotificationType.ERROR)
@@ -444,7 +448,15 @@ object GiteaPRInlayComponentsFactory {
     ) : CodeReviewSubmittableTextViewModelBase(project, cs, initialText), CodeReviewTextEditingViewModel {
         override fun save() {
             submit { newBody ->
-                discussionsVm.editComment(commentId, newBody)
+                try {
+                    discussionsVm.editComment(commentId, newBody)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // Shown in the field by the platform; logged here so it isn't lost.
+                    LOG.warn("Couldn't edit review comment $commentId", e)
+                    throw e
+                }
                 onDone()
             }
         }

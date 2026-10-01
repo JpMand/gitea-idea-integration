@@ -7,6 +7,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.filters.GiteaPRListSearchPanelViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.filters.GiteaPRListSearchValue
 import com.intellij.collaboration.ui.codereview.list.ReviewListViewModel
+import com.intellij.openapi.diagnostic.logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +24,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 import javax.swing.DefaultListModel
+
+private val LOG = logger<GiteaPRListViewModel>()
 
 @Suppress("UnstableApiUsage")
 class GiteaPRListViewModel(
@@ -68,6 +71,7 @@ class GiteaPRListViewModel(
     }
 
     private suspend fun loadFirstPage(filter: GiteaPRListSearchValue) {
+        LOG.debug("Loading pull requests for $filter")
         paging = null
         withLoading {
             // Don't leave the previous filter's results in place while (or if) this one fails —
@@ -78,7 +82,10 @@ class GiteaPRListViewModel(
                 searchVm.labelOptions.first().getOrThrow().filter { it.name == name }.map { it.id }
             }
             // An empty id list means the label no longer exists, so nothing can match it.
-            if (labelIds != null && labelIds.isEmpty()) return@withLoading
+            if (labelIds != null && labelIds.isEmpty()) {
+                LOG.debug("Label '${filter.label}' no longer exists, nothing to load")
+                return@withLoading
+            }
             val p = Paging(filter, labelIds)
             paging = p
             loadPages(p)
@@ -114,6 +121,7 @@ class GiteaPRListViewModel(
             // below what was asked, so a short page isn't necessarily the last.
             if (prs.isEmpty()) p.exhausted = true
             val matching = prs.filter { p.filter.matchesLocally(it) }
+            LOG.debug("Page ${p.nextPage - 1}: ${prs.size} pull requests, ${matching.size} match the search")
             if (matching.isNotEmpty()) {
                 withContext(Dispatchers.Main) {
                     if (paging === p) matching.forEach { _listModel.addElement(it) }
@@ -131,6 +139,7 @@ class GiteaPRListViewModel(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            LOG.warn("Couldn't load pull requests", e)
             _error.value = e
         } finally {
             withContext(NonCancellable) {
@@ -140,6 +149,7 @@ class GiteaPRListViewModel(
     }
 
     override fun refresh() {
+        LOG.debug("Refreshing the pull request list")
         _refreshTrigger.value = System.currentTimeMillis()
     }
 
@@ -164,7 +174,8 @@ class GiteaPRListViewModel(
                 } catch (e: CancellationException) {
                     reviewsLoading.remove(prNumber)
                     throw e
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    LOG.debug("Couldn't load reviews for PR #$prNumber; its row shows no review state", e)
                     emptyList()
                 }
                 reviewsCache[prNumber] = reviews

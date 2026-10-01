@@ -5,8 +5,11 @@ import com.github.jpmand.idea.plugin.gitea.api.GiteaUriUtil
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.ContentsResponse
 import com.intellij.collaboration.api.json.loadJsonValue
 import com.intellij.collaboration.util.resolveRelative
+import com.intellij.openapi.diagnostic.fileLogger
 import java.net.URLEncoder
 import java.util.Base64
+
+private val LOG = fileLogger()
 
 @Suppress("UnstableApiUsage")
 suspend fun GiteaApi.getFileContents(
@@ -29,7 +32,8 @@ fun ContentsResponse.decodeContent(): String? {
     return try {
         Base64.getDecoder().decode(content.replace("\n", "").replace("\r", ""))
             .toString(Charsets.UTF_8)
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        LOG.debug("$path isn't decodable as UTF-8 text (binary?)", e)
         null // binary or non-UTF-8 content
     }
 }

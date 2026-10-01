@@ -9,6 +9,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRReviewChang
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRSubmittableTextViewModel
 import com.intellij.collaboration.util.ComputedResult
 import com.intellij.openapi.components.service
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -20,6 +21,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.Date
+
+private val LOG = logger<GiteaPRTimelineViewModel>()
 
 /**
  * Read-only view model for a PR's activity timeline (Conversation). Reviews render here but
@@ -47,7 +50,9 @@ class GiteaPRTimelineViewModel(
      * making every existing item disappear and reappear for a moment.
      */
     val newCommentVm = GiteaPRSubmittableTextViewModel(project, cs) { body ->
+        LOG.info("PR #$prNumber: posting a comment")
         val comment = repository.createComment(prNumber, body)
+        LOG.info("PR #$prNumber: posted comment ${comment.id}")
         val currentList = _items.value?.result?.getOrNull()
         if (currentList != null) {
             _items.value = ComputedResult.success(currentList + comment)
@@ -76,7 +81,10 @@ class GiteaPRTimelineViewModel(
         // Threads resolved, replied to or reviewed from the diff or the editor.
         cs.launch {
             project.service<GiteaPRReviewChanges>().changes.collect { change ->
-                if (change.prNumber == prNumber && change.source !== this@GiteaPRTimelineViewModel) reload()
+                if (change.prNumber == prNumber && change.source !== this@GiteaPRTimelineViewModel) {
+                    LOG.debug("PR #$prNumber: review changed elsewhere, reloading the timeline")
+                    reload()
+                }
             }
         }
         cs.launch(Dispatchers.IO) {
@@ -84,8 +92,9 @@ class GiteaPRTimelineViewModel(
                 repository.loadPossibleAuthors()
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 // Best-effort — a failed lookup still leaves the PR's own participants usable.
+                LOG.debug("PR #$prNumber: couldn't load mention candidates", e)
                 emptyList()
             }
             _mentionCandidates.value = (collaborators + initialPr.mentionCandidates()).distinctBy { it.login }
@@ -95,8 +104,9 @@ class GiteaPRTimelineViewModel(
                 _currentUser.value = repository.currentUser()
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 // Best-effort — a failed lookup just means the comment field stays hidden until retried.
+                LOG.warn("PR #$prNumber: couldn't load the signed-in user; the comment field stays hidden", e)
             }
         }
     }
@@ -108,6 +118,7 @@ class GiteaPRTimelineViewModel(
      * flashing back to "loading conversation" for every refresh.
      */
     fun reload() {
+        LOG.debug("PR #$prNumber: loading the timeline")
         loadJob?.cancel()
         loadJob = cs.launch(Dispatchers.IO) {
             if (_items.value == null) _items.value = ComputedResult.loading()
@@ -115,10 +126,12 @@ class GiteaPRTimelineViewModel(
                 val pr = repository.loadPullRequest(prNumber)
                 _pr.value = pr
                 val items = repository.loadTimeline(prNumber, pr.head.sha).toItemViewModels()
+                LOG.debug("PR #$prNumber: timeline loaded, ${items.size} items at ${pr.head.sha}")
                 _items.value = ComputedResult.success(items)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                LOG.warn("PR #$prNumber: couldn't load the timeline", e)
                 _items.value = ComputedResult.failure(e)
             }
         }

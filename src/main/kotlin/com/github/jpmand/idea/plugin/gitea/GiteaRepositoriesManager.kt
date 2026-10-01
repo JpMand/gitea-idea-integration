@@ -46,7 +46,7 @@ internal class GiteaRepositoriesManagerImpl(project: Project, cs: CoroutineScope
       val webScheme = uri?.scheme?.takeIf { it == "http" || it == "https" }
       val port = if (webScheme != null && uri.port > 0) ":${uri.port}" else ""
       uri?.host?.let { host -> runCatching { GiteaServerPath.from("${webScheme ?: "https"}://$host$port") }.getOrNull() }
-    }.runningFold(emptySet<GiteaServerPath>()) { acc, value ->
+    }.onEach { LOG.trace("Servers discovered from git remotes: $it") }.runningFold(emptySet<GiteaServerPath>()) { acc, value ->
       acc + value
     }.distinctUntilChanged()
 
@@ -57,7 +57,8 @@ internal class GiteaRepositoriesManagerImpl(project: Project, cs: CoroutineScope
     val knownRepositoriesFlow = gitRemotesFlow.mapToServers(serversFlow) { server, remote ->
       GiteaGitRepositoryMapping.create(server, remote)
     }.onEach {
-      LOG.debug("New list of known repositories: $it")
+      // Repository coordinates, not the mappings: a remote URL can carry credentials.
+      LOG.debug("Known repositories: ${it.map { mapping -> "${mapping.repository} (${mapping.remote.remote.name})" }}")
     }
 
     knownRepositoriesFlow.stateIn(cs, SharingStarted.Eagerly, emptySet())

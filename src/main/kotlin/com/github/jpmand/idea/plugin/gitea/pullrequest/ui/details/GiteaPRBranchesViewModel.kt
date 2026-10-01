@@ -107,7 +107,10 @@ class GiteaPRBranchesViewModel(
             val baseFetch = withContext(Dispatchers.IO) {
                 GitFetchSupport.fetchSupport(project).fetch(mapping.gitRepository, mapping.gitRemote)
             }
-            if (!baseFetch.isSuccessful()) return null
+            if (!baseFetch.isSuccessful()) {
+                LOG.debug("PR #${pr.number}: base fetch failed, local mergeability unknown")
+                return null
+            }
 
             val localRef = fetchPrHead(mapping, pr, notifyOnFailure = false)?.localRef ?: return null
 
@@ -123,6 +126,7 @@ class GiteaPRBranchesViewModel(
                 addParameters(targetRef, localRef)
             }
             Git.getInstance().runCommand(handler).success()
+                .also { LOG.debug("PR #${pr.number}: merge-tree $targetRef $localRef -> mergeable $it") }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -132,6 +136,7 @@ class GiteaPRBranchesViewModel(
     }
 
     override fun fetchAndCheckoutRemoteBranch() {
+        LOG.info("PR #${prFlow.value.number}: checkout requested (branch ${prFlow.value.head.ref})")
         val mapping = findRepositoryMapping()
         if (mapping == null) {
             notifyError(GiteaBundle.message("pull.request.branch.checkout.no.repository"))
@@ -160,6 +165,7 @@ class GiteaPRBranchesViewModel(
             return
         }
         val pr = prFlow.value
+        LOG.info("PR #${pr.number}: resolving conflicts by merging ${pr.base.ref} into ${pr.head.ref}")
 
         cs.launch {
             _isResolvingConflicts.value = true
@@ -170,6 +176,7 @@ class GiteaPRBranchesViewModel(
                     GitFetchSupport.fetchSupport(project).fetch(mapping.gitRepository, mapping.gitRemote)
                 }
                 if (!baseFetch.isSuccessful()) {
+                    LOG.warn("PR #${pr.number}: fetching ${mapping.gitRemote.name} failed, conflicts not resolved")
                     withContext(Dispatchers.EDT) { baseFetch.showNotificationIfFailed() }
                     return@launch
                 }
@@ -202,6 +209,7 @@ class GiteaPRBranchesViewModel(
 
         val head = fetchPrHead(mapping, pr, notifyOnFailure = true) ?: return false
 
+        LOG.info("PR #${pr.number}: ${if (existingBranch) "updating existing" else "creating"} local branch $branchName from ${head.localRef}")
         return if (existingBranch) updateExistingBranch(mapping, head.localRef, branchName) else checkoutNewBranch(mapping, head, branchName)
     }
 
@@ -210,6 +218,7 @@ class GiteaPRBranchesViewModel(
         val remoteName = mapping.gitRemote.name
         GiteaPRHeadRef.ofBranch(pr, remoteName)?.let { branch ->
             if (fetch(mapping.gitRepository, mapping.gitRemote, branch.refspec, notifyOnFailure = false)) return branch
+            LOG.debug("PR #${pr.number}: fetching ${branch.refspec} failed, trying the pull ref")
         }
         val pullRef = GiteaPRHeadRef.ofPullRef(pr, remoteName)
         return pullRef.takeIf { fetch(mapping.gitRepository, mapping.gitRemote, it.refspec, notifyOnFailure) }
@@ -265,6 +274,7 @@ class GiteaPRBranchesViewModel(
                 GiteaBundle.message("pull.request.branch.checkout.upstream.mismatch.message", branchName, expectedUpstream),
             ).asWarning().ask(project)
         }
+        LOG.info("Branch $branchName tracks ${trackInfo?.remoteBranch?.name ?: "nothing"}, expected $expectedUpstream; fix confirmed: $confirmed")
         if (confirmed) {
             withContext(Dispatchers.IO) {
                 Git.getInstance().setUpstream(mapping.gitRepository, expectedUpstream, branchName)
@@ -285,6 +295,8 @@ class GiteaPRBranchesViewModel(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            if (notifyOnFailure) LOG.warn("Fetching $refspec from ${remote.name} failed", e)
+            else LOG.debug("Fetching $refspec from ${remote.name} failed", e)
             if (notifyOnFailure) {
                 val detail = e.message?.let { ":\n$it" } ?: ""
                 notifyError(GiteaBundle.message("pull.request.branch.checkout.fetch.failed", detail))
@@ -311,7 +323,9 @@ class GiteaPRBranchesViewModel(
     }
 
     private fun notifyError(message: String) {
-        NotificationGroupManager.getInstance()
+        LOG.warn("Checkout failed: $message")
+        NotificationGroupManager
+.getInstance()
             .getNotificationGroup("Gitea")
             .createNotification(GiteaBundle.message("pull.request.branch.checkout.error.title"), message, NotificationType.ERROR)
             .notify(project)

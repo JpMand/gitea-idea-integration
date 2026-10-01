@@ -10,6 +10,7 @@ import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.asContextElement
 import com.intellij.openapi.components.serviceAsync
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.runBlockingMaybeCancellable
 import com.intellij.openapi.project.Project
@@ -19,6 +20,8 @@ import git4idea.remote.GitHttpAuthDataProvider
 import git4idea.remote.hosting.GitHostingUrlUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+private val LOG = logger<GiteaHttpAuthDataProvider>()
 
 @Suppress("UnstableApiUsage")
 class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
@@ -48,6 +51,9 @@ class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
     val accountsWithToken = accountManager.accountsState.value
       .filter { GitHostingUrlUtil.matchHost(it.server.toURI(), gitHostUrl) }
       .associateWith { accountManager.findCredentials(it) }
+    // Only the host: a remote URL can carry credentials.
+    val host = GitHostingUrlUtil.getUriFromRemoteUrl(gitHostUrl)?.host
+    LOG.info("Git asks for credentials for $host (login ${login ?: "any"}); ${accountsWithToken.size} matching accounts")
 
     val loginResult: LoginResult = withContext(Dispatchers.EDT + ModalityState.any().asContextElement()) {
       when (accountsWithToken.size) {
@@ -60,6 +66,11 @@ class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
     if (loginResult is LoginResult.Success) {
       accountManager.updateAccount(loginResult.account, loginResult.token)
     }
+    LOG.info("Git credentials for $host: " + when (loginResult) {
+      is LoginResult.Success -> "using ${loginResult.account.name}@${loginResult.account.server}"
+      is LoginResult.OtherMethod -> "left to another provider"
+      is LoginResult.Failure -> "cancelled"
+    })
 
     return loginResult
   }

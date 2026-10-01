@@ -18,6 +18,7 @@ import com.intellij.collaboration.ui.icon.AsyncImageIconsProvider
 import com.intellij.collaboration.ui.icon.CachingIconsProvider
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.service
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
@@ -30,6 +31,8 @@ import com.intellij.ui.content.ContentManagerListener
 import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.*
 import javax.swing.JComponent
+
+private val LOG = logger<GiteaPRToolWindowController>()
 
 /**
  * Manages the "Gitea Pull Requests" tool window as a tab container:
@@ -67,6 +70,7 @@ class GiteaPRToolWindowController(
 
             override fun contentRemoved(event: ContentManagerEvent) {
                 val entry = detailTabs.entries.firstOrNull { it.value.content === event.content } ?: return
+                LOG.debug("Closed the details tab of PR #${entry.key}")
                 detailTabs.remove(entry.key)
                 entry.value.scope.cancel()
             }
@@ -98,6 +102,7 @@ class GiteaPRToolWindowController(
     }
 
     private fun showEmptyState() {
+        LOG.debug("No PR context, showing the empty state")
         currentCtx = null
         listPanelJob?.cancel()
         listPanelJob = null
@@ -106,6 +111,7 @@ class GiteaPRToolWindowController(
     }
 
     private fun rebuildListTab(ctx: GiteaPRDataContext) {
+        LOG.debug("Building the PR list for ${ctx.repo} as ${ctx.account.name}")
         listPanelJob?.cancel()
         val job = SupervisorJob(cs.coroutineContext[Job])
         listPanelJob = job
@@ -146,6 +152,7 @@ class GiteaPRToolWindowController(
     private fun openOrFocusDetailTab(ctx: GiteaPRDataContext, repository: GiteaPRRepository, pr: GiteaPullRequest): GiteaPRDetailsTab {
         val number = pr.number.toInt()
         detailTabs[number]?.let {
+            LOG.debug("Focusing the details tab of PR #$number")
             cm.setSelectedContent(it.content, true)
             return it.tab
         }
@@ -171,6 +178,7 @@ class GiteaPRToolWindowController(
     /** Opens a PR from the list: both the Details tab and the Conversation timeline editor, not
      * just Details — most users want to start reading/commenting right away. */
     private fun openPullRequest(ctx: GiteaPRDataContext, repository: GiteaPRRepository, pr: GiteaPullRequest) {
+        LOG.info("Opening PR #${pr.number} of ${ctx.repo}")
         openOrFocusDetailTab(ctx, repository, pr)
         openTimelineEditor(repository, pr, ctx)
     }
@@ -178,6 +186,7 @@ class GiteaPRToolWindowController(
     /** Opens (or focuses) the given PR's Details tab and selects the referenced commit in its
      * changes tree — see [GiteaPRCommitSelectionRequests]. */
     private fun handleCommitSelection(req: GiteaPRCommitSelectionRequests.Request) {
+        LOG.debug("Showing commit ${req.commitSha} of PR #${req.pr.number}")
         toolWindow.activate(null)
         val tab = openOrFocusDetailTab(req.ctx, req.repository, req.pr)
         tab.selectCommitBySha(req.commitSha)

@@ -11,7 +11,9 @@ import com.intellij.collaboration.ui.codereview.comment.CodeReviewSubmittableTex
 import com.intellij.collaboration.ui.codereview.comment.CommentInputActionsComponentFactory
 import com.intellij.collaboration.ui.codereview.timeline.comment.CommentTextFieldFactory
 import com.intellij.collaboration.ui.icon.IconsProvider
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +22,8 @@ import java.awt.event.ActionEvent
 import javax.swing.AbstractAction
 import javax.swing.JComponent
 import javax.swing.border.EmptyBorder
+
+private val LOG = logger<GiteaPRSubmittableTextViewModel>()
 
 /**
  * A markdown comment editor (platform [CodeReviewSubmittableTextViewModelBase] +
@@ -42,7 +46,15 @@ class GiteaPRSubmittableTextViewModel(
     fun submitComment() {
         if (requireNonBlank && text.value.isBlank()) return
         submit { body ->
-            onSubmit(body)
+            try {
+                onSubmit(body)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Shown in the field by the platform; logged here so it isn't lost.
+                LOG.warn("Couldn't submit the comment", e)
+                throw e
+            }
             text.value = ""
         }
     }

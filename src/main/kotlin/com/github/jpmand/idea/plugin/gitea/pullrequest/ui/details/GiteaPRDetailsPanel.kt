@@ -19,6 +19,7 @@ import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NlsSafe
 import com.intellij.openapi.util.text.StringUtil
@@ -38,6 +39,8 @@ import java.awt.event.ActionEvent
 import java.awt.event.ActionListener
 import java.util.*
 import javax.swing.*
+
+private val LOG = logger<GiteaPRDetailsPanel>()
 
 /**
  * PR-details tool-window tab, laid out like the bundled GitLab plugin's
@@ -193,7 +196,6 @@ class GiteaPRDetailsPanel(
         val requestReviewButton = createRequestReviewButton()
         val (mergeControl, mergeOptionButton) = createMergeControl()
 
-
         val actionPanel = VerticalListPanel().apply {
             add(HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
                 add(mergeControl)
@@ -262,6 +264,7 @@ class GiteaPRDetailsPanel(
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
+                        LOG.warn("Couldn't load the possible reviewers", e)
                         NotificationGroupManager.getInstance()
                             .getNotificationGroup("Gitea")
                             .createNotification(GiteaBundle.message("pull.request.action.request.review.load.error"), NotificationType.ERROR)

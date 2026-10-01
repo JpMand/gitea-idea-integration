@@ -68,6 +68,7 @@ class GiteaPRForCurrentBranchService(private val project: Project, private val c
         cs.launch {
             project.service<GiteaPRDataContextHolder>().context.collectLatest { ctx ->
                 if (ctx == null) {
+                    LOG.debug("No PR context, no PR for the current branch")
                     setCurrent(null)
                     return@collectLatest
                 }
@@ -76,6 +77,7 @@ class GiteaPRForCurrentBranchService(private val project: Project, private val c
                         it.repository.serverPath.equals(ctx.repo.serverPath, ignoreProtocol = true)
                 }
                 if (mapping == null) {
+                    LOG.debug("No git repository for ${ctx.repo}, no PR for the current branch")
                     setCurrent(null)
                     return@collectLatest
                 }
@@ -89,6 +91,7 @@ class GiteaPRForCurrentBranchService(private val project: Project, private val c
 
     private suspend fun resolveAndSet(ctx: GiteaPRDataContext, repositoryRoot: VirtualFile, branch: String?) {
         if (branch == null) {
+            LOG.debug("Detached HEAD, no PR for the current branch")
             setCurrent(null)
             return
         }
@@ -105,6 +108,7 @@ class GiteaPRForCurrentBranchService(private val project: Project, private val c
             null
         }
         if (pr == null) {
+            LOG.info("No open PR for the current branch '$branch'; in-editor review off")
             setCurrent(null)
             return
         }
@@ -120,6 +124,7 @@ class GiteaPRForCurrentBranchService(private val project: Project, private val c
         val prJob = SupervisorJob(cs.coroutineContext[Job])
         val prCs = CoroutineScope(cs.coroutineContext + prJob)
         val discussionsVm = GiteaPRDiscussionsViewModels(project, prCs, pr.number.toInt(), pr.head.sha, repository, pr.mentionCandidates(), pr.author.login)
+        LOG.info("Current branch '$branch' is PR #${pr.number} (${changedFiles.size} changed files); in-editor review on")
         setCurrent(GiteaPRForCurrentBranch(ctx, pr, repository, discussionsVm, changedFiles, repositoryRoot), prJob)
     }
 

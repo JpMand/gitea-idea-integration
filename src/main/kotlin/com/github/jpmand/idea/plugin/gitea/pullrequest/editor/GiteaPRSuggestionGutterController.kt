@@ -8,6 +8,7 @@ import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.diff.util.DiffDrawUtil
 import com.intellij.diff.util.Range
 import com.intellij.diff.util.Side
+import com.intellij.openapi.diagnostic.fileLogger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.ex.EditorEx
 import com.intellij.openapi.editor.markup.*
@@ -21,6 +22,8 @@ import java.awt.Color
 import java.awt.Graphics
 import java.awt.Rectangle
 import java.awt.event.MouseEvent
+
+private val LOG = fileLogger()
 
 /**
  * Adds this plugin's own colored gutter bar — mirroring how IntelliJ's native "local changes"
@@ -60,6 +63,7 @@ fun CoroutineScope.installSuggestionGutterIcons(
             highlighters = ranges.filter { it.start2 < it.end2 }.map { range ->
                 addSuggestionGutterBar(editor, headLines, range, model)
             }
+            LOG.trace("${highlighters.size} suggestion gutter bars for ${ranges.size} local changes")
         }
     }
 }

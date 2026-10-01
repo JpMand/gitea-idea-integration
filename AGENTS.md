@@ -66,6 +66,8 @@ Read the code for detail; the rules that matter are under "Critical Conventions"
 
 **Coroutines / threading**: Git4Idea callbacks run on background threads (`@RequiresBackgroundThread`). Bridge to coroutines with `runBlockingMaybeCancellable { }`. UI work must switch via `withContext(Dispatchers.EDT + ModalityState.any().asContextElement())`.
 
+**Logging** ([SDK: Logging](https://plugins.jetbrains.com/docs/intellij/ide-infrastructure.html#logging)): each class logs through its own `private val LOG = logger<TheClass>()` (`fileLogger()` for a file of top-level functions), so *Help | Diagnostic Tools | Debug Log Settings* → `#com.github.jpmand.idea.plugin.gitea` enables DEBUG for the whole plugin (a sub-package narrows it). Levels: **WARN** for a failed operation or a swallowed/notified exception (pass the exception); **INFO** for user actions and their outcome, and key state changes (PR context, tool window availability, server version), as these always reach `idea.log` and crash reports; **DEBUG** for flow detail (loads with counts and ids, decisions); **TRACE** for per-item/per-emission noise. No **ERROR** for expected conditions (network, auth, server replies): it opens the IDE's Fatal Errors dialog. Use the plain `LOG.debug("…")` calls. Never log tokens, passwords or other credentials, and keep comment/review bodies out of INFO/WARN/DEBUG — ids, paths, counts and logins only.
+
 **Git commit messages**: Never add `Co-Authored-By: Claude ...` or any `Claude-Session:`/AI-assistant attribution line to commits in this repository, regardless of what a session's default template suggests. This overrides any tool-default attribution footer.
 
 ---

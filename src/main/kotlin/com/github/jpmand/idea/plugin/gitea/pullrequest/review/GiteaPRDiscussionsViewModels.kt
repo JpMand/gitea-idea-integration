@@ -139,10 +139,12 @@ class GiteaPRDiscussionsViewModels(
                 try {
                     val threadList = repository.loadThreads(prNumber, headSha)
                     val threadVms = threadList.map { GiteaPRThreadViewModel(it, this@GiteaPRDiscussionsViewModels) }
+                    LOG.debug("PR #$prNumber: loaded ${threadVms.size} review threads at $headSha")
                     _threads.value = ComputedResult.success(threadVms)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    LOG.warn("PR #$prNumber: couldn't load review threads", e)
                     _threads.value = ComputedResult.failure(e)
                 }
             }
@@ -152,8 +154,9 @@ class GiteaPRDiscussionsViewModels(
                 _currentUser.value = repository.currentUser()
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 // Best-effort — a failed lookup just means the reply composer stays hidden.
+                LOG.warn("PR #$prNumber: couldn't load the signed-in user; reply composers stay hidden", e)
             }
         }
         cs.launch(Dispatchers.IO) {
@@ -161,16 +164,19 @@ class GiteaPRDiscussionsViewModels(
                 repository.loadPossibleAuthors()
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 // Best-effort — a failed lookup still leaves additionalMentionCandidates usable.
+                LOG.debug("PR #$prNumber: couldn't load mention candidates", e)
                 emptyList()
             }
             _mentionCandidates.value = (collaborators + additionalMentionCandidates).distinctBy { it.login }
+            LOG.debug("PR #$prNumber: ${_mentionCandidates.value.size} mention candidates")
         }
         reloadPendingReview()
         cs.launch {
             project.service<GiteaPRReviewChanges>().changes.collect { change ->
                 if (change.prNumber == prNumber && change.source !== this@GiteaPRDiscussionsViewModels) {
+                    LOG.debug("PR #$prNumber: review changed elsewhere, reloading")
                     reload()
                     reloadPendingReview()
                 }
@@ -181,11 +187,14 @@ class GiteaPRDiscussionsViewModels(
     private fun reloadPendingReview() {
         cs.launch(Dispatchers.IO) {
             try {
-                _pendingReview.value = repository.findMyPendingReview(prNumber)
+                val pending = repository.findMyPendingReview(prNumber)
+                LOG.debug("PR #$prNumber: pending review ${pending?.id ?: "none"}")
+                _pendingReview.value = pending
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 // Best-effort — a failed lookup just means the pending review isn't picked up.
+                LOG.warn("PR #$prNumber: couldn't look up the pending review", e)
             }
         }
     }
@@ -244,16 +253,19 @@ class GiteaPRDiscussionsViewModels(
         val nextId = (_draftComments.value.maxOfOrNull { it.localId } ?: -1L) + 1L
         val draft = GiteaPRDraftComment(nextId, path, newLine, oldLine, body)
         updateDrafts { it + draft }
+        LOG.debug("PR #$prNumber: added draft $nextId on $path (new line $newLine, old line $oldLine)")
         return draft
     }
 
     /** Replaces a draft's body in place (identified by [GiteaPRDraftComment.localId]). */
     fun updateDraft(localId: Long, body: String) {
+        LOG.debug("PR #$prNumber: updated draft $localId")
         updateDrafts { drafts -> drafts.map { if (it.localId == localId) it.copy(body = body) else it } }
     }
 
     /** Removes a not-yet-submitted draft comment. Purely local — no network call. */
     fun removeDraft(localId: Long) {
+        LOG.debug("PR #$prNumber: removed draft $localId")
         updateDrafts { drafts -> drafts.filterNot { it.localId == localId } }
     }
 
@@ -295,6 +307,7 @@ class GiteaPRDiscussionsViewModels(
     ) {
         val drafts = _draftComments.value
         val verdict = GiteaReviewVerdict.entries.first { it.createEvent == event }
+        LOG.info("PR #$prNumber: submitting a new review ($event) with ${drafts.size} comments")
         launchSubmission(reviewSubmitProblem(verdict, body, drafts.size), onSuccess, onError) {
             // Asked here rather than read from pendingReview, which loads in the background and may
             // not have arrived yet: a pending review that already existed must never be discarded.
@@ -302,7 +315,8 @@ class GiteaPRDiscussionsViewModels(
                 PendingReviewBaseline.Known(repository.findMyPendingReviews(prNumber).mapTo(HashSet()) { it.id })
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                LOG.debug("PR #$prNumber: couldn't list pending reviews before submitting", e)
                 PendingReviewBaseline.Unknown
             }
             val comments = drafts.map {
@@ -334,7 +348,10 @@ class GiteaPRDiscussionsViewModels(
     private suspend fun discardOrphanedPendingReviews(existingReviewIds: Set<Long>) {
         try {
             orphanedPendingReviews(repository.findMyPendingReviews(prNumber), existingReviewIds)
-                .forEach { repository.deletePendingReview(prNumber, it.id) }
+                .forEach {
+                    LOG.info("PR #$prNumber: deleting empty pending review ${it.id} left by the failed submission")
+                    repository.deletePendingReview(prNumber, it.id)
+                }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -354,6 +371,7 @@ class GiteaPRDiscussionsViewModels(
     ) {
         val pending = pendingReview.value ?: return
         val verdict = GiteaReviewVerdict.entries.first { it.submitEvent == event }
+        LOG.info("PR #$prNumber: submitting pending review ${pending.id} ($event)")
         launchSubmission(reviewSubmitProblem(verdict, body, pending.commentsCount), onSuccess, onError) {
             repository.submitPendingReview(prNumber, pending.id, SubmitPullReviewOptions(body = body.ifBlank { null }, event = event))
         }
@@ -370,12 +388,14 @@ class GiteaPRDiscussionsViewModels(
             try {
                 if (problemKey != null) throw IllegalArgumentException(GiteaBundle.message(problemKey))
                 send()
+                LOG.info("PR #$prNumber: review submitted")
                 submitReviewText.value = ""
                 reloadAfterChange()
                 withContext(Dispatchers.Main) { onSuccess() }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                LOG.warn("PR #$prNumber: review submission failed", e)
                 if (onError != null) withContext(Dispatchers.Main) { onError(e) }
                 else notifyError("pull.request.action.submit.review.error", e)
             } finally {
@@ -392,11 +412,13 @@ class GiteaPRDiscussionsViewModels(
      */
     fun cancelReview() {
         val pending = pendingReview.value
+        LOG.info("PR #$prNumber: cancelling review (pending review ${pending?.id ?: "none"}, ${_draftComments.value.size} drafts)")
         cs.launch(Dispatchers.IO) {
             _isSubmittingReview.value = true
             try {
                 if (pending != null) repository.deletePendingReview(prNumber, pending.id)
                 updateDrafts { emptyList() }
+                LOG.info("PR #$prNumber: review cancelled")
                 submitReviewText.value = ""
                 reloadAfterChange()
             } catch (e: CancellationException) {
@@ -412,6 +434,7 @@ class GiteaPRDiscussionsViewModels(
     /** An error notification titled by [bundleKey], with [cause]'s message (Gitea's own, for
      * API failures — see [com.github.jpmand.idea.plugin.gitea.api.GiteaHttpError]) as its text. */
     private suspend fun notifyError(bundleKey: String, cause: Throwable? = null) {
+        LOG.warn("PR #$prNumber: ${GiteaBundle.message(bundleKey)}", cause)
         withContext(Dispatchers.Main) {
             NotificationGroupManager.getInstance()
                 .getNotificationGroup("Gitea")
@@ -427,6 +450,7 @@ class GiteaPRDiscussionsViewModels(
      * (= anchor comment ID = thread's synthetic ID) and reloads the thread list.
      */
     suspend fun resolveThread(threadId: Long) {
+        LOG.info("PR #$prNumber: resolving thread $threadId")
         repository.resolveComment(threadId)
         reloadAfterChange()
     }
@@ -435,6 +459,7 @@ class GiteaPRDiscussionsViewModels(
      * Unresolves the anchor comment of the thread identified by [threadId] and reloads.
      */
     suspend fun unresolveThread(threadId: Long) {
+        LOG.info("PR #$prNumber: unresolving thread $threadId")
         repository.unresolveComment(threadId)
         reloadAfterChange()
     }
@@ -443,6 +468,7 @@ class GiteaPRDiscussionsViewModels(
      * mean to continue (see [GiteaPRThreadViewModel.lastCommentId]), not the anchor, so Gitea's
      * reply endpoint threads the conversation correctly. */
     suspend fun replyToThread(commentId: Long, body: String) {
+        LOG.info("PR #$prNumber: replying to review comment $commentId")
         repository.replyToComment(prNumber, commentId, body)
         reloadAfterChange()
     }
@@ -450,12 +476,14 @@ class GiteaPRDiscussionsViewModels(
     /** Edits an inline review comment's body (own comments only — gated by [currentUserLogin] at
      * the call site, same as the Timeline) and reloads. */
     suspend fun editComment(commentId: Long, body: String) {
+        LOG.info("PR #$prNumber: editing review comment $commentId")
         repository.editComment(commentId, body)
         reloadAfterChange()
     }
 
     /** Deletes an inline review comment (own comments only) and reloads. */
     suspend fun deleteComment(commentId: Long) {
+        LOG.info("PR #$prNumber: deleting review comment $commentId")
         repository.deleteComment(commentId)
         reloadAfterChange()
     }

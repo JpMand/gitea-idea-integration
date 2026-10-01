@@ -9,6 +9,7 @@ import com.intellij.collaboration.ui.codereview.diff.DiscussionsViewOption
 import com.intellij.collaboration.ui.codereview.editor.CodeReviewEditorGutterControlsModel
 import com.intellij.collaboration.ui.codereview.editor.CodeReviewEditorModel
 import com.intellij.diff.util.Side
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
 import com.intellij.util.concurrency.annotations.RequiresEdt
@@ -20,6 +21,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+private val LOG = logger<GiteaPRDiffEditorModel>()
 
 /**
  * Per-editor view model that drives gutter controls (thread bubble icons, the "+" new-comment
@@ -63,7 +66,7 @@ class GiteaPRDiffEditorModel(
                         ?: vm.oldLine?.let { locationToLine(Pair(Side.LEFT, it - 1)) }
                 }?.takeIf { it in 0 until editor.document.lineCount } ?: return@mapNotNull null
                 GiteaPRInlayModel.Thread(vm, lineIdx, editor, MutableStateFlow(lineIdx !in collapsed))
-            }
+            }.also { LOG.trace("$path ($side): ${it.size} thread inlays (view option $viewOption, ${collapsed.size} collapsed)") }
         }.stateIn(cs, SharingStarted.Eagerly, emptyList())
 
     // ── New-comment composer/draft inlays ───────────────────────────────────
