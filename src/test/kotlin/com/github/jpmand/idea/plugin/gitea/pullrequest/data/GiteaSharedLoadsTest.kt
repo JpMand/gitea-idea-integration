@@ -81,4 +81,33 @@ class GiteaSharedLoadsTest {
         assertEquals("v", second.await())
         assertEquals(2, calls.get())
     }
+
+    @Test
+    fun `beyond the capacity the oldest finished results are dropped`() = runBlocking {
+        val small = GiteaSharedLoads(reuseFor = Long.MAX_VALUE, maxEntries = 2, clock = { now })
+        suspend fun get(key: String) = small.load(key) { calls.incrementAndGet(); key }
+        get("a"); now++
+        get("b"); now++
+        get("c") // drops "a"
+        assertEquals(3, calls.get())
+        get("b"); get("c")
+        assertEquals(3, calls.get())
+        get("a")
+        assertEquals(4, calls.get())
+    }
+
+    @Test
+    fun `a load still running is never dropped`() = runBlocking {
+        val small = GiteaSharedLoads(reuseFor = Long.MAX_VALUE, maxEntries = 1, clock = { now })
+        val gate = CompletableDeferred<Unit>()
+        val running = async { small.load("slow") { calls.incrementAndGet(); gate.await(); "slow" } }
+        yield()
+        small.load("quick") { calls.incrementAndGet(); "quick" } // over capacity, but "slow" is still running
+        val joined = async { small.load("slow") { calls.incrementAndGet(); "again" } }
+        yield()
+        gate.complete(Unit)
+        assertEquals("slow", running.await())
+        assertEquals("slow", joined.await())
+        assertEquals(2, calls.get())
+    }
 }

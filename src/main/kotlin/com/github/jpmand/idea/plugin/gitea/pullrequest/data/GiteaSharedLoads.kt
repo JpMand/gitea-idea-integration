@@ -15,9 +15,13 @@ import kotlin.coroutines.cancellation.CancellationException
  *
  * Anything that changes data on the server must [clear] it, so the reload that follows sees the
  * change; so must an explicit refresh.
+ *
+ * At most [maxEntries] results are kept: beyond that, the oldest finished ones are dropped (a load
+ * still running never is), which bounds a cache whose results don't expire.
  */
 class GiteaSharedLoads(
     private val reuseFor: Long = TimeUnit.SECONDS.toNanos(3),
+    private val maxEntries: Int = Int.MAX_VALUE,
     private val clock: () -> Long = System::nanoTime,
 ) {
     private class Entry {
@@ -39,6 +43,7 @@ class GiteaSharedLoads(
                     val value = load()
                     mine.completedAt = clock()
                     mine.result.complete(value)
+                    trimToSize()
                     return value
                 } catch (e: Throwable) {
                     entries.remove(key, mine)
@@ -58,6 +63,16 @@ class GiteaSharedLoads(
     }
 
     fun clear() = entries.clear()
+
+    private fun trimToSize() {
+        val excess = entries.size - maxEntries
+        if (excess <= 0) return
+        entries.entries
+            .filter { it.value.result.isCompleted }
+            .sortedBy { it.value.completedAt }
+            .take(excess)
+            .forEach { entries.remove(it.key, it.value) }
+    }
 
     private fun Entry.isExpired(now: Long): Boolean = result.isCompleted && now - completedAt >= reuseFor
 }
