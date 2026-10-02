@@ -43,7 +43,7 @@ class GiteaPRTimelineFileEditor(
 
     private val vm = GiteaPRTimelineViewModel(cs, project, file.pr, file.repository)
     private val avatarIconsProvider =
-        CachingIconsProvider(AsyncImageIconsProvider<GiteaUser>(cs, GiteaImageLoader(file.ctx.api)))
+        CachingIconsProvider(AsyncImageIconsProvider<GiteaUser>(cs, GiteaImageLoader(file.ctx.api, file.ctx.avatarImages)))
     private val itemFactory = GiteaPRTimelineItemComponentFactory(
         project, avatarIconsProvider, { m -> GiteaUtil.safeConvertMarkdownToHtml(m) },
         currentUserLogin = file.ctx.account.name,

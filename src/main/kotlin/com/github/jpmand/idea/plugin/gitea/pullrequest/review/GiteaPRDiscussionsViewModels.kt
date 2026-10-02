@@ -100,7 +100,7 @@ class GiteaPRDiscussionsViewModels(
 
     /** Avatar icons for comment/reply authors in the diff-editor review UI. */
     val avatars: IconsProvider<GiteaUser> =
-        CachingIconsProvider(AsyncImageIconsProvider(cs, GiteaImageLoader(repository.api)))
+        CachingIconsProvider(AsyncImageIconsProvider(cs, GiteaImageLoader(repository.api, repository.avatarImages)))
 
     /** The signed-in account's own profile, loaded once — used for the reply composer's avatar. */
     private val _currentUser = MutableStateFlow<GiteaUser?>(null)

@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.data
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApi
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.api.rest.loadImage
+import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaSharedLoads
 import com.intellij.collaboration.ui.html.AsyncHtmlImageLoader
 import com.intellij.collaboration.ui.icon.AsyncImageIconsProvider
 import com.intellij.collaboration.util.resolveRelative
@@ -21,9 +22,15 @@ private val LOG = logger<GiteaImageLoader>()
 
 private const val LOADED_GRAVATAR_SIZE: Int = 80
 
+/** Avatars are shown at 40 px at most; this keeps them sharp up to 2.4x scaling. Gitea serves them at
+ * 512 px, about 1 MB each once decoded. */
+private const val AVATAR_SIZE: Int = 96
+
 @Suppress("UnstableApiUsage")
 class GiteaImageLoader(
-    private val api: GiteaApi
+    private val api: GiteaApi,
+    /** Where avatars are kept, see [com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContext.avatarImages]. */
+    private val avatars: GiteaSharedLoads? = null,
 ) : AsyncImageIconsProvider.AsyncImageLoader<GiteaUser>, AsyncHtmlImageLoader {
     override suspend fun load(key: GiteaUser): Image? =
         key.avatarUrl?.let { avatarUrl ->
@@ -32,8 +39,14 @@ class GiteaImageLoader(
                 avatarUrl.startsWith("/avatar") -> "https://secure.gravatar.com/avatar/$avatarUrl?d=identicon&s=$LOADED_GRAVATAR_SIZE"
                 else -> api.server.restApiUri().resolveRelative(avatarUrl).toString()
             }
-            load(null, actualUri)
+            avatars?.load(actualUri) { loadAvatar(actualUri) } ?: loadAvatar(actualUri)
         }
+
+    private suspend fun loadAvatar(uri: String): Image {
+        val image = load(null, uri)
+        val width = image.getWidth(null)
+        return if (width > AVATAR_SIZE) ImageUtil.scaleImage(image, AVATAR_SIZE, AVATAR_SIZE * image.getHeight(null) / width) else image
+    }
 
     override suspend fun load(baseUrl: URL?, src: String): Image =
         try {

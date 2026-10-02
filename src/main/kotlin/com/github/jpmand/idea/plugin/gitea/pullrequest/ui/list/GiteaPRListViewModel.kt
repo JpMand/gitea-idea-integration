@@ -151,6 +151,8 @@ class GiteaPRListViewModel(
     override fun refresh() {
         LOG.debug("Refreshing the pull request list")
         repository.dropSharedLoads()
+        // Reviewer states too: rows reload theirs as they're drawn again.
+        reviewsCache.clear()
         _refreshTrigger.value = System.currentTimeMillis()
     }
 

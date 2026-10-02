@@ -16,7 +16,7 @@ import kotlin.coroutines.cancellation.CancellationException
  * Anything that changes data on the server must [clear] it, so the reload that follows sees the
  * change; so must an explicit refresh.
  */
-internal class GiteaSharedLoads(
+class GiteaSharedLoads(
     private val reuseFor: Long = TimeUnit.SECONDS.toNanos(3),
     private val clock: () -> Long = System::nanoTime,
 ) {

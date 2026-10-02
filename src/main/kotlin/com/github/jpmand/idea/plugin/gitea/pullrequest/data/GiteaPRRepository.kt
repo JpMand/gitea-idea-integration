@@ -50,6 +50,9 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
 
     private val shared: GiteaSharedLoads get() = ctx.sharedLoads
 
+    /** See [GiteaPRDataContext.avatarImages]. */
+    val avatarImages: GiteaSharedLoads get() = ctx.avatarImages
+
     /** Forgets shared results, so the next loads go to the server — for an explicit refresh. */
     fun dropSharedLoads() = shared.clear()
 
