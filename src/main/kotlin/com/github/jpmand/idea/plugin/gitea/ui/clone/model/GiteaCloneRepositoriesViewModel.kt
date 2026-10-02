@@ -134,7 +134,7 @@ internal class GiteaCloneRepositoriesViewModelImpl(
         val lfs = LocalFileSystem.getInstance()
         val parentDir = lfs.findFileByNioFile(parent) ?: lfs.refreshAndFindFileByNioFile(parent) ?: return
 
-        LOG.info("Cloning $url into $destination (shallow: ${if (shallowCloneModel.shallowClone.value) "depth ${shallowCloneModel.depth.value}" else "no"})")
+        LOG.info("Cloning into $destination (shallow: ${if (shallowCloneModel.shallowClone.value) "depth ${shallowCloneModel.depth.value}" else "no"})")
         GitCheckoutProvider.clone(
             project, Git.getInstance(), checkoutListener, parentDir,
             url, destination.fileName.toString(), parent.toString(),
