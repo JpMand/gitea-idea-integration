@@ -39,10 +39,10 @@ import kotlinx.coroutines.withContext
 private val LOG = logger<GiteaPRCreateViewModel>()
 
 /**
- * The "New Pull Request" tab: which branch goes into which, the title, description, WIP flag,
- * reviewers and labels, and what the pull request would contain, read from local git (see
- * [GiteaPRLocalComparison]) so a branch that isn't pushed yet can be previewed. [create] pushes the
- * head branch when needed, then opens the pull request on the server.
+ * The "New Pull Request" tab: which branch goes into which, the title (with its WIP prefix),
+ * description, reviewers and labels, and what the pull request would contain, read from local git
+ * (see [GiteaPRLocalComparison]) so a branch that isn't pushed yet can be previewed. [create] pushes
+ * the head branch when needed, then opens the pull request on the server.
  */
 class GiteaPRCreateViewModel(
     val project: Project,
@@ -99,7 +99,11 @@ class GiteaPRCreateViewModel(
         _description.value = text
     }
 
-    val isWip: MutableStateFlow<Boolean> = MutableStateFlow(false)
+    /** Adds or removes the title's "WIP: " prefix, Gitea's way of marking a pull request as a draft. */
+    fun toggleWip() {
+        val title = _title.value
+        setTitle(if (hasWipPrefix(title)) withoutWipPrefix(title) else withWipPrefix(title))
+    }
 
     // ── Reviewers & labels ────────────────────────────────────────────────
 
@@ -281,7 +285,7 @@ class GiteaPRCreateViewModel(
                 val pr = repository.createPullRequest(
                     base = base.nameForRemoteOperations,
                     head = headName,
-                    title = if (isWip.value) withWipPrefix(title) else title,
+                    title = title,
                     body = _description.value,
                     labelIds = labels.value.map { it.id },
                     reviewers = reviewers.value.map { it.login },

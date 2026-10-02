@@ -48,4 +48,9 @@ private val WIP_PREFIX = Regex("""^\s*(WIP:|\[WIP])\s*""", RegexOption.IGNORE_CA
  * of its WIP prefixes as a draft. Keeps a prefix the title already has.
  */
 internal fun withWipPrefix(title: String): String =
-    if (WIP_PREFIX.containsMatchIn(title)) title.trim() else "WIP: ${title.trim()}"
+    if (hasWipPrefix(title)) title.trim() else "WIP: ${title.trim()}"
+
+internal fun hasWipPrefix(title: String): Boolean = WIP_PREFIX.containsMatchIn(title)
+
+/** [title] without the WIP prefix [withWipPrefix] adds or recognises. */
+internal fun withoutWipPrefix(title: String): String = WIP_PREFIX.replaceFirst(title, "").trim()

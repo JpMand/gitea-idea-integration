@@ -20,13 +20,18 @@ import com.intellij.collaboration.util.CollectionDelta
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.util.text.HtmlBuilder
 import com.intellij.openapi.util.text.HtmlChunk
+import com.intellij.openapi.editor.ex.EditorEx
+import com.intellij.ui.DocumentAdapter
+import com.intellij.ui.JBColor
 import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.ActionLink
-import com.intellij.ui.components.JBCheckBox
+import com.intellij.ui.components.JBTextField
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.panels.Wrapper
+import com.intellij.util.ui.GraphicsUtil
+import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import git4idea.GitBranch
@@ -41,15 +46,24 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.awt.BasicStroke
 import java.awt.BorderLayout
+import java.awt.Color
+import java.awt.Graphics
+import java.awt.Graphics2D
+import java.awt.event.FocusAdapter
+import java.awt.event.FocusEvent
+import java.awt.geom.RoundRectangle2D
 import java.util.Date
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JPanel
+import javax.swing.event.DocumentEvent
 
 /**
- * The "New Pull Request" tab: branches, title and description, WIP, reviewers and labels, a status
- * line saying what creating would do, and below it a preview of the commits and changed files.
+ * The "New Pull Request" tab: branches and title on top, the description filling the middle, and the
+ * WIP link, reviewers, labels, a status line saying what creating would do and the buttons at the
+ * bottom; below the form, a preview of the commits and changed files.
  */
 @Suppress("UnstableApiUsage")
 object GiteaPRCreateComponentFactory {
@@ -60,34 +74,125 @@ object GiteaPRCreateComponentFactory {
         onOpenPullRequest: (GiteaPullRequest) -> Unit,
         onCancel: () -> Unit,
     ): JComponent {
-        val titleEditor = CodeReviewTitleDescriptionComponentFactory.createTitleEditorIn(
-            vm.project, cs, vm, GiteaBundle.message("pull.request.create.title.placeholder"),
-        )
         val descriptionEditor = CodeReviewTitleDescriptionComponentFactory.createDescriptionEditorIn(
             vm.project, cs, vm, GiteaBundle.message("pull.request.create.description.placeholder"),
-        )
-        val titleAndDescription = CodeReviewTitleDescriptionComponentFactory.createIn(cs, vm, titleEditor, descriptionEditor)
+        ) as EditorEx
+        val fieldBackground = descriptionEditor.backgroundColor
 
-        val wip = JBCheckBox(GiteaBundle.message("pull.request.create.wip"), vm.isWip.value).apply {
-            isOpaque = false
-            addActionListener { vm.isWip.value = isSelected }
-        }
-
-        val form = VerticalListPanel(JBUI.scale(8)).apply {
-            border = JBUI.Borders.empty(12)
+        val top = VerticalListPanel(JBUI.scale(8)).apply {
             add(directionSelector(cs, vm))
-            add(titleAndDescription)
-            add(wip)
+            add(titleField(cs, vm, fieldBackground))
+        }
+        val description = FieldBox(descriptionEditor.component, descriptionEditor.contentComponent, fieldBackground).apply {
+            minimumSize = JBUI.size(0, 80)
+        }
+        val actions = VerticalListPanel(JBUI.scale(8)).apply {
+            add(wipLink(cs, vm))
             add(reviewersRow(cs, vm))
             add(labelsRow(cs, vm))
             add(statusLine(cs, vm, onOpenPullRequest))
             add(buttons(cs, vm, onCancel))
         }
+        // The description takes the free height, so the actions stay at the bottom of the form.
+        val form = JPanel(BorderLayout(0, JBUI.scale(8))).apply {
+            isOpaque = false
+            border = JBUI.Borders.empty(12)
+            add(top, BorderLayout.NORTH)
+            add(description, BorderLayout.CENTER)
+            add(actions, BorderLayout.SOUTH)
+        }
 
         return OnePixelSplitter(true, "Gitea.PR.Create.Splitter", 0.6f).apply {
-            firstComponent = ScrollPaneFactory.createScrollPane(form, true)
+            firstComponent = form
             secondComponent = preview(cs, vm)
         }
+    }
+
+    // ── Title & description ───────────────────────────────────────────────
+
+    /** A single-line title, kept in sync with [GiteaPRCreateViewModel.titleText] both ways. */
+    private fun titleField(cs: CoroutineScope, vm: GiteaPRCreateViewModel, background: Color): JComponent {
+        val field = JBTextField().apply {
+            border = JBUI.Borders.empty()
+            isOpaque = false
+            font = JBFont.label().biggerOn(2f)
+            emptyText.text = GiteaBundle.message("pull.request.create.title.placeholder")
+        }
+        var updating = false
+        field.document.addDocumentListener(object : DocumentAdapter() {
+            override fun textChanged(e: DocumentEvent) {
+                if (!updating) vm.setTitle(field.text)
+            }
+        })
+        cs.launch {
+            vm.titleText.collect { text ->
+                if (field.text == text) return@collect
+                updating = true
+                try {
+                    field.text = text
+                } finally {
+                    updating = false
+                }
+            }
+        }
+        return FieldBox(field, field, background)
+    }
+
+    /**
+     * A text box: [content] on [fill] inside a rounded border that takes the focus colour while
+     * [focusTarget] has the focus — the same box for the title field and the description editor.
+     */
+    private class FieldBox(content: JComponent, focusTarget: JComponent, private val fill: Color) : JPanel(BorderLayout()) {
+        private var focused = false
+
+        init {
+            isOpaque = false
+            border = JBUI.Borders.empty(6, 8)
+            add(content, BorderLayout.CENTER)
+            focusTarget.addFocusListener(object : FocusAdapter() {
+                override fun focusGained(e: FocusEvent) = setFocused(true)
+                override fun focusLost(e: FocusEvent) = setFocused(false)
+            })
+        }
+
+        private fun setFocused(value: Boolean) {
+            focused = value
+            repaint()
+        }
+
+        override fun paintComponent(g: Graphics) {
+            val g2 = g.create() as Graphics2D
+            try {
+                GraphicsUtil.setupAAPainting(g2)
+                // Like a text field's: a thin border, or a 2px focus ring while focused.
+                val line = if (focused) JBUI.scale(2).toFloat() else 1f
+                val inset = line / 2
+                val arc = JBUI.scale(8).toFloat()
+                val shape = RoundRectangle2D.Float(inset, inset, width - line, height - line, arc, arc)
+                g2.color = fill
+                g2.fill(shape)
+                g2.color = if (focused) JBUI.CurrentTheme.Focus.focusColor() else BORDER
+                g2.stroke = BasicStroke(line)
+                g2.draw(shape)
+            } finally {
+                g2.dispose()
+            }
+        }
+
+        companion object {
+            private val BORDER = JBColor.namedColor("Component.borderColor", JBColor.border())
+        }
+    }
+
+    /** "Mark as work in progress": adds the title's "WIP: " prefix, or removes it once there. */
+    private fun wipLink(cs: CoroutineScope, vm: GiteaPRCreateViewModel): JComponent {
+        val link = ActionLink(GiteaBundle.message("pull.request.create.wip")) { vm.toggleWip() }
+        cs.launch {
+            vm.titleText.collect { title ->
+                link.text = GiteaBundle.message(if (hasWipPrefix(title)) "pull.request.create.wip.remove" else "pull.request.create.wip")
+            }
+        }
+        return link
     }
 
     // ── Branches ──────────────────────────────────────────────────────────

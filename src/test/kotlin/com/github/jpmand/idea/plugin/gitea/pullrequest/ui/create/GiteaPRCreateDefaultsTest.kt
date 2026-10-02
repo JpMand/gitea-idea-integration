@@ -37,6 +37,14 @@ class GiteaPRCreateDefaultsTest {
     }
 
     @Test
+    fun `wip prefix is removed in any of its forms`() {
+        assertEquals("Add cache", withoutWipPrefix("WIP: Add cache"))
+        assertEquals("Add cache", withoutWipPrefix(" [wip]  Add cache"))
+        assertEquals("Add cache", withoutWipPrefix("Add cache"))
+        assertEquals(false, hasWipPrefix("Add WIP: cache"))
+    }
+
+    @Test
     fun `templates are looked up in Gitea's order`() {
         assertEquals("PULL_REQUEST_TEMPLATE.md", PR_TEMPLATE_CANDIDATES.first())
         assertEquals(18, PR_TEMPLATE_CANDIDATES.size)
