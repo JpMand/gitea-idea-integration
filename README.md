@@ -39,6 +39,9 @@ clone repositories, and review pull requests without leaving the IDE.
   draft comments, submit with approve / request changes / comment, suggested changes you can
   apply with one click
 - Merge (with method choice), close/reopen, check out the PR branch, request reviewers
+- Create pull requests from the current or any local branch: base branch, title and description
+  (prefilled from the commits and the PR template), WIP, reviewers and labels, with a preview of
+  the commits and changes; unpushed branches are pushed on create
 
 ### Server support
 - Any Gitea instance (self-hosted or cloud), including instances on a sub-path

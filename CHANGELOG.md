@@ -24,6 +24,12 @@
   actions on a PR
 - Request Review action: a checkbox picker (add and remove) backed by the repo's collaborators or,
   per a new per-account setting, every user on the Gitea instance
+- Create pull requests from a "New Pull Request" tab (the "+" in the Pull Requests tool window,
+  _Git | Create Gitea Pull Request…_, or a local branch in the branches popup): pick the base and
+  head branches, title and description (prefilled from the commits and the repository's PR
+  template), WIP, reviewers and labels, and preview the commits and changes from local Git; the
+  head branch is pushed on create, and an already open pull request for the same branches is
+  linked instead
 - Right-click context menus on PR-list rows and timeline items
 - "Gitea" tab in _Get from Version Control_ for cloning
 - Open-in-browser / copy-link actions and an annotation-gutter action

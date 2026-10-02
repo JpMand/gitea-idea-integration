@@ -14,6 +14,8 @@
         <module name="intellij.platform.vcs.impl"/>
         <module name="intellij.platform.vcs.dvcs"/>
         <module name="intellij.platform.vcs.dvcs.impl"/>
+        <module name="intellij.platform.vcs.log"/>
+        <module name="intellij.platform.vcs.log.graph"/>
         <plugin id="Git4Idea"/>
         <plugin id="com.intellij.modules.platform"/>
     </dependencies>
@@ -100,6 +102,15 @@
                 icon="com.github.jpmand.idea.plugin.gitea.GiteaIcons.Logo">
             <override-text place="MainMenu"/>
             <override-text place="popup@GoToAction"/>
+        </action>
+        <action id="Gitea.Create.Pull.Request"
+                class="com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.GiteaCreatePullRequestAction"
+                icon="com.github.jpmand.idea.plugin.gitea.GiteaIcons.Logo">
+            <add-to-group group-id="Git.MainMenu" anchor="after" relative-to-action="Vcs.Push"/>
+        </action>
+        <action id="Gitea.Create.Pull.Request.From.Branch"
+                class="com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.GiteaCreatePullRequestFromBranchAction">
+            <add-to-group group-id="Git.Branch.Backend" anchor="last"/>
         </action>
     </actions>
 </idea-plugin>
