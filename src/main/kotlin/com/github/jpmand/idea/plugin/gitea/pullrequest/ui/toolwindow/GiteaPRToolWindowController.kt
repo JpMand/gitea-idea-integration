@@ -123,7 +123,7 @@ class GiteaPRToolWindowController(
         val repository = GiteaPRRepository(ctx)
         val listVm = GiteaPRListViewModel(panelCs, repository)
         val avatarIconsProvider =
-            CachingIconsProvider(AsyncImageIconsProvider<GiteaUser>(panelCs, GiteaImageLoader(ctx.api)))
+            CachingIconsProvider(AsyncImageIconsProvider<GiteaUser>(panelCs, GiteaImageLoader(ctx.api, ctx.avatarImages)))
         val listPanel = GiteaPRListPanel(
             panelCs, listVm, avatarIconsProvider,
             repositoryName = ctx.repo.repositoryPath.toString(),

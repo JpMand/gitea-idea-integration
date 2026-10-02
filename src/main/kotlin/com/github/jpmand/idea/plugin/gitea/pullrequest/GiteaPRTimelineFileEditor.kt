@@ -43,10 +43,11 @@ class GiteaPRTimelineFileEditor(
 
     private val vm = GiteaPRTimelineViewModel(cs, project, file.pr, file.repository)
     private val avatarIconsProvider =
-        CachingIconsProvider(AsyncImageIconsProvider<GiteaUser>(cs, GiteaImageLoader(file.ctx.api)))
+        CachingIconsProvider(AsyncImageIconsProvider<GiteaUser>(cs, GiteaImageLoader(file.ctx.api, file.ctx.avatarImages)))
     private val itemFactory = GiteaPRTimelineItemComponentFactory(
         project, avatarIconsProvider, { m -> GiteaUtil.safeConvertMarkdownToHtml(m) },
         currentUserLogin = file.ctx.account.name,
+        actionScope = cs,
         onEditComment = { id, body ->
             LOG.info("PR #${file.pr.number}: editing comment $id")
             file.repository.editComment(id, body)
@@ -103,7 +104,10 @@ class GiteaPRTimelineFileEditor(
     }
 
     private val component: JComponent =
-        GiteaPRTimelineComponentFactory.create(cs, vm, itemFactory, avatarIconsProvider) { vm.reload() }
+        GiteaPRTimelineComponentFactory.create(cs, vm, itemFactory, avatarIconsProvider) {
+            file.repository.dropSharedLoads()
+            vm.reload()
+        }
 
     override fun getComponent(): JComponent = component
     override fun getPreferredFocusedComponent(): JComponent? = null

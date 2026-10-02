@@ -22,6 +22,8 @@ import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collectLatest
@@ -89,12 +91,34 @@ object GiteaPRTimelineComponentFactory {
         // untouched item is the exact same (`==`) value as its previous emission and its
         // already-built component is reused as-is; only items whose value actually changed get a
         // new component, and the panel's children are patched in place rather than torn down.
-        val itemComponents = mutableMapOf<GiteaPRTimelineItemViewModel, JComponent>()
+        //
+        // Each item gets its own scope, cancelled when its component is dropped: an item's
+        // collectors and its review threads' diff editors would otherwise live as long as the tab.
+        var itemComponents = mutableMapOf<GiteaPRTimelineItemViewModel, BuiltItem>()
+        // Set by Refresh: the next render builds every item anew.
+        var rebuildAll = false
+
+        fun dropItems() {
+            itemComponents.values.forEach { it.job.cancel() }
+            itemComponents = mutableMapOf()
+        }
+
+        fun buildItem(item: GiteaPRTimelineItemViewModel): BuiltItem {
+            val job = SupervisorJob(cs.coroutineContext[Job])
+            return BuiltItem(itemFactory.create(CoroutineScope(cs.coroutineContext + job), item), job)
+        }
 
         fun renderItems(items: List<GiteaPRTimelineItemViewModel>) {
-            itemComponents.keys.retainAll(items.toSet())
+            val previous = itemComponents
+            val reuse = !rebuildAll
+            rebuildAll = false
+            val next = mutableMapOf<GiteaPRTimelineItemViewModel, BuiltItem>()
+            items.forEach { item -> next.getOrPut(item) { (if (reuse) previous.remove(item) else null) ?: buildItem(item) } }
+            // Whatever wasn't reused is off screen once the panel is patched below.
+            previous.values.forEach { it.job.cancel() }
+            itemComponents = next
             items.forEachIndexed { index, item ->
-                val component = itemComponents.getOrPut(item) { itemFactory.create(cs, item) }
+                val component = next.getValue(item).component
                 if (index >= itemsPanel.componentCount || itemsPanel.getComponent(index) !== component) {
                     if (index < itemsPanel.componentCount) itemsPanel.remove(index)
                     itemsPanel.add(component, index)
@@ -110,15 +134,15 @@ object GiteaPRTimelineComponentFactory {
                 val res = computed?.result
                 when {
                     res == null -> {
-                        itemComponents.clear()
                         itemsPanel.removeAll()
+                        dropItems()
                         itemsPanel.add(LoadingLabel().apply { border = CodeReviewTimelineUIUtil.ITEM_BORDER })
                     }
                     else -> res.fold(
                         onSuccess = { items -> renderItems(items) },
                         onFailure = { error ->
-                            itemComponents.clear()
                             itemsPanel.removeAll()
+                            dropItems()
                             // The platform's error styling, with Retry.
                             itemsPanel.add(
                                 ErrorStatusPanelFactory.create(
@@ -159,7 +183,8 @@ object GiteaPRTimelineComponentFactory {
             add(ActionLink(GiteaBundle.message("pull.request.timeline.refresh")) {
                 // An explicit refresh rebuilds every item, so relative times ("5 minutes ago")
                 // are re-rendered too; reloads triggered elsewhere keep reusing components.
-                itemComponents.clear()
+                // The current components stay on screen until the reloaded items replace them.
+                rebuildAll = true
                 onRefresh()
             })
         }
@@ -196,3 +221,6 @@ object GiteaPRTimelineComponentFactory {
     }
 
 }
+
+/** A timeline item's component and the job of the scope it was built in. */
+private class BuiltItem(val component: JComponent, val job: Job)
