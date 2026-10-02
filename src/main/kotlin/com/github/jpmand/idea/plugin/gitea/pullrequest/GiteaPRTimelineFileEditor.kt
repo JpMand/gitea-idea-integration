@@ -103,7 +103,10 @@ class GiteaPRTimelineFileEditor(
     }
 
     private val component: JComponent =
-        GiteaPRTimelineComponentFactory.create(cs, vm, itemFactory, avatarIconsProvider) { vm.reload() }
+        GiteaPRTimelineComponentFactory.create(cs, vm, itemFactory, avatarIconsProvider) {
+            file.repository.dropSharedLoads()
+            vm.reload()
+        }
 
     override fun getComponent(): JComponent = component
     override fun getPreferredFocusedComponent(): JComponent? = null

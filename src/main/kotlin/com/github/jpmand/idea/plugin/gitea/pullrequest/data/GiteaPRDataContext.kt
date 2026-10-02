@@ -9,4 +9,8 @@ data class GiteaPRDataContext(
     val account: GiteaAccount,
     val repo: GiteaRepositoryCoordinates,
     val api: GiteaApi,
-)
+) {
+    /** Shared by every [GiteaPRRepository] built on this context (tool window, in-editor review),
+     * so a change made through one is seen by the others' next load. Not part of equality. */
+    internal val sharedLoads = GiteaSharedLoads()
+}

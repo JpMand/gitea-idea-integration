@@ -10,9 +10,17 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.toChangedFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineItemViewModel
 import com.intellij.collaboration.api.HttpStatusErrorException
 import com.intellij.openapi.diagnostic.logger
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import java.util.*
 
 private val LOG = logger<GiteaPRRepository>()
+
+/** How many requests of one batch (review comments, file contents) run at the same time. */
+private const val PARALLEL_REQUESTS = 4
 
 /**
  * Data-access layer for PR operations scoped to a single [GiteaPRDataContext].
@@ -40,6 +48,24 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
      * review UI, the one place that still needs raw API access outside this repository. */
     val api: GiteaApi get() = ctx.api
 
+    private val shared: GiteaSharedLoads get() = ctx.sharedLoads
+
+    /** Forgets shared results, so the next loads go to the server — for an explicit refresh. */
+    fun dropSharedLoads() = shared.clear()
+
+    /** A [giteaApiCall] that changes data on the server: drops shared results afterwards, even if
+     * it failed part-way, so the reload that usually follows sees the server's state. */
+    private suspend fun <T> changeCall(call: suspend () -> T): T =
+        try {
+            giteaApiCall(call)
+        } finally {
+            shared.clear()
+        }
+
+    private suspend fun <T> parallel(items: List<T>, limit: Semaphore, load: suspend (T) -> Unit) = coroutineScope {
+        items.map { item -> async { limit.withPermit { load(item) } } }.awaitAll()
+    }
+
     // ── Pull Requests ─────────────────────────────────────────────────────
 
     suspend fun loadPullRequests(
@@ -65,7 +91,9 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
      * list (rather than throwing) only on 403, i.e. when the token lacks permission to enumerate
      * collaborators; any other failure gets the friendly [GiteaHttpError] treatment.
      */
-    suspend fun loadPossibleAuthors(): List<GiteaUser> = giteaApiCall {
+    suspend fun loadPossibleAuthors(): List<GiteaUser> = shared.load("collaborators") { loadPossibleAuthorsNow() }
+
+    private suspend fun loadPossibleAuthorsNow(): List<GiteaUser> = giteaApiCall {
         try {
             loadAllCollaborators()
         } catch (e: HttpStatusErrorException) {
@@ -75,27 +103,27 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         }
     }
 
-    suspend fun loadPullRequest(number: Int): GiteaPullRequest = giteaApiCall {
-        GiteaPullRequest.fromDto(ctx.api.repoGetPullRequest(owner, repo, number))
+    suspend fun loadPullRequest(number: Int): GiteaPullRequest = shared.load("pr" to number) {
+        giteaApiCall { GiteaPullRequest.fromDto(ctx.api.repoGetPullRequest(owner, repo, number)) }
     }
 
-    suspend fun editPullRequest(number: Int, body: EditPullRequestOption): GiteaPullRequest = giteaApiCall {
+    suspend fun editPullRequest(number: Int, body: EditPullRequestOption): GiteaPullRequest = changeCall {
         GiteaPullRequest.fromDto(ctx.api.repoEditPullRequest(owner, repo, number, body))
     }
 
-    suspend fun mergePullRequest(number: Int, body: MergePullRequestOption) = giteaApiCall {
+    suspend fun mergePullRequest(number: Int, body: MergePullRequestOption) = changeCall {
         ctx.api.repoMergePullRequest(owner, repo, number, body)
     }
 
     // ── Reviewers ────────────────────────────────────────────────────────
 
-    suspend fun requestReviewers(prNumber: Int, logins: List<String>) = giteaApiCall {
-        if (logins.isEmpty()) return@giteaApiCall
+    suspend fun requestReviewers(prNumber: Int, logins: List<String>) = changeCall {
+        if (logins.isEmpty()) return@changeCall
         ctx.api.repoCreatePullReviewRequests(owner, repo, prNumber, PullReviewRequestOptions(reviewers = logins.toTypedArray()))
     }
 
-    suspend fun removeReviewRequest(prNumber: Int, logins: List<String>) = giteaApiCall {
-        if (logins.isEmpty()) return@giteaApiCall
+    suspend fun removeReviewRequest(prNumber: Int, logins: List<String>) = changeCall {
+        if (logins.isEmpty()) return@changeCall
         ctx.api.repoDeletePullReviewRequests(owner, repo, prNumber, PullReviewRequestOptions(reviewers = logins.toTypedArray()))
     }
 
@@ -133,19 +161,31 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
 
     // ── Reviews & Comments ────────────────────────────────────────────────
 
-    suspend fun loadReviews(prNumber: Int): List<GiteaReview> = giteaApiCall {
-        loadAllGiteaPages { page -> ctx.api.repoListPullRequestReviews(owner, repo, prNumber, page = page, limit = GITEA_PAGE_SIZE) }
-            .map { GiteaReview.fromDto(it) }
+    suspend fun loadReviews(prNumber: Int): List<GiteaReview> = shared.load("reviews" to prNumber) {
+        giteaApiCall {
+            loadAllGiteaPages { page -> ctx.api.repoListPullRequestReviews(owner, repo, prNumber, page = page, limit = GITEA_PAGE_SIZE) }
+                .map { GiteaReview.fromDto(it) }
+        }
     }
 
-    suspend fun loadReviewComments(prNumber: Int, reviewId: Long): List<GiteaReviewComment> = giteaApiCall {
-        ctx.api.repoGetPullRequestReviewComments(owner, repo, prNumber, reviewId)
-            .map { GiteaReviewComment.fromDto(it) }
-    }
+    suspend fun loadReviewComments(prNumber: Int, reviewId: Long): List<GiteaReviewComment> =
+        shared.load(Triple("review comments", prNumber, reviewId)) {
+            giteaApiCall {
+                ctx.api.repoGetPullRequestReviewComments(owner, repo, prNumber, reviewId)
+                    .map { GiteaReviewComment.fromDto(it) }
+            }
+        }
 
-    /** Convenience: load comments from all reviews in one call. */
-    suspend fun loadAllReviewComments(prNumber: Int, reviews: List<GiteaReview>? = null): List<GiteaReviewComment> =
-        (reviews ?: loadReviews(prNumber)).flatMap { review -> loadReviewComments(prNumber, review.id) }
+    /** The comments of all [reviews] (or the PR's), a few reviews at a time, in review order.
+     * Reviews without comments (most approvals) aren't asked. */
+    suspend fun loadAllReviewComments(prNumber: Int, reviews: List<GiteaReview>? = null): List<GiteaReviewComment> {
+        val withComments = (reviews ?: loadReviews(prNumber)).filter { it.commentsCount > 0 }
+        val comments = arrayOfNulls<List<GiteaReviewComment>>(withComments.size)
+        parallel(withComments.indices.toList(), Semaphore(PARALLEL_REQUESTS)) { i ->
+            comments[i] = loadReviewComments(prNumber, withComments[i].id)
+        }
+        return comments.flatMap { it.orEmpty() }
+    }
 
     /** Groups all review comments for a PR into synthetic [GiteaReviewThread]s, with
      * [GiteaReviewThread.isOutdated] computed against the file content at [headSha]. */
@@ -166,6 +206,14 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         headLinesCache: MutableMap<String, List<String>>,
     ): List<GiteaReviewThread> {
         val staleReviewIds = reviews.filter { it.stale }.mapTo(HashSet()) { it.id }
+        val pathsToCheck = threads
+            .filter { it.comments.firstOrNull()?.reviewId in staleReviewIds }
+            .mapNotNull { it.path }
+            .distinct()
+            .filter { it !in headLinesCache }
+        val loaded = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
+        parallel(pathsToCheck, Semaphore(PARALLEL_REQUESTS)) { path -> loaded[path] = loadFileContent(path, headSha).lines() }
+        headLinesCache.putAll(loaded)
         return threads.map { thread ->
             val anchor = thread.comments.firstOrNull()
             val path = thread.path
@@ -179,40 +227,40 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
      * The PR's full activity timeline (Conversation): comments, commits, submitted reviews (with
      * their inline threads), and metadata events, in chronological order.
      */
-    suspend fun loadTimeline(prNumber: Int, headSha: String): List<GiteaTimelineItem> {
-        val timeline = loadAllGiteaPages { page ->
-            ctx.api.issueListTimeline(owner, repo, prNumber, page = page, limit = GITEA_PAGE_SIZE)
+    suspend fun loadTimeline(prNumber: Int, headSha: String): List<GiteaTimelineItem> = coroutineScope {
+        // The timeline, the threads and the commits don't depend on each other.
+        val timeline = async {
+            giteaApiCall { loadAllGiteaPages { page -> ctx.api.issueListTimeline(owner, repo, prNumber, page = page, limit = GITEA_PAGE_SIZE) } }
         }
+        val commits = async { loadCommits(prNumber) }
         val reviews = loadReviews(prNumber)
-        val reviewsById = reviews.associateBy { it.id }
         val headLinesCache = mutableMapOf<String, List<String>>()
         val threadsByReviewId = loadAllReviewComments(prNumber, reviews)
             .groupBy { it.reviewId ?: 0L }
             .mapValues { (_, comments) -> markOutdated(comments.toThreads(), reviews, headSha, headLinesCache) }
-        val commits = loadCommits(prNumber)
-        return mergeTimeline(timeline, reviewsById, threadsByReviewId, commits)
+        mergeTimeline(timeline.await(), reviews.associateBy { it.id }, threadsByReviewId, commits.await())
     }
 
-    suspend fun resolveComment(commentId: Long) = giteaApiCall {
+    suspend fun resolveComment(commentId: Long) = changeCall {
         ctx.api.repoResolvePullRequestReviewComment(owner, repo, commentId)
     }
 
-    suspend fun unresolveComment(commentId: Long) = giteaApiCall {
+    suspend fun unresolveComment(commentId: Long) = changeCall {
         ctx.api.repoUnresolvePullRequestReviewComment(owner, repo, commentId)
     }
 
-    suspend fun submitReview(prNumber: Int, body: CreatePullReviewOptions): GiteaReview = giteaApiCall {
+    suspend fun submitReview(prNumber: Int, body: CreatePullReviewOptions): GiteaReview = changeCall {
         GiteaReview.fromDto(ctx.api.repoCreatePullRequestReview(owner, repo, prNumber, body))
     }
 
     /** Submits (finishes) a review that was previously created with `event = PENDING`. */
-    suspend fun submitPendingReview(prNumber: Int, reviewId: Long, body: SubmitPullReviewOptions): GiteaReview = giteaApiCall {
+    suspend fun submitPendingReview(prNumber: Int, reviewId: Long, body: SubmitPullReviewOptions): GiteaReview = changeCall {
         GiteaReview.fromDto(ctx.api.repoSubmitPullRequestReview(owner, repo, prNumber, reviewId, body))
     }
 
     /** Permanently deletes a pending (not yet submitted) review and its comments — used to cancel
      * a review-in-progress, whether started here or forgotten from another session. */
-    suspend fun deletePendingReview(prNumber: Int, reviewId: Long) = giteaApiCall {
+    suspend fun deletePendingReview(prNumber: Int, reviewId: Long) = changeCall {
         ctx.api.repoDeletePullRequestReview(owner, repo, prNumber, reviewId)
     }
 
@@ -224,7 +272,7 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         loadReviews(prNumber).filter { it.state == GiteaReviewState.PENDING && it.author?.login == ctx.account.name }
 
     /** Posts a new top-level (non-inline) timeline comment. */
-    suspend fun createComment(prNumber: Int, body: String): GiteaPRTimelineItemViewModel.Comment = giteaApiCall {
+    suspend fun createComment(prNumber: Int, body: String): GiteaPRTimelineItemViewModel.Comment = changeCall {
         val comment = ctx.api.repoCreatePullRequestComment(owner, repo, prNumber, CreateIssueCommentOption(body))
         GiteaPRTimelineItemViewModel.Comment(
             comment.id ?: 0L,
@@ -237,24 +285,24 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     }
 
     /** The signed-in account's own profile — used for the "leave a comment" avatar. */
-    suspend fun currentUser(): GiteaUser = giteaApiCall { ctx.api.currentUser() }
+    suspend fun currentUser(): GiteaUser = shared.load("current user") { giteaApiCall { ctx.api.currentUser() } }
 
     /**
      * Edits an existing comment's body. Gitea uses the same endpoint for both top-level timeline
      * comments and inline review-thread comments — no distinction is needed here.
      */
-    suspend fun editComment(commentId: Long, body: String) = giteaApiCall {
+    suspend fun editComment(commentId: Long, body: String) = changeCall {
         ctx.api.repoEditPullRequestComment(owner, repo, commentId, EditIssueCommentOption(body))
     }
 
     /** Deletes a comment (top-level or inline review-thread). */
-    suspend fun deleteComment(commentId: Long) = giteaApiCall {
+    suspend fun deleteComment(commentId: Long) = changeCall {
         ctx.api.repoDeletePullRequestComment(owner, repo, commentId)
     }
 
     /** Replies to an existing (already-submitted) inline review comment — always immediate,
      * unrelated to review-batch submission. */
-    suspend fun replyToComment(prNumber: Int, commentId: Long, body: String): GiteaReviewComment = giteaApiCall {
+    suspend fun replyToComment(prNumber: Int, commentId: Long, body: String): GiteaReviewComment = changeCall {
         GiteaReviewComment.fromDto(
             ctx.api.repoCreatePullReviewCommentReply(owner, repo, prNumber, commentId, CreatePullReviewCommentReplyOptions(body)),
         )
@@ -263,9 +311,11 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     // ── Files & Commits ───────────────────────────────────────────────────
 
     /** Returns domain models for files changed in the given PR (base..head). */
-    suspend fun loadChangedFiles(prNumber: Int): List<GiteaPRChangedFile> = giteaApiCall {
-        loadAllGiteaPages { page -> ctx.api.repoListPullRequestFiles(owner, repo, prNumber, page = page, limit = GITEA_PAGE_SIZE) }
-            .map { it.toChangedFile() }
+    suspend fun loadChangedFiles(prNumber: Int): List<GiteaPRChangedFile> = shared.load("files" to prNumber) {
+        giteaApiCall {
+            loadAllGiteaPages { page -> ctx.api.repoListPullRequestFiles(owner, repo, prNumber, page = page, limit = GITEA_PAGE_SIZE) }
+                .map { it.toChangedFile() }
+        }
     }
 
     /** Returns domain models for files changed by a single commit. */
@@ -280,7 +330,9 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
      * failure gets the friendly [GiteaHttpError] treatment, so a transient error is not silently
      * rendered as a whole-file add/delete.
      */
-    suspend fun loadFileContent(path: String, ref: String): String = giteaApiCall {
+    suspend fun loadFileContent(path: String, ref: String): String = shared.load(Triple("file", path, ref)) { loadFileContentNow(path, ref) }
+
+    private suspend fun loadFileContentNow(path: String, ref: String): String = giteaApiCall {
         try {
             ctx.api.getFileContents(owner, repo, path, ref).decodeContent() ?: ""
         } catch (e: HttpStatusErrorException) {
@@ -290,9 +342,11 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         }
     }
 
-    suspend fun loadCommits(prNumber: Int): List<GiteaCommit> = giteaApiCall {
-        loadAllGiteaPages { page -> ctx.api.repoListPullRequestCommits(owner, repo, prNumber, page = page, limit = GITEA_PAGE_SIZE) }
-            .map { GiteaCommit.fromDto(it) }
+    suspend fun loadCommits(prNumber: Int): List<GiteaCommit> = shared.load("commits" to prNumber) {
+        giteaApiCall {
+            loadAllGiteaPages { page -> ctx.api.repoListPullRequestCommits(owner, repo, prNumber, page = page, limit = GITEA_PAGE_SIZE) }
+                .map { GiteaCommit.fromDto(it) }
+        }
     }
 
     // ── CI Status ─────────────────────────────────────────────────────────

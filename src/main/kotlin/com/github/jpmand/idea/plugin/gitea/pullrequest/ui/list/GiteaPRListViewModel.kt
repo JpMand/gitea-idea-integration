@@ -150,6 +150,7 @@ class GiteaPRListViewModel(
 
     override fun refresh() {
         LOG.debug("Refreshing the pull request list")
+        repository.dropSharedLoads()
         _refreshTrigger.value = System.currentTimeMillis()
     }
 

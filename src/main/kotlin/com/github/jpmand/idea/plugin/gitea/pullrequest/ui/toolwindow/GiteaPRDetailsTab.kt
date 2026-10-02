@@ -59,6 +59,7 @@ class GiteaPRDetailsTab(
     )
 
     private val refresh: () -> Unit = {
+        repository.dropSharedLoads()
         detailsVm.refresh()
         discussionsVm.reload()
     }
