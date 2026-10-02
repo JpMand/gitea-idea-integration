@@ -107,9 +107,16 @@ class GiteaPRTimelineItemComponentFactory(
 
     // ── item kinds ─────────────────────────────────────────────────────────
 
-    private fun comment(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel.Comment): JComponent {
+    private fun comment(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel.Comment): JComponent =
+        comment(cs, item, commentUrlActions(item.htmlUrl))
+
+    /** The PR description, shown like a comment but with the pull request's own links in its menu. */
+    fun createDescription(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel.Comment): JComponent =
+        comment(cs, item, urlActions(item.htmlUrl, "pull.request.action.view.pr.in.browser", "pull.request.action.copy.pr.url"))
+
+    private fun comment(cs: CoroutineScope, item: GiteaPRTimelineItemViewModel.Comment, menu: List<AnAction>): JComponent {
         val (pane, actionsPanel) = commentBodyAndActions(cs, item.id, item.actor?.login, item.body)
-        return chatItem(item, pane, commentUrlActions(item.htmlUrl), actionsPanel, edited = item.edited, action = HtmlChunk.text(GiteaBundle.message("pull.request.timeline.commented")))
+        return chatItem(item, pane, menu, actionsPanel, edited = item.edited, action = HtmlChunk.text(GiteaBundle.message("pull.request.timeline.commented")))
     }
 
     /**
