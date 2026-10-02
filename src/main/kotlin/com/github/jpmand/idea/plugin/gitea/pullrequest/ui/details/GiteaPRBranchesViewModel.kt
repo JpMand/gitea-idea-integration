@@ -89,25 +89,29 @@ class GiteaPRBranchesViewModel(
      * against the *remote* target branch (never the possibly-stale local one — always fetched
      * first). `null` means "unknown" (fetch failed, git too old for the two-arg `merge-tree` form,
      * no repository mapping, ...) and deliberately does NOT add extra gating beyond whatever
-     * Gitea's flag already says — only a confirmed local conflict (`false`) does.
+     * Gitea's flag already says — only a confirmed local conflict (`false`) does. Runs only when it
+     * can change the outcome (see [needsLocalMergeCheck]), and fetches only the target branch.
      */
     private val _localMergeabilityState = MutableStateFlow<Boolean?>(null)
     val localMergeabilityState: StateFlow<Boolean?> = _localMergeabilityState.asStateFlow()
 
     init {
         cs.launch(Dispatchers.IO) {
-            prFlow.distinctUntilChanged { old, new -> old.head.sha == new.head.sha && old.base.ref == new.base.ref }
-                .collectLatest { pr -> _localMergeabilityState.value = computeLocalMergeability(pr) }
+            prFlow.distinctUntilChanged { old, new ->
+                old.head.sha == new.head.sha && old.base.ref == new.base.ref && old.needsLocalMergeCheck() == new.needsLocalMergeCheck()
+            }.collectLatest { pr ->
+                _localMergeabilityState.value = if (pr.needsLocalMergeCheck()) computeLocalMergeability(pr) else null
+            }
         }
     }
 
     private suspend fun computeLocalMergeability(pr: GiteaPullRequest): Boolean? {
         val mapping = findRepositoryMapping() ?: return null
         return try {
-            val baseFetch = withContext(Dispatchers.IO) {
-                GitFetchSupport.fetchSupport(project).fetch(mapping.gitRepository, mapping.gitRemote)
-            }
-            if (!baseFetch.isSuccessful()) {
+            // Only the target branch: fetching the whole remote is slow on a repository with many branches.
+            val targetRef = "${mapping.gitRemote.name}/${pr.base.ref}"
+            val baseRefspec = "+refs/heads/${pr.base.ref}:refs/remotes/$targetRef"
+            if (!fetch(mapping.gitRepository, mapping.gitRemote, baseRefspec, notifyOnFailure = false)) {
                 LOG.debug("PR #${pr.number}: base fetch failed, local mergeability unknown")
                 return null
             }
@@ -115,7 +119,6 @@ class GiteaPRBranchesViewModel(
             val localRef = fetchPrHead(mapping, pr, notifyOnFailure = false)?.localRef ?: return null
 
             val root = mapping.gitRepository.root
-            val targetRef = "${mapping.gitRemote.name}/${pr.base.ref}"
 
             val mergeBase = GitHistoryUtils.getMergeBase(project, root, targetRef, localRef) ?: return null
             val targetRevision = GitRevisionNumber.resolve(project, root, targetRef)
@@ -331,3 +334,9 @@ class GiteaPRBranchesViewModel(
             .notify(project)
     }
 }
+
+/**
+ * Whether the local merge-tree check can tell anything: only for an open, non-draft PR that Gitea
+ * reports as mergeable, since anything else already shows no conflict banner or a conflict.
+ */
+private fun GiteaPullRequest.needsLocalMergeCheck(): Boolean = state == "open" && !merged && !draft && mergeable
