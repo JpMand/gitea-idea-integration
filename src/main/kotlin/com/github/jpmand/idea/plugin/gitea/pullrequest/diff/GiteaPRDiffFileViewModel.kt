@@ -57,6 +57,8 @@ class GiteaPRDiffFileViewModel(
         scrollChannel.trySend(request)
     }
 
+    // Loaded when the diff viewer first shows this file, then kept: a PR's file view models are all
+    // created when the PR opens, and loading eagerly fetched every changed file's base and head.
     @OptIn(ExperimentalCoroutinesApi::class)
     override val request: StateFlow<ComputedResult<DiffRequest>?> =
         _reloadTrigger.transformLatest {
@@ -69,7 +71,7 @@ class GiteaPRDiffFileViewModel(
                 LOG.warn("Couldn't load the diff of ${file.filename} ($baseSha..$headSha)", e)
                 emit(ComputedResult.failure(e))
             }
-        }.stateIn(cs, SharingStarted.Eagerly, null)
+        }.stateIn(cs, SharingStarted.Lazily, null)
 
     override fun reloadRequest() {
         _reloadTrigger.value++
