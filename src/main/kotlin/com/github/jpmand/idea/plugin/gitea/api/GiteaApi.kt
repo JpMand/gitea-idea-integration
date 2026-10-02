@@ -34,7 +34,7 @@ internal class GiteaApiImpl(
     RestImpl(
       GiteaApiRequestLogging(
         JsonHttpApiHelper(
-          logger<GiteaApi>(),
+          LOG,
           this,
           GiteaJsonDeSerializer,
           GiteaJsonDeSerializer
@@ -66,7 +66,7 @@ private fun httpHelper(server: GiteaServerPath, tokenSupplier: () -> String): Ht
   // settings and CertificateManager, so self-signed / internal-CA Gitea servers prompt the user
   // to trust the certificate rather than failing with an opaque SSLHandshakeException.
   return HttpApiHelper(
-    logger = logger<GiteaApi>(),
+    logger = LOG,
     requestConfigurer = requestConfigurer
   )
 }
@@ -95,7 +95,7 @@ private fun GiteaServerPath.isAuthorizedUrl(targetUri: URI): Boolean {
 @Suppress("UnstableApiUsage")
 private fun httpHelper(): HttpApiHelper {
   val requestConfigurer = CompoundRequestConfigurer(RequestTimeoutConfigurer(), GiteaHeaderConfigurer())
-  return HttpApiHelper(logger = logger<GiteaApi>(), requestConfigurer = requestConfigurer)
+  return HttpApiHelper(logger = LOG, requestConfigurer = requestConfigurer)
 }
 
 private const val PLUGIN_USER_AGENT_NAME = "GiteaIdeaIntegration"

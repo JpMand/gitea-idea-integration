@@ -19,7 +19,6 @@ class GiteaPullRequestsSettingsStateTest {
       selectedUrlAndAccountId = "http://localhost:3000/acme/webapp" to "account-1",
       changesGrouping = setOf("directory"),
       editorReviewViewOption = DiscussionsViewOption.ALL,
-      viewedPrFiles = mapOf(1 to setOf("src/App.java", "README.md")),
       draftComments = mapOf(
         1 to listOf(GiteaPRDraftComment(localId = 0, path = "src/App.java", newLine = 7, oldLine = null, body = "Draft")),
       ),

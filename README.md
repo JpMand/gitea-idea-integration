@@ -27,12 +27,18 @@ clone repositories, and review pull requests without leaving the IDE.
 - "Gitea" tab in _Get from Version Control_ to browse and clone your repositories
 - Open-in-browser and copy-link actions for files, commits and lines
 
-### Pull requests (read-only)
-- Pull Requests tool window scoped to the current project's Gitea remote
-- Per-PR detail tab: description, participants, labels, status checks
-- Activity timeline of comments, reviews and state changes
-- Diff viewer with the PR's changed files and a directory-grouped changes tree
-- Mark files as viewed
+### Pull requests
+- Pull Requests tool window for the project's Gitea remote, with state, author, label and sort
+  filters
+- Per-PR details: description, participants, labels, status checks, commits and a
+  directory-grouped changes tree
+- Conversation tab: comments, reviews with their inline threads and diff previews, and state
+  changes; reply, edit, delete, resolve and comment from there
+- Diff viewer with inline review threads
+- Review in the diff or directly in the editor (when the local branch is the PR's head branch):
+  draft comments, submit with approve / request changes / comment, suggested changes you can
+  apply with one click
+- Merge (with method choice), close/reopen, check out the PR branch, request reviewers
 
 ### Server support
 - Any Gitea instance (self-hosted or cloud), including instances on a sub-path

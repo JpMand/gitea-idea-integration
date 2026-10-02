@@ -11,6 +11,7 @@ import com.intellij.collaboration.auth.ui.login.LoginModel
 import com.intellij.collaboration.auth.ui.login.TokenLoginDialog
 import com.intellij.collaboration.auth.ui.login.TokenLoginInputPanelFactory
 import com.intellij.openapi.components.service
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.util.Disposer
@@ -21,6 +22,8 @@ import com.intellij.util.concurrency.annotations.RequiresEdt
 import org.jetbrains.annotations.Nls
 import java.awt.Component
 import javax.swing.JComponent
+
+private val LOG = logger<GiteLoginUtil>()
 
 object GiteLoginUtil {
 
@@ -62,14 +65,15 @@ object GiteLoginUtil {
       DialogWrapper.OK_EXIT_CODE -> {
         val loginResult =
           model.loginState.value.asSafely<LoginModel.LoginState.Connected>() ?: return LoginResult.Failure
+        LOG.info("Logged in as ${loginResult.username} on ${model.getServerPath()}")
         LoginResult.Success(
           GiteaAccount(name = loginResult.username, server = model.getServerPath()),
           model.token
         )
       }
 
-      DialogWrapper.NEXT_USER_EXIT_CODE -> LoginResult.OtherMethod
-      else -> LoginResult.Failure
+      DialogWrapper.NEXT_USER_EXIT_CODE -> LoginResult.OtherMethod.also { LOG.info("Login on $serverPath: another method chosen") }
+      else -> LoginResult.Failure.also { LOG.info("Login on $serverPath cancelled") }
     }
   }
 
@@ -93,12 +97,14 @@ object GiteLoginUtil {
     val exitState = showLoginDialog(project, parentComponent, model, title, true)
     val loginState = model.loginState.value
     if (exitState == DialogWrapper.OK_EXIT_CODE && loginState is LoginModel.LoginState.Connected) {
+      LOG.info("Token updated for ${loginState.username} on ${model.getServerPath()} (account ${account.id})")
       return LoginResult.Success(
         GiteaAccount(id = account.id, name = loginState.username, server = model.getServerPath()),
         model.token
       )
     }
 
+    LOG.info("Token update for ${account.name} on ${account.server} cancelled")
     return LoginResult.Failure
   }
 

@@ -19,7 +19,9 @@ data class GiteaReviewComment(
     val originalCommitId: String?,
     val reviewId: Long?,
     /** Non-null user means this comment has been resolved. */
-    val resolver: GiteaUser?
+    val resolver: GiteaUser?,
+    /** The comment's page on the Gitea web UI. */
+    val htmlUrl: String? = null,
 ) {
     val isResolved: Boolean get() = resolver != null
     val isEdited: Boolean get() = updatedAt != null && createdAt != null && updatedAt != createdAt
@@ -40,6 +42,7 @@ data class GiteaReviewComment(
             originalCommitId = dto.originalCommitId,
             reviewId = dto.pullRequestReviewId,
             resolver = dto.resolver?.let { GiteaUser.fromDto(it) },
+            htmlUrl = dto.htmlUrl,
         )
     }
 }

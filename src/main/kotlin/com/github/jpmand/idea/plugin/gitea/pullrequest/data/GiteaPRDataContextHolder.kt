@@ -8,7 +8,6 @@ import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountMa
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaProjectDefaultAccountHolder
 import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPullRequestsSettings
 import com.github.jpmand.idea.plugin.gitea.util.GiteaGitRepositoryMapping
-import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
@@ -25,6 +24,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
+import com.intellij.openapi.diagnostic.logger
+
+private val LOG = logger<GiteaPRDataContextHolder>()
 
 /**
  * Project service that tracks the active [GiteaPRDataContext].
@@ -75,7 +77,7 @@ class GiteaPRDataContextHolder(
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        GiteaUtil.LOG.warn("Couldn't resolve the Gitea account for the pull requests tool window", e)
+                        LOG.warn("Couldn't resolve the Gitea account for the pull requests tool window", e)
                     }
                 }
         }
@@ -101,7 +103,12 @@ class GiteaPRDataContextHolder(
             defaultAccount?.takeIf { it in accounts },
             project.service<GiteaPullRequestsSettings>().selectedUrlAndAccountId,
         ) { it.repository.getWebURI().toString() }
+        LOG.debug("Resolving the PR context: ${repos.size} known repositories, ${accounts.size} accounts, ${candidates.size} candidates")
         if (chosen == null) {
+            if (_context.value != null) {
+                LOG.info("No PR context: no account with a token on the server of a project git remote " +
+                    "(${repos.size} known repositories, ${accounts.size} accounts)")
+            }
             _context.value = null
             contextToken = null
             return
@@ -114,8 +121,13 @@ class GiteaPRDataContextHolder(
         val current = _context.value
         if (current != null && current.account.id == account.id && current.account.server == account.server &&
             current.repo.getWebURI() == repo.getWebURI() && contextToken == token
-        ) return
+        ) {
+            LOG.debug("PR context unchanged: ${account.name}@${account.server} on $repo")
+            return
+        }
 
+        LOG.info("PR context: ${account.name}@${account.server} on $repo" +
+            if (current != null && current.account.id == account.id && current.repo.getWebURI() == repo.getWebURI()) " (token changed)" else "")
         contextToken = token
         _context.value = GiteaPRDataContext(account, repo, service<GiteaApiManager>().getClient(account.server, token))
     }

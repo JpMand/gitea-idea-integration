@@ -3,10 +3,13 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.diff
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.GiteaPRFileStatusEnum
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.intellij.collaboration.ui.codereview.diff.model.AsyncDiffViewModel
+import com.intellij.collaboration.ui.codereview.diff.model.DiffViewerScrollRequest
+import com.intellij.collaboration.ui.codereview.diff.model.DiffViewerScrollRequestProducer
 import com.intellij.collaboration.util.ComputedResult
 import com.intellij.diff.DiffContentFactory
 import com.intellij.diff.requests.DiffRequest
 import com.intellij.diff.requests.SimpleDiffRequest
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
@@ -15,11 +18,16 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
+
+private val LOG = logger<GiteaPRDiffFileViewModel>()
 
 @Suppress("UnstableApiUsage")
 class GiteaPRDiffFileViewModel(
@@ -29,7 +37,7 @@ class GiteaPRDiffFileViewModel(
     val file: GiteaPRChangedFile,
     private val baseSha: String,
     private val headSha: String,
-) : AsyncDiffViewModel {
+) : AsyncDiffViewModel, DiffViewerScrollRequestProducer {
 
     companion object {
         val CONTEXT_KEY: Key<GiteaPRDiffFileViewModel> = Key.create("gitea.pr.diff.file.vm")
@@ -38,6 +46,16 @@ class GiteaPRDiffFileViewModel(
     private val cs = CoroutineScope(parentCs.coroutineContext + SupervisorJob(parentCs.coroutineContext[Job]))
 
     private val _reloadTrigger = MutableStateFlow(0)
+
+    // Conflated and consumed once: the diff viewer starts collecting only when this file is shown,
+    // so a request made just before is kept until then, and isn't replayed on coming back to the file.
+    private val scrollChannel = Channel<DiffViewerScrollRequest>(Channel.CONFLATED)
+    override val scrollRequests: Flow<DiffViewerScrollRequest> = scrollChannel.receiveAsFlow()
+
+    /** Scrolls the diff viewer of this file to [request] once it's shown. */
+    fun requestScroll(request: DiffViewerScrollRequest) {
+        scrollChannel.trySend(request)
+    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override val request: StateFlow<ComputedResult<DiffRequest>?> =
@@ -48,6 +66,7 @@ class GiteaPRDiffFileViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                LOG.warn("Couldn't load the diff of ${file.filename} ($baseSha..$headSha)", e)
                 emit(ComputedResult.failure(e))
             }
         }.stateIn(cs, SharingStarted.Eagerly, null)
@@ -57,6 +76,7 @@ class GiteaPRDiffFileViewModel(
     }
 
     private suspend fun buildDiffRequest(): DiffRequest {
+        LOG.trace("Loading the diff of ${file.filename} (${file.status}, $baseSha..$headSha)")
         val baseFilename = if (file.status == GiteaPRFileStatusEnum.RENAMED) {
             file.previousFilename ?: file.filename
         } else {

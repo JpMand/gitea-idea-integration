@@ -8,6 +8,7 @@ import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.readAction
 import com.intellij.openapi.command.writeCommandAction
 import com.intellij.openapi.components.service
+import com.intellij.openapi.diagnostic.fileLogger
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
@@ -18,6 +19,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+
+private val LOG = fileLogger()
 
 /**
  * Applies a suggested change to the local working copy: locates the file via the current
@@ -30,9 +33,11 @@ import kotlinx.coroutines.SupervisorJob
  */
 @Suppress("UnstableApiUsage")
 suspend fun applySuggestion(cs: CoroutineScope, project: Project, path: String, suggestion: GiteaSuggestion) {
+    LOG.info("Applying a suggestion to $path, lines ${suggestion.oldStartLine}..+${suggestion.oldLines.size} -> ${suggestion.newLines.size} lines")
     val current = project.service<GiteaPRForCurrentBranchService>().current.value
     val changedFile = current?.changedFiles?.firstOrNull { it.filename == path }
     if (current == null || changedFile == null) {
+        LOG.info("No PR for the current branch${if (current != null) " changes $path" else ""}")
         notifyApplyFailure(project, "pull.request.action.apply.suggestion.error.no.pr")
         return
     }
@@ -49,6 +54,7 @@ suspend fun applySuggestion(cs: CoroutineScope, project: Project, path: String, 
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
+        LOG.warn("Couldn't load $path at ${current.pr.head.sha} to apply the suggestion", e)
         notifyApplyFailure(project, "pull.request.action.apply.suggestion.error.no.file")
         return
     }
@@ -69,6 +75,7 @@ suspend fun applySuggestion(cs: CoroutineScope, project: Project, path: String, 
                 GiteaBundle.message("pull.request.action.apply.suggestion.confirm.title"),
                 GiteaBundle.message("pull.request.action.apply.suggestion.confirm.message"),
             ).asWarning().ask(project)
+            LOG.info("Local lines ${liveStart + 1}..$liveEnd differ from what the suggestion replaces; apply anyway: $proceed")
             if (!proceed) return
         }
 
@@ -78,6 +85,7 @@ suspend fun applySuggestion(cs: CoroutineScope, project: Project, path: String, 
             val endOffset = if (liveEnd < document.lineCount) document.getLineStartOffset(liveEnd) else document.textLength
             document.replaceString(startOffset, endOffset, replacement)
         }
+        LOG.info("Suggestion applied to $path at local lines ${liveStart + 1}..$liveEnd")
         FileEditorManager.getInstance(project).openTextEditor(OpenFileDescriptor(project, virtualFile, liveStart, 0), true)
     } finally {
         syncJob.cancel()
@@ -85,6 +93,7 @@ suspend fun applySuggestion(cs: CoroutineScope, project: Project, path: String, 
 }
 
 private fun notifyApplyFailure(project: Project, bundleKey: String) {
+    LOG.warn("Couldn't apply the suggestion: ${GiteaBundle.message(bundleKey)}")
     NotificationGroupManager.getInstance()
         .getNotificationGroup("Gitea")
         .createNotification(GiteaBundle.message("pull.request.action.apply.suggestion"), GiteaBundle.message(bundleKey), NotificationType.ERROR)

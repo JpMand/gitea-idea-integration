@@ -1,27 +1,13 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details
 
-import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReview
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreatePullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.MergePullRequestOption
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.SubmitPullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.giteaWriteActionNotImplemented
-import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.confirmAndCancelReview
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
-import com.intellij.collaboration.ui.Either
-import com.intellij.collaboration.ui.HorizontalListPanel
-import com.intellij.collaboration.ui.ScrollablePanel
-import com.intellij.collaboration.ui.SimpleHtmlPane
-import com.intellij.collaboration.ui.VerticalListPanel
-import com.intellij.collaboration.messages.CollaborationToolsBundle
+import com.intellij.collaboration.ui.*
 import com.intellij.collaboration.ui.codereview.avatar.CodeReviewAvatarUtils
 import com.intellij.collaboration.ui.codereview.details.*
-import com.intellij.collaboration.ui.codereview.timeline.StatusMessageComponentFactory
-import com.intellij.collaboration.ui.codereview.timeline.StatusMessageType
-import com.intellij.openapi.editor.actions.IncrementalFindAction
-import com.intellij.openapi.fileTypes.FileTypes
-import com.intellij.ui.EditorTextField
 import com.intellij.ide.BrowserUtil
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
@@ -29,16 +15,16 @@ import com.intellij.openapi.actionSystem.ActionGroup
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NlsSafe
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.awt.RelativePoint
-import com.intellij.ui.components.*
-import com.intellij.ui.components.panels.Wrapper
-import com.intellij.util.ui.JBFont
+import com.intellij.ui.components.ActionLink
+import com.intellij.ui.components.JBCheckBox
+import com.intellij.ui.components.JBOptionButton
 import com.intellij.util.ui.JBUI
-import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,13 +38,16 @@ import java.awt.event.ActionListener
 import java.util.*
 import javax.swing.*
 
+private val LOG = logger<GiteaPRDetailsPanel>()
+
 /**
  * PR-details tool-window tab, laid out like the bundled GitLab plugin's
  * `GitLabMergeRequestDetailsComponentFactory`: title → nav bar → commits/branch → selected-commit
- * info → changes tree → status → write-action bar → review composer. Every action in the
- * write-action bar (open in browser, close/reopen, ready-for-review, merge) and the review
- * composer are wired to real API calls; [giteaWriteActionNotImplemented] is only the fallback
- * [stubActionSwing] takes when a caller doesn't pass an action, kept around for any future stub.
+ * info → changes tree → status → write-action bar. Every action in the write-action bar (open
+ * in browser, close/reopen, ready-for-review, merge) is wired to a real API call;
+ * [giteaWriteActionNotImplemented] is only the fallback [stubActionSwing] takes when a caller
+ * doesn't pass an action, kept around for any future stub. Reviews are submitted from the
+ * diff/editor review toolbar, not from here.
  */
 @Suppress("UnstableApiUsage")
 class GiteaPRDetailsPanel(
@@ -150,7 +139,6 @@ class GiteaPRDetailsPanel(
         }
 
         val actionsComponent = createActionsComponent()
-        val reviewComponent = reviewComposerPanel(cs, discussionsVm)
 
         // Title with its links underneath, 8px apart, like the platform's ReviewDetailsUIUtil.createTitlePanel.
         val titlePanel = VerticalListPanel(8).apply {
@@ -185,141 +173,6 @@ class GiteaPRDetailsPanel(
             add(changesComponent, CC().grow().push().shrinkPrioY(200))
             add(statusComponent, CC().growX().maxHeight("${ReviewDetailsUIUtil.STATUSES_MAX_HEIGHT}").gaps(ReviewDetailsUIUtil.STATUSES_GAPS))
             add(actionsComponent, CC().growX().minHeight("pref").gaps(ReviewDetailsUIUtil.ACTIONS_GAPS))
-            add(reviewComponent, CC().growX().minHeight("pref").gaps(ReviewDetailsUIUtil.ACTIONS_GAPS))
-        }
-    }
-
-    // ── review submission ─────────────────────────────────────────────────
-
-    /**
-     * Reactively swaps between the "start a review" composer and a "finish your review" prompt
-     * depending on [GiteaPRDiscussionsViewModels.pendingReview] — a pending review here is
-     * body+verdict only (no per-line composition; that happens in the diff editor, which is also
-     * where [GiteaPRDiscussionsViewModels.draftComments] gets populated).
-     */
-    private fun reviewComposerPanel(cs: CoroutineScope, discussionsVm: GiteaPRDiscussionsViewModels): JComponent {
-        val wrapper = Wrapper()
-        cs.launch {
-            discussionsVm.pendingReview.collect { pending ->
-                wrapper.setContent(
-                    if (pending == null) startReviewPanel(cs, discussionsVm) else finishReviewPanel(cs, discussionsVm, pending),
-                )
-                wrapper.revalidate()
-                wrapper.repaint()
-            }
-        }
-        return wrapper
-    }
-
-    /**
-     * Comment/Approve/Request Changes/Save-pending as one select-then-confirm split button (see
-     * [createSelectableOptionButton]) — Cancel stays a separate plain button since it isn't a
-     * verdict alternative. Each verdict reads [textArea]'s text live at confirm-time, so switching
-     * the selected verdict never loses what's been typed.
-     */
-    private fun startReviewPanel(cs: CoroutineScope, discussionsVm: GiteaPRDiscussionsViewModels): JComponent {
-        val textArea = reviewTextField()
-        val draftCountLabel = JBLabel().apply {
-            foreground = UIUtil.getContextHelpForeground()
-            font = JBFont.small()
-        }
-        val cancelButton = JButton(GiteaBundle.message("pull.request.action.cancel.review")).apply {
-            addActionListener { confirmAndCancelReview(project, discussionsVm) }
-        }
-        cs.launch {
-            discussionsVm.draftComments.collect { drafts ->
-                draftCountLabel.text = GiteaBundle.message("pull.request.review.composer.draft.count", drafts.size)
-                cancelButton.isVisible = drafts.isNotEmpty()
-            }
-        }
-        val verdictButton = createSelectableOptionButton(
-            listOfNotNull(
-                OptionSpec(GiteaBundle.message("pull.request.action.comment")) {
-                    discussionsVm.submitReview(CreatePullReviewOptions.Event.COMMENT, textArea.text, onSuccess = { textArea.text = "" })
-                },
-                OptionSpec(GiteaBundle.message("pull.request.action.approve")) {
-                    discussionsVm.submitReview(CreatePullReviewOptions.Event.APPROVED, textArea.text, onSuccess = { textArea.text = "" })
-                }.unlessAuthor(discussionsVm),
-                OptionSpec(GiteaBundle.message("pull.request.action.request.changes")) {
-                    discussionsVm.submitReview(CreatePullReviewOptions.Event.REQUESTCHANGES, textArea.text, onSuccess = { textArea.text = "" })
-                }.unlessAuthor(discussionsVm),
-                OptionSpec(GiteaBundle.message("pull.request.review.save.pending")) {
-                    discussionsVm.submitReview(CreatePullReviewOptions.Event.PENDING, textArea.text, onSuccess = { textArea.text = "" })
-                },
-            ),
-        )
-        val buttons = HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
-            add(verdictButton)
-            add(cancelButton)
-        }
-        bindBusyState(cs, discussionsVm, buttons)
-        return VerticalListPanel(6).apply {
-            isOpaque = false
-            add(draftCountLabel)
-            add(textArea)
-            add(buttons)
-        }
-    }
-
-    /** Same select-then-confirm verdict group as [startReviewPanel], minus "Save pending" — a
-     * pending review already exists at this point. */
-    private fun finishReviewPanel(cs: CoroutineScope, discussionsVm: GiteaPRDiscussionsViewModels, pending: GiteaReview): JComponent {
-        val textArea = reviewTextField().apply { text = pending.body.orEmpty() }
-        val cancelButton = JButton(GiteaBundle.message("pull.request.action.cancel.review")).apply {
-            addActionListener { confirmAndCancelReview(project, discussionsVm) }
-        }
-        val verdictButton = createSelectableOptionButton(
-            listOfNotNull(
-                OptionSpec(GiteaBundle.message("pull.request.action.comment")) {
-                    discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.COMMENT, textArea.text, onSuccess = { textArea.text = "" })
-                },
-                OptionSpec(GiteaBundle.message("pull.request.action.approve")) {
-                    discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.APPROVED, textArea.text, onSuccess = { textArea.text = "" })
-                }.unlessAuthor(discussionsVm),
-                OptionSpec(GiteaBundle.message("pull.request.action.request.changes")) {
-                    discussionsVm.submitPendingReview(SubmitPullReviewOptions.Event.REQUESTCHANGES, textArea.text, onSuccess = { textArea.text = "" })
-                }.unlessAuthor(discussionsVm),
-            ),
-        )
-        val buttons = HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
-            add(verdictButton)
-            add(cancelButton)
-        }
-        bindBusyState(cs, discussionsVm, buttons)
-        return VerticalListPanel(6).apply {
-            isOpaque = false
-            add(StatusMessageComponentFactory.create(JBLabel(GiteaBundle.message("pull.request.review.pending.banner")), StatusMessageType.INFO))
-            add(textArea)
-            add(buttons)
-        }
-    }
-
-    /** Drops a verdict Gitea rejects from the PR's author (approving or requesting changes). */
-    private fun OptionSpec.unlessAuthor(discussionsVm: GiteaPRDiscussionsViewModels): OptionSpec? =
-        takeUnless { discussionsVm.viewerIsAuthor }
-
-    /** A multi-line editor field like the submit-review popup's: soft wraps, grows with its text, platform placeholder. */
-    private fun reviewTextField(): EditorTextField =
-        EditorTextField("", project, FileTypes.PLAIN_TEXT).apply {
-            setOneLineMode(false)
-            setPlaceholder(CollaborationToolsBundle.message("review.comment.placeholder"))
-            setShowPlaceholderWhenFocused(true)
-            addSettingsProvider {
-                it.settings.isUseSoftWraps = true
-                it.setVerticalScrollbarVisible(true)
-                it.scrollPane.viewportBorder = JBUI.Borders.emptyLeft(4)
-                it.putUserData(IncrementalFindAction.SEARCH_DISABLED, true)
-            }
-            // At least three lines, so the field reads as a text area before anything is typed.
-            minimumSize = JBUI.size(0, 3 * getFontMetrics(font).height + JBUI.scale(8))
-            preferredSize = minimumSize
-        }
-
-    /** [JComponent.setEnabled] doesn't propagate to children in Swing — disable each button
-     * directly so the whole row is inert while a review submission is in flight. */
-    private fun bindBusyState(cs: CoroutineScope, discussionsVm: GiteaPRDiscussionsViewModels, buttons: JComponent) {
-        cs.launch {
-            discussionsVm.isSubmittingReview.collect { busy -> buttons.components.forEach { it.isEnabled = !busy } }
         }
     }
 
@@ -340,7 +193,6 @@ class GiteaPRDetailsPanel(
         val closeDraftButton = actionButton("pull.request.action.close") { vm.closePullRequest() }.apply { isOpaque = false }
         val requestReviewButton = createRequestReviewButton()
         val (mergeControl, mergeOptionButton) = createMergeControl()
-
 
         val actionPanel = VerticalListPanel().apply {
             add(HorizontalListPanel(COMPACT_BUTTONS_GAP).apply {
@@ -410,6 +262,7 @@ class GiteaPRDetailsPanel(
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
+                        LOG.warn("Couldn't load the possible reviewers", e)
                         NotificationGroupManager.getInstance()
                             .getNotificationGroup("Gitea")
                             .createNotification(GiteaBundle.message("pull.request.action.request.review.load.error"), NotificationType.ERROR)

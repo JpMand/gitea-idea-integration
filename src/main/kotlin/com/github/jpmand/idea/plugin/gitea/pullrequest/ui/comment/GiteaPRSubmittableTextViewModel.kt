@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.mention.GITEA_MENTION_CANDIDATES_KEY
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.intellij.collaboration.async.mapState
 import com.intellij.collaboration.messages.CollaborationToolsBundle
 import com.intellij.collaboration.ui.codereview.CodeReviewChatItemUIUtil
 import com.intellij.collaboration.ui.codereview.comment.CodeReviewCommentTextFieldFactory
@@ -10,7 +11,9 @@ import com.intellij.collaboration.ui.codereview.comment.CodeReviewSubmittableTex
 import com.intellij.collaboration.ui.codereview.comment.CommentInputActionsComponentFactory
 import com.intellij.collaboration.ui.codereview.timeline.comment.CommentTextFieldFactory
 import com.intellij.collaboration.ui.icon.IconsProvider
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +22,8 @@ import java.awt.event.ActionEvent
 import javax.swing.AbstractAction
 import javax.swing.JComponent
 import javax.swing.border.EmptyBorder
+
+private val LOG = logger<GiteaPRSubmittableTextViewModel>()
 
 /**
  * A markdown comment editor (platform [CodeReviewSubmittableTextViewModelBase] +
@@ -41,7 +46,15 @@ class GiteaPRSubmittableTextViewModel(
     fun submitComment() {
         if (requireNonBlank && text.value.isBlank()) return
         submit { body ->
-            onSubmit(body)
+            try {
+                onSubmit(body)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Shown in the field by the platform; logged here so it isn't lost.
+                LOG.warn("Couldn't submit the comment", e)
+                throw e
+            }
             text.value = ""
         }
     }
@@ -67,11 +80,12 @@ object GiteaPRCommentFieldFactory {
         /** Adds a "Cancel" action next to Submit — used by dismissible composers (e.g. a new
          * inline-comment inlay); `null` (the default) omits it, matching every existing caller. */
         onCancel: (() -> Unit)? = null,
-        /** Bundle key for the primary submit button's label — defaults to "Comment". */
-        primaryActionLabelKey: String = "pull.request.action.comment",
+        /** Bundle key for the primary submit button's label — defaults to "Comment". A flow, so the
+         * label can follow state that changes while the composer is open. */
+        primaryActionLabelKey: StateFlow<String> = MutableStateFlow("pull.request.action.comment"),
         /** An optional extra option in the primary button's dropdown — `null` (the default) omits
-         * it, matching every existing caller. */
-        secondaryAction: SecondaryAction? = null,
+         * it. A flow for the same reason as [primaryActionLabelKey]. */
+        secondaryAction: StateFlow<SecondaryAction?> = MutableStateFlow(null),
         /** How big the avatar is: [CodeReviewChatItemUIUtil.ComponentType.FULL] in the Conversation
          * tab, [CodeReviewChatItemUIUtil.ComponentType.COMPACT] inside a diff/editor inlay, which
          * also gets the platform's input padding there. */
@@ -79,22 +93,26 @@ object GiteaPRCommentFieldFactory {
         /** Replying to a thread — the shortcut hint then says "to reply" instead of "to comment". */
         isReply: Boolean = false,
     ): JComponent {
-        val submitAction = object : AbstractAction(GiteaBundle.message(primaryActionLabelKey)) {
-            override fun actionPerformed(e: ActionEvent?) = vm.submitComment()
+        val submitAction = primaryActionLabelKey.mapState { key ->
+            object : AbstractAction(GiteaBundle.message(key)) {
+                override fun actionPerformed(e: ActionEvent?) = vm.submitComment()
+            }
         }
-        val secondaryActions = secondaryAction?.let { action ->
-            listOf(object : AbstractAction(GiteaBundle.message(action.labelKey)) {
-                override fun actionPerformed(e: ActionEvent?) = action.onSubmit()
-            })
-        }.orEmpty()
+        val secondaryActions = secondaryAction.mapState { action ->
+            action?.let {
+                listOf(object : AbstractAction(GiteaBundle.message(it.labelKey)) {
+                    override fun actionPerformed(e: ActionEvent?) = it.onSubmit()
+                })
+            }.orEmpty()
+        }
         val cancelAction = onCancel?.let { cancel ->
             object : AbstractAction(GiteaBundle.message("pull.request.action.cancel")) {
                 override fun actionPerformed(e: ActionEvent?) = cancel()
             }
         }
         val config = CommentInputActionsComponentFactory.Config(
-            primaryAction = MutableStateFlow(submitAction),
-            secondaryActions = MutableStateFlow(secondaryActions),
+            primaryAction = submitAction,
+            secondaryActions = secondaryActions,
             additionalActions = MutableStateFlow(emptyList()),
             cancelAction = MutableStateFlow(cancelAction),
             // The platform's "<shortcut> to comment/reply" hint, not a placeholder.

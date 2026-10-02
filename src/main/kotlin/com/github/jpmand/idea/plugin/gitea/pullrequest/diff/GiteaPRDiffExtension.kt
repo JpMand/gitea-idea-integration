@@ -5,7 +5,6 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRInlayCom
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.REVIEW_UI_INSTALL_RETRY_ATTEMPTS
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.REVIEW_UI_INSTALL_RETRY_DELAY_MS
-import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.async.launchNow
 import com.intellij.collaboration.ui.codereview.diff.viewer.showCodeReview
 import com.intellij.diff.DiffContext
@@ -20,6 +19,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import com.intellij.openapi.diagnostic.logger
+
+private val LOG = logger<GiteaPRDiffExtension>()
 
 /**
  * DiffExtension that wires gutter controls and inline review inlays into any
@@ -70,7 +72,7 @@ class GiteaPRDiffExtension : DiffExtension() {
                 } catch (e: Exception) {
                     attempt++
                     if (attempt >= REVIEW_UI_INSTALL_RETRY_ATTEMPTS) {
-                        GiteaUtil.LOG.warn("Failed to install PR review gutter controls/inlays after $attempt attempts", e)
+                        LOG.warn("Failed to install PR review gutter controls/inlays after $attempt attempts", e)
                         return@launchNow
                     }
                     delay(REVIEW_UI_INSTALL_RETRY_DELAY_MS)

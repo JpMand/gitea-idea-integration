@@ -3,7 +3,6 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.messages.CollaborationToolsBundle
-import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.async.launchNow
 import com.intellij.collaboration.ui.codereview.diff.action.CodeReviewDiscussionsToggleAction
 import com.intellij.collaboration.ui.codereview.diff.model.CodeReviewDiscussionsViewModel
@@ -21,6 +20,9 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import com.intellij.openapi.diagnostic.fileLogger
+
+private val LOG = fileLogger()
 
 /** Shared with [com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffExtension]'s own
  * retry loop around the sibling gutter-controls/inlay install — both are working around the same
@@ -55,7 +57,7 @@ fun CoroutineScope.launchReviewToolbar(project: Project, editor: Editor, discuss
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            GiteaUtil.LOG.warn("Failed to show PR review toolbar", e)
+            LOG.warn("Failed to show PR review toolbar", e)
         }
     }
 }

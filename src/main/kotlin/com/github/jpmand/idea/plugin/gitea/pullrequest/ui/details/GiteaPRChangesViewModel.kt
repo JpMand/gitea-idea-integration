@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaCommit
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.intellij.collaboration.ui.codereview.details.model.CodeReviewChangesViewModel
+import com.intellij.openapi.diagnostic.logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +16,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private val LOG = logger<GiteaPRChangesViewModel>()
 
 @Suppress("UnstableApiUsage")
 class GiteaPRChangesViewModel(
@@ -45,6 +48,7 @@ class GiteaPRChangesViewModel(
         cs.launch(Dispatchers.IO) {
             try {
                 val loaded = repository.loadCommits(prNumber)
+                LOG.debug("PR #$prNumber: loaded ${loaded.size} commits")
                 withContext(Dispatchers.Main) {
                     val selectedSha = _commits.value.getOrNull(_selectedCommitIndex.value)?.sha
                     _commits.value = loaded
@@ -55,6 +59,7 @@ class GiteaPRChangesViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                LOG.warn("PR #$prNumber: couldn't load the commits", e)
                 _error.value = e
             }
         }

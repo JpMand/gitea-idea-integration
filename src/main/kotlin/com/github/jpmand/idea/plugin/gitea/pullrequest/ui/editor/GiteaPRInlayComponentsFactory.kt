@@ -13,6 +13,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.createSuggestionDiffBo
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.createThreadCommentsPanel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.withSuggestion
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
+import com.intellij.collaboration.async.mapState
 import com.intellij.collaboration.messages.CollaborationToolsBundle
 import com.intellij.collaboration.ui.CollaborationToolsUIUtil
 import com.intellij.collaboration.ui.EditableComponentFactory
@@ -30,6 +31,7 @@ import com.intellij.diff.util.DiffDrawUtil
 import com.intellij.diff.util.TextDiffType
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.editor.ComponentInlayRenderer
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.markup.RangeHighlighter
@@ -53,6 +55,8 @@ import java.awt.Component
 import java.util.Date
 import javax.swing.*
 import javax.swing.border.EmptyBorder
+
+private val LOG = logger<GiteaPRInlayComponentsFactory>()
 
 /** Existing comment threads (read-only display plus resolve/unresolve/reply/edit/delete) and
  * new-comment composer inlays (a line comment, drafted locally until the whole review is
@@ -248,10 +252,13 @@ object GiteaPRInlayComponentsFactory {
     ): JComponent {
         val commentField = GiteaPRCommentFieldFactory.create(
             cs, vm.textVm, discussionsVm.avatars, user, discussionsVm.mentionCandidates, onCancel = vm::cancel,
-            primaryActionLabelKey = "pull.request.action.start.review",
-            secondaryAction = if (vm.canSendAsSingleCommentReview) {
-                GiteaPRCommentFieldFactory.SecondaryAction("pull.request.action.send.single.comment.review", vm::submitAsSingleCommentReview)
-            } else null,
+            primaryActionLabelKey = vm.reviewInProgress.mapState { inProgress ->
+                if (inProgress) "pull.request.action.add.review.comment" else "pull.request.action.start.review"
+            },
+            secondaryAction = vm.reviewInProgress.mapState { inProgress ->
+                if (inProgress) null
+                else GiteaPRCommentFieldFactory.SecondaryAction("pull.request.action.send.single.comment.review", vm::submitAsSingleCommentReview)
+            },
             componentType = ComponentType.COMPACT,
         )
         val suggestion = vm.suggestion ?: return commentField
@@ -347,6 +354,7 @@ object GiteaPRInlayComponentsFactory {
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    LOG.warn("${GiteaBundle.message(errorKey)} (thread ${vm.id})", e)
                     NotificationGroupManager.getInstance()
                         .getNotificationGroup("Gitea")
                         .createNotification(GiteaBundle.message(labelKey), GiteaBundle.message(errorKey), NotificationType.ERROR)
@@ -424,7 +432,23 @@ object GiteaPRInlayComponentsFactory {
                 editVm.requestFocus()
             })
             add(CodeReviewCommentUIUtil.createDeleteCommentIconButton {
-                cs.launch { discussionsVm.deleteComment(vm.id) }
+                cs.launch {
+                    try {
+                        discussionsVm.deleteComment(vm.id)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        LOG.warn("Couldn't delete review comment ${vm.id}", e)
+                        NotificationGroupManager.getInstance()
+                            .getNotificationGroup("Gitea")
+                            .createNotification(
+                                GiteaBundle.message("pull.request.action.delete.comment.error"),
+                                e.localizedMessage.orEmpty(),
+                                NotificationType.ERROR,
+                            )
+                            .notify(project)
+                    }
+                }
             })
         }
         return bodyComponent to actionsPanel
@@ -440,7 +464,15 @@ object GiteaPRInlayComponentsFactory {
     ) : CodeReviewSubmittableTextViewModelBase(project, cs, initialText), CodeReviewTextEditingViewModel {
         override fun save() {
             submit { newBody ->
-                discussionsVm.editComment(commentId, newBody)
+                try {
+                    discussionsVm.editComment(commentId, newBody)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // Shown in the field by the platform; logged here so it isn't lost.
+                    LOG.warn("Couldn't edit review comment $commentId", e)
+                    throw e
+                }
                 onDone()
             }
         }

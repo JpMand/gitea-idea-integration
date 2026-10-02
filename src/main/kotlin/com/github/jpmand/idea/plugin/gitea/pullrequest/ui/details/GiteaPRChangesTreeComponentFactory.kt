@@ -36,7 +36,7 @@ import javax.swing.JComponent
  * (`AsyncChangesTree`) — mirroring GitLab's `GitLabMergeRequestDetailsChangesComponentFactory`.
  * The tree reloads whenever [selectedCommitFlow] changes: `null` = the whole PR (base..head),
  * a specific commit = just that commit's files. It also reloads when [prFlow] brings a new head
- * or merge base. Viewed checkboxes and directory grouping come
+ * or merge base. Directory grouping and per-file comment counts come
  * from [GiteaPRChangesTreeViewModel]; opening a file goes through the existing REST diff via
  * [onOpenChange] (called with the repo-relative path).
  */
@@ -96,7 +96,7 @@ object GiteaPRChangesTreeComponentFactory {
                             change
                         }
                         val vm = GiteaPRChangesTreeViewModel(
-                            cs, project, pr.number.toInt(), CodeReviewChangeList(afterSha, changes),
+                            cs, project, CodeReviewChangeList(afterSha, changes),
                             relPathByChange, previousRelPathByChange, discussionsVm, onOpenChange,
                         )
                         val progressModel = CodeReviewProgressTreeModelFromDetails(cs, vm)

@@ -15,6 +15,7 @@ import com.intellij.collaboration.async.mapStatefulToStateful
 import com.intellij.collaboration.async.withInitial
 import com.intellij.collaboration.messages.CollaborationToolsBundle
 import com.intellij.openapi.components.service
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.platform.util.coroutines.childScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +35,8 @@ import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
 import java.net.ConnectException
 import kotlin.coroutines.cancellation.CancellationException
+
+private val LOG = logger<GiteaCloneRepositoriesListViewModel>()
 
 internal interface GiteaCloneRepositoriesForAccountViewModel {
     val account: GiteaAccount
@@ -64,6 +67,7 @@ private class GiteaCloneRepositoriesForAccountViewModelImpl(
             try {
                 _isLoading.value = true
                 val token = accountManager.findCredentials(account) ?: run {
+                    LOG.info("Clone: no token for ${account.name}@${account.server}")
                     emit(listOf(GiteaCloneListItem.Error(account, GiteaCloneException.MissingAccessToken(account))))
                     return@transformLatest
                 }
@@ -71,12 +75,15 @@ private class GiteaCloneRepositoriesForAccountViewModelImpl(
 
                 loadAllGiteaPages { page -> apiClient.rest.userCurrentListRepos(page, GITEA_PAGE_SIZE) }
                     .map { l -> GiteaCloneListItem.Repository(account, l) }
+                    .also { LOG.debug("Clone: ${it.size} repositories for ${account.name}@${account.server}") }
                     .let { emit(it) }
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: ConnectException) {
+            } catch (e: ConnectException) {
+                LOG.warn("Clone: couldn't connect to ${account.server}", e)
                 emit(listOf(GiteaCloneListItem.Error(account, GiteaCloneException.ConnectionError(account))))
             } catch (e: HttpStatusErrorException) {
+                LOG.warn("Clone: listing repositories for ${account.name}@${account.server} failed with HTTP ${e.statusCode}", e)
                 if (e.statusCode == 401) {
                     emit(listOf(GiteaCloneListItem.Error(account, GiteaCloneException.RevokedToken(account))))
                 } else {
@@ -85,6 +92,7 @@ private class GiteaCloneRepositoriesForAccountViewModelImpl(
                     emit(listOf(GiteaCloneListItem.Error(account, GiteaCloneException.Unknown(account, message))))
                 }
             } catch (e: Throwable) {
+                LOG.warn("Clone: couldn't list repositories for ${account.name}@${account.server}", e)
                 val message =
                     e.localizedMessage ?: CollaborationToolsBundle.message("clone.dialog.error.load.repositories")
                 emit(listOf(GiteaCloneListItem.Error(account, GiteaCloneException.Unknown(account, message))))
@@ -127,7 +135,6 @@ internal class GiteaCloneRepositoriesListViewModelImpl(
     private val cs = parentCs.childScope(javaClass.name)
 
     private val reloadSignal = MutableSharedFlow<Unit>(1)
-
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val listsPerAccount = reloadSignal.withInitial(Unit).flatMapLatest { _ ->

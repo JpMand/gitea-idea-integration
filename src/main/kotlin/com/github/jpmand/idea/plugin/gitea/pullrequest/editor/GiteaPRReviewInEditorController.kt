@@ -7,7 +7,6 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRDiffEdit
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRInlayComponentsFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRLiveDiffSync
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.launchReviewToolbar
-import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.ui.codereview.diff.DiffLineLocation
 import com.intellij.collaboration.ui.codereview.diff.viewer.showCodeReview
 import com.intellij.diff.util.Side
@@ -31,6 +30,9 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
+import com.intellij.openapi.diagnostic.logger
+
+private val LOG = logger<GiteaPRReviewInEditorController>()
 
 /**
  * Mirrors the bundled GitHub plugin's `GHPRReviewInEditorController`: shows the same review
@@ -103,9 +105,10 @@ class GiteaPRReviewInEditorController : EditorFactoryListener {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            GiteaUtil.LOG.warn("Failed to load head content for '${changedFile.filename}'", e)
+            LOG.warn("Failed to load head content for '${changedFile.filename}'", e)
             return
         }
+        LOG.debug("In-editor review on ${changedFile.filename} for PR #${current.pr.number} at ${current.pr.head.sha}")
 
         coroutineScope {
             val sync = GiteaPRLiveDiffSync(this, headContent, editor.document)

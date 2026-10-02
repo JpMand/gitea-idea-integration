@@ -9,6 +9,7 @@ import com.github.jpmand.idea.plugin.gitea.ui.clone.model.GiteaCloneRepositories
 import com.intellij.collaboration.async.mapState
 import com.intellij.dvcs.ui.CloneDvcsValidationUtils
 import com.intellij.openapi.components.service
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vcs.CheckoutProvider
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -19,6 +20,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.*
 import java.net.URI
 import java.nio.file.Paths
+
+private val LOG = logger<GiteaCloneRepositoriesViewModel>()
 
 @Suppress("UnstableApiUsage")
 internal interface GiteaCloneRepositoriesViewModel : GiteaClonePanelViewModel {
@@ -131,6 +134,7 @@ internal class GiteaCloneRepositoriesViewModelImpl(
         val lfs = LocalFileSystem.getInstance()
         val parentDir = lfs.findFileByNioFile(parent) ?: lfs.refreshAndFindFileByNioFile(parent) ?: return
 
+        LOG.info("Cloning into $destination (shallow: ${if (shallowCloneModel.shallowClone.value) "depth ${shallowCloneModel.depth.value}" else "no"})")
         GitCheckoutProvider.clone(
             project, Git.getInstance(), checkoutListener, parentDir,
             url, destination.fileName.toString(), parent.toString(),

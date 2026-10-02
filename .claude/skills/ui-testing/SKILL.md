@@ -18,9 +18,12 @@ small driver that clicks, types and takes screenshots. Nothing here runs in CI.
 - **Base image already has:** Docker (daemon not started), Xvfb, Go, Python 3, `jq`.
   `setup-env.sh` adds `xdotool`, ImageMagick (`import`), `x11-utils` and `openbox`.
 - **Network:** besides Maven Central / Gradle / JetBrains hosts for the build, UI testing needs
-  Docker Hub (`gitea/gitea` image), `packages.jetbrains.team` (Remote-Robot plugin) and
+  Gitea's registry `docker.gitea.com` (Docker Hub as fallback), `packages.jetbrains.team` (Remote-Robot plugin) and
   `proxy.golang.org` (to build `tea`). If one is blocked, the environment's network policy must allow it.
-- **Test Gitea:** `gitea/gitea:1.27.3` (the plugin's minimum supported version is 1.27).
+- **Test Gitea:** 1.27.3 (the plugin's minimum supported version is 1.27). `gitea-up.sh VERSION`
+  runs another one, e.g. `gitea-up.sh 28.0.0` (Gitea numbers releases 28, 29, … after 1.27).
+  It pulls `docker.gitea.com/gitea:VERSION` first and falls back to Docker Hub's `gitea/gitea`,
+  which can answer `429 Too Many Requests` through the shared proxy.
 
 ## Commands
 

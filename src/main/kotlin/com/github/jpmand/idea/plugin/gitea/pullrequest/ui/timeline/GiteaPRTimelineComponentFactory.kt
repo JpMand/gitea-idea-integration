@@ -73,7 +73,7 @@ object GiteaPRTimelineComponentFactory {
             }.distinctUntilChanged().collectLatest { item ->
                 // Scoped to this version of the description, so replacing it cancels the old one's work.
                 coroutineScope {
-                    description.setContent(itemFactory.create(this, item))
+                    description.setContent(itemFactory.createDescription(this, item))
                     description.revalidate()
                     description.repaint()
                     awaitCancellation()
