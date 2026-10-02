@@ -1,8 +1,8 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <id>com.github.jpmand.idea.plugin.gitea</id>
-    <name>Gitea</name>
-    <vendor>JpMand</vendor>
+    <name>Gitea PR &amp; Code Review</name>
+    <vendor url="https://github.com/JpMand/gitea-idea-integration">JpMand</vendor>
     <!-- version and idea-version are patched in from gradle.properties by the Gradle plugin. -->
 
     <!-- Bundled platform content modules used at runtime. Two-sided with `platformBundledModules`
