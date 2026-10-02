@@ -10,6 +10,7 @@
          onto the plugin classloader. Without them, classes such as
          com.intellij.collaboration.auth.DefaultAccountHolder fail at load time. -->
     <dependencies>
+        <module name="intellij.libraries.jackson.datatype.jsr310"/>
         <module name="intellij.platform.collaborationTools"/>
         <module name="intellij.platform.vcs.impl"/>
         <module name="intellij.platform.vcs.dvcs"/>
