@@ -12,10 +12,13 @@ import com.intellij.diff.editor.DiffViewerVirtualFile
 import com.intellij.diff.impl.DiffEditorViewer
 import com.intellij.diff.util.DiffUserDataKeys
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vcs.FileStatus
 import com.intellij.openapi.vcs.LocalFilePath
 import com.intellij.openapi.vcs.changes.ui.PresentableChange
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.flowOf
 
 /**
@@ -62,9 +65,12 @@ class GiteaPRDiffVirtualFile(
     // so the extra responsibilities that class carries (combined-diff toggle, sharing one scope
     // across multiple call sites) don't apply.
     override fun createViewer(project: Project): DiffEditorViewer {
-        cs.refreshReviewActionsOnChange(discussionsVm)
+        // Scoped to this viewer: the diff tab is created anew each time it's reopened.
+        val viewerJob = SupervisorJob(cs.coroutineContext[Job])
+        val viewerCs = CoroutineScope(cs.coroutineContext + viewerJob)
+        viewerCs.refreshReviewActionsOnChange(discussionsVm)
         return AsyncDiffRequestProcessorFactory.createIn(
-            cs, project,
+            viewerCs, project,
             flowOf(vm),
             createContext = {
                 listOf(
@@ -86,6 +92,6 @@ class GiteaPRDiffVirtualFile(
                     }
                 }
             }
-        )
+        ).also { Disposer.register(it) { viewerJob.cancel() } }
     }
 }

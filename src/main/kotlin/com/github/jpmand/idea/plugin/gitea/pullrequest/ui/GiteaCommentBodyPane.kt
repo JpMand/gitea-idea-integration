@@ -30,7 +30,8 @@ internal fun commentBodyPane(
     }
     val pane = SimpleHtmlPane(plainTextHtml(body))
     cs.launch {
-        val html = render(body) ?: return@launch
+        // Off the UI thread: callers' scopes usually run on it, and parsing many bodies there stutters.
+        val html = withContext(Dispatchers.Default) { render(body) } ?: return@launch
         withContext(Dispatchers.EDT) {
             pane.text = html
             pane.contentType = "text/html"
