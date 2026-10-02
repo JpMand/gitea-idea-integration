@@ -50,6 +50,7 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -79,6 +80,9 @@ class GiteaPRTimelineItemComponentFactory(
     /** The signed-in account's login — gates the edit/delete controls to a comment's own author
      * (Gitea's API exposes no `viewerCanUpdate`-style flag, so this is a client-side check). */
     private val currentUserLogin: String,
+    /** Where server calls run: they must finish even when the item that started them is rebuilt
+     * (a resolve elsewhere in the same review, a refresh) and its scope is cancelled. */
+    private val actionScope: CoroutineScope,
     private val onEditComment: suspend (id: Long, body: String) -> Unit,
     private val onDeleteComment: suspend (id: Long) -> Unit,
     /** Requests the ToolWindow's Details tab open (or focus) with the given commit's changes
@@ -269,7 +273,7 @@ class GiteaPRTimelineItemComponentFactory(
                 editVm.requestFocus()
             })
             add(CodeReviewCommentUIUtil.createDeleteCommentIconButton {
-                cs.launch {
+                actionScope.launch {
                     try {
                         onDeleteComment(id)
                     } catch (e: CancellationException) {
@@ -300,7 +304,7 @@ class GiteaPRTimelineItemComponentFactory(
         override fun save() {
             submit { newBody ->
                 try {
-                    onEditComment(commentId, newBody)
+                    detached { onEditComment(commentId, newBody) }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -378,7 +382,7 @@ class GiteaPRTimelineItemComponentFactory(
         val labelKey = if (thread.isResolved) "pull.request.action.unresolve.thread" else "pull.request.action.resolve.thread"
         val errorKey = if (thread.isResolved) "pull.request.action.unresolve.thread.error" else "pull.request.action.resolve.thread.error"
         return ActionLink(CodeReviewCommentUIUtil.getResolveToggleActionText(thread.isResolved)) {
-            cs.launch {
+            actionScope.launch {
                 try {
                     if (thread.isResolved) onUnresolveThread(thread.id) else onResolveThread(thread.id)
                 } catch (e: CancellationException) {
@@ -464,7 +468,7 @@ class GiteaPRTimelineItemComponentFactory(
         link = ActionLink(CollaborationToolsBundle.message("review.comments.reply.action")) {
             val user = currentUser.value ?: return@ActionLink
             val replyVm = GiteaPRSubmittableTextViewModel(project, cs) { body ->
-                onReplyToThread(threadId, body)
+                detached { onReplyToThread(threadId, body) }
                 close()
             }
             composerOpen = true
@@ -556,6 +560,23 @@ class GiteaPRTimelineItemComponentFactory(
             simpleAction(copyKey) { CopyPasteManager.getInstance().setContents(StringSelection(url)) },
         )
     }
+
+    /**
+     * Runs a server call in [actionScope], so it completes even if the caller's item scope is
+     * cancelled meanwhile; the caller still waits for it, to update its composer. A failure is
+     * logged here too, in case nobody is waiting any more.
+     */
+    private suspend fun <T> detached(call: suspend () -> T): T =
+        actionScope.async {
+            try {
+                call()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                LOG.warn("A comment change failed", e)
+                throw e
+            }
+        }.await()
 
     private fun simpleAction(bundleKey: String, run: () -> Unit): AnAction =
         object : AnAction(GiteaBundle.message(bundleKey)) {

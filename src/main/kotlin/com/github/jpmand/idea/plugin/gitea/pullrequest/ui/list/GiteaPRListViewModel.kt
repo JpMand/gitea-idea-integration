@@ -10,10 +10,12 @@ import com.intellij.collaboration.ui.codereview.list.ReviewListViewModel
 import com.intellij.openapi.diagnostic.logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -151,7 +153,10 @@ class GiteaPRListViewModel(
     override fun refresh() {
         LOG.debug("Refreshing the pull request list")
         repository.dropSharedLoads()
-        // Reviewer states too: rows reload theirs as they're drawn again.
+        // Reviewer states too: rows reload theirs as they're drawn again. Loads still running are
+        // cancelled, so an answer from before the refresh can't land in the cache afterwards.
+        reviewsJobs.values.forEach { it.cancel() }
+        reviewsJobs.clear()
         reviewsCache.clear()
         _refreshTrigger.value = System.currentTimeMillis()
     }
@@ -161,7 +166,7 @@ class GiteaPRListViewModel(
     // to avoid an N+1 REST call storm on every list load/refresh/filter change.
 
     private val reviewsCache = ConcurrentHashMap<Long, List<GiteaReview>>()
-    private val reviewsLoading = ConcurrentHashMap.newKeySet<Long>()
+    private val reviewsJobs = ConcurrentHashMap<Long, Job>()
 
     /**
      * Returns cached reviews for [prNumber] if already loaded; otherwise kicks off a
@@ -170,27 +175,27 @@ class GiteaPRListViewModel(
      */
     fun reviewsFor(prNumber: Long): List<GiteaReview>? {
         reviewsCache[prNumber]?.let { return it }
-        if (reviewsLoading.add(prNumber)) {
-            cs.launch(Dispatchers.IO) {
+        reviewsJobs.computeIfAbsent(prNumber) {
+            cs.launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
                 val reviews = try {
                     repository.loadReviews(prNumber.toInt())
                 } catch (e: CancellationException) {
-                    reviewsLoading.remove(prNumber)
                     throw e
                 } catch (e: Exception) {
                     LOG.debug("Couldn't load reviews for PR #$prNumber; its row shows no review state", e)
                     emptyList()
                 }
+                // A refresh cancels this job: its answer may predate the refresh, so it's dropped.
+                ensureActive()
                 reviewsCache[prNumber] = reviews
-                reviewsLoading.remove(prNumber)
                 withContext(Dispatchers.Main) {
                     val idx = (0 until _listModel.size()).firstOrNull { _listModel[it].number == prNumber }
                     if (idx != null) {
                         _listModel[idx] = _listModel[idx] // re-fires contentsChanged for this row only
                     }
                 }
-            }
-        }
+            }.also { job -> job.invokeOnCompletion { reviewsJobs.remove(prNumber, job) } }
+        }.start()
         return null
     }
 }

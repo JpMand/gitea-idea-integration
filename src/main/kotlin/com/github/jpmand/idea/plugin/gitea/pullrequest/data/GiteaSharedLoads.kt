@@ -31,7 +31,7 @@ class GiteaSharedLoads(
     suspend fun <T> load(key: Any, load: suspend () -> T): T {
         while (true) {
             val now = clock()
-            entries.values.removeIf { it.isExpired(now) }
+            if (reuseFor != Long.MAX_VALUE) entries.values.removeIf { it.isExpired(now) }
             val mine = Entry()
             val entry = entries.compute(key) { _, old -> if (old != null && !old.isExpired(now)) old else mine }!!
             if (entry === mine) {

@@ -47,6 +47,7 @@ class GiteaPRTimelineFileEditor(
     private val itemFactory = GiteaPRTimelineItemComponentFactory(
         project, avatarIconsProvider, { m -> GiteaUtil.safeConvertMarkdownToHtml(m) },
         currentUserLogin = file.ctx.account.name,
+        actionScope = cs,
         onEditComment = { id, body ->
             LOG.info("PR #${file.pr.number}: editing comment $id")
             file.repository.editComment(id, body)
