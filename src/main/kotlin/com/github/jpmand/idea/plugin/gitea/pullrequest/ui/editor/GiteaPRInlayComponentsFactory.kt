@@ -144,6 +144,9 @@ object GiteaPRInlayComponentsFactory {
             createCommentPanel(project, cs, discussionsVm, commentVm, if (commentVm === firstComment) threadTags(vm) else emptyList())
         }
 
+        // Read without an account: the thread is shown, but can't be resolved or replied to.
+        if (discussionsVm.isAnonymous) return commentsPanel
+
         // Resolve and Reply share one row, lined up with the comment text (as in the GitHub
         // plugin's inlays); Reply swaps in a composer below the row.
         val replyComposer = Wrapper()
@@ -420,7 +423,8 @@ object GiteaPRInlayComponentsFactory {
         displayBody: String? = vm.body,
     ): Pair<JComponent, JComponent?> {
         val bodyArea = commentBodyPane(cs, displayBody)
-        if (vm.author?.login != discussionsVm.currentUserLogin) return bodyArea to null
+        val login = discussionsVm.currentUserLogin
+        if (login == null || vm.author?.login != login) return bodyArea to null
 
         val editVmFlow = MutableStateFlow<CodeReviewTextEditingViewModel?>(null)
         val bodyComponent = EditableComponentFactory.wrapTextComponent(cs, bodyArea, editVmFlow)

@@ -53,7 +53,9 @@ fun CoroutineScope.launchReviewToolbar(project: Project, editor: Editor, discuss
             }
             refreshReviewActionsOnChange(discussionsVm)
             // Never returns: shows the toolbar until this scope is cancelled.
-            ReviewInEditorUtil.showReviewToolbarWithActions(discussionsVm, editor, submitReviewAction(project, discussionsVm))
+            // Without an account there's no review to submit: just the review-mode controls.
+            val actions = if (discussionsVm.isAnonymous) emptyArray() else arrayOf(submitReviewAction(project, discussionsVm))
+            ReviewInEditorUtil.showReviewToolbarWithActions(discussionsVm, editor, *actions)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

@@ -77,7 +77,11 @@ class GiteaPRDiffVirtualFile(
                     KeyValuePair(GiteaPRDiscussionsViewModels.CONTEXT_KEY, discussionsVm),
                     KeyValuePair(
                         DiffUserDataKeys.CONTEXT_ACTIONS,
-                        listOf(discussionsViewOptionsAction(discussionsVm), submitReviewAction(project, discussionsVm)),
+                        // Without an account there's no review to submit.
+                        listOfNotNull(
+                            discussionsViewOptionsAction(discussionsVm),
+                            submitReviewAction(project, discussionsVm).takeIf { !discussionsVm.isAnonymous },
+                        ),
                     ),
                 )
             },

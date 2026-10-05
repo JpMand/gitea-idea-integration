@@ -126,7 +126,8 @@ class GiteaPRReviewInEditorController : EditorFactoryListener {
             val model = GiteaPRDiffEditorModel(
                 this, project, changedFile, Side.RIGHT, current.discussionsVm, locationToLine, lineToLocation, editor,
             )
-            installSuggestionGutterIcons(editor, sync, headContent, model)
+            // Suggestions become review comments, which need an account.
+            if (!current.discussionsVm.isAnonymous) installSuggestionGutterIcons(editor, sync, headContent, model)
             val scope = this
             editor.showCodeReview(model) { inlayModel ->
                 GiteaPRInlayComponentsFactory.createRenderer(project, scope, inlayModel, current.discussionsVm)

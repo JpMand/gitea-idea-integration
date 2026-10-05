@@ -20,6 +20,9 @@ First public pre-release.
 - Git HTTPS authentication with the account's token
 - Gitea tab in *Get from Version Control* for cloning
 - Open in browser and copy link for files, lines and commits
-- Requires Gitea 1.27 or later and IntelliJ IDEA 2026.2
+- Read-only browsing of public repositories' pull requests without an account, with Gitea servers
+  detected from the project's Git remotes
+- Requires a Gitea 1.27 or later release (dev builds, release candidates and Forgejo aren't
+  supported) and IntelliJ IDEA 2026.2
 
 [Unreleased]: https://github.com/JpMand/gitea-idea-integration/commits/main

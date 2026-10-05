@@ -30,6 +30,10 @@ sealed class GiteaHttpError(@Nls message: String, cause: Throwable) : RuntimeExc
   class NotFound(cause: Throwable) :
     GiteaHttpError(GiteaBundle.message("error.http.not.found"), cause)
 
+  /** Read without an account, the server refused or hid the repository: logging in may help. */
+  class SignInRequired(cause: Throwable) :
+    GiteaHttpError(GiteaBundle.message("error.http.sign.in.required"), cause)
+
   /** 5xx — server-side, generally retryable. */
   class ServerError(val statusCode: Int, cause: Throwable) :
     GiteaHttpError(GiteaBundle.message("error.http.server", statusCode.toString()), cause)

@@ -76,6 +76,9 @@ class GiteaPRTimelineViewModel(
 
     private var loadJob: Job? = null
 
+    /** Read without an account: no comment field, no thread actions. */
+    val isAnonymous: Boolean get() = repository.isAnonymous
+
     init {
         reload()
         // Threads resolved, replied to or reviewed from the diff or the editor.
@@ -87,6 +90,11 @@ class GiteaPRTimelineViewModel(
                 }
             }
         }
+        // Mentions and the comment avatar are only for writing, which needs an account.
+        if (!repository.isAnonymous) loadWriterData(initialPr)
+    }
+
+    private fun loadWriterData(initialPr: GiteaPullRequest) {
         cs.launch(Dispatchers.IO) {
             val collaborators = try {
                 repository.loadPossibleAuthors()
@@ -101,7 +109,7 @@ class GiteaPRTimelineViewModel(
         }
         cs.launch(Dispatchers.IO) {
             try {
-                _currentUser.value = repository.currentUser()
+                _currentUser.value = repository.currentUserOrNull()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
