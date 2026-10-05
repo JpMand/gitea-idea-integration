@@ -1,172 +1,25 @@
 <!-- Keep a Changelog guide -> https://keepachangelog.com -->
 
-# Gitea Integration Changelog
+# Gitea PR & Code Review Changelog
 
 ## [Unreleased]
 
-### Added
-
-- Pull request review, read-write: a tool window with a PR list (status/label/author/sort
-  filters), per-PR detail tabs (changes tree, activity timeline), and a REST-based diff viewer
-- Review authoring: comment on lines in the diff editor or directly in the regular project editor
-  (for any file belonging to a PR whose head branch matches the current local branch), start a
-  pending review, submit with a verdict (approve / request changes / comment), resolve/unresolve
-  threads, reply to/edit/delete your own comments, and a Cancel Review action to discard local
-  drafts or delete a pending server-side review
-- "Suggested Change" (GitHub-style, emulated client-side — Gitea has no native equivalent): create
-  a suggestion straight from a local edit via a colored gutter bar, encoded as a hidden diff block
-  in the comment body so it still renders as an ordinary syntax-highlighted diff in Gitea's own web
-  UI; apply a suggestion with one click, which navigates to the edited location
-- Full activity-timeline event coverage (labels, milestones, assignees, cross-references, commits,
-  reviews with their inline threads) with review-comment diff-context previews
-- @-mention autocomplete for repo collaborators in comment editors
-- Merge (with method choice and delete-branch confirmation), close/reopen, and checkout-branch
-  actions on a PR
-- Request Review action: a checkbox picker (add and remove) backed by the repo's collaborators or,
-  per a new per-account setting, every user on the Gitea instance
-- Create pull requests from a "New Pull Request" tab (the "+" in the Pull Requests tool window,
-  _Git | Create Gitea Pull Request…_, or a local branch in the branches popup): pick the base and
-  head branches, title and description (prefilled from the commits and the repository's PR
-  template), WIP, reviewers and labels, and preview the commits and changes from local Git; the
-  head branch is pushed on create, and an already open pull request for the same branches is
-  linked instead
-- Right-click context menus on PR-list rows and timeline items
-- "Gitea" tab in _Get from Version Control_ for cloning
-- Open-in-browser / copy-link actions and an annotation-gutter action
-- Declared notification group so Gitea notifications can be muted in Settings
-- View in Browser / Copy URL context menu on timeline comments, reviews and review-thread comments
-- The file name above a review comment's diff preview opens the PR diff at the commented line
-- Diagnostic logging across the plugin: user actions and key state changes at INFO, failures at
-  WARN, flow detail at DEBUG (enable `#com.github.jpmand.idea.plugin.gitea` in Debug Log
-  Settings); REST request bodies only at TRACE, and never tokens
-
-### Changed
-
-- Target platform is now IntelliJ IDEA 2026.2.1 (`since-build` 262, compiled against Java 25)
-- REST DTOs regenerated from the Gitea Swagger v2 spec; `java.time.OffsetDateTime` for dates
-- Minimum supported Gitea version is **1.27** (the first release with the review-comment reply
-  endpoint); tolerant `/version` parsing that no longer fails login on RC / dev / Forgejo
-  version strings
-- Unknown enum values in API responses deserialise to null instead of failing the whole response
-- Account list storage no longer roams via Settings Sync (tokens never roamed; the list on its
-  own left a second machine with accounts but no credentials)
-- `plugin.xml` now declares its bundled platform module dependencies explicitly
-- Comment/description bodies render markdown client-side (`convertMarkdownToHtml`) instead of an
-  earlier server-rendered approach that was slow and prone to breaking
-- Dropped remaining internal-API usage across account scopes, repository discovery, the clone
-  flow, and the changes tree, keeping Marketplace plugin verification clean
-- Merge is now also gated on a local merge-tree dry run against the up-to-date remote target
-  branch (fetched first), in addition to Gitea's own `mergeable` flag
-- The merge strategy and review-verdict controls are now select-then-confirm split buttons:
-  picking a dropdown option only changes what the primary button will do, it no longer fires
-  immediately
-- Checking out a PR whose local branch already exists now fetches and updates that branch (with
-  git's native conflict resolution) instead of erroring, and offers to fix a mismatched upstream
-- The review-submit control in the diff viewer now lives in the diff header's own toolbar
-  (GitHub-plugin style) instead of a floating overlay in the corner of the editor
-- Composing a brand-new inline comment now offers "Send Single Comment Review" alongside "Start
-  Review" (as one split button) when no other draft is already in progress, to post that single
-  comment as its own review immediately instead of always staging it as a draft
-- The Pull Requests tool window only appears when the project has a git remote on the server of
-  a Gitea account with a stored token, and hides again when that's no longer true
-- Inline comment composers say "Add Review Comment" while a review is in progress
-- The review composer was removed from the PR Details tab; reviews are started from inline
-  comments and submitted from the diff header
-- Timeline items show their event ("reviewed", "requested changes", …) on the author/time line
-- The changes tree no longer has a "viewed" checkbox: Gitea's API has no viewed state, so it was
-  kept only in this IDE
-- Open in Browser / Copy Link on a commit now opens the commit page (message and diff) instead of
-  the repository tree at that commit
-
-### Fixed
-
-- Account-chooser dialog rendered without its description text or "set as default" checkbox
-- HTTPS clone URLs ending in `.git` were parsed as a repository literally named `<name>.git`
-- Two inconsistent "account already exists" checks unified to one host + port + path,
-  protocol-insensitive criterion
-- Timeline reply/resolve/edit/delete patch the already-loaded activity list in place instead of
-  reloading the whole timeline, and no longer rebuild every item's component on an unrelated
-  update — which used to discard an in-progress reply composer's unsent text elsewhere on the page
-- Editing an already-drafted line comment twice no longer risks silently reverting it to the
-  pre-edit text
-- Re-authenticating an existing account with a token that belongs to a *different* account no
-  longer silently relabels the account under the new identity
-- Commits that reference the PR from elsewhere are shown in the activity timeline again (were
-  incorrectly treated as duplicates of the PR's own pushed commits)
-- A non-Gitea HTTP response (e.g. a proxy error page) is no longer misread as a supported server
-  version
-- Auto-discovered Gitea servers now respect the git remote's own scheme instead of always assuming
-  https, so a plain-HTTP self-hosted instance gets working "Open on Gitea"/"Copy link" actions
-- A duplicate review toolbar/gutter bar could appear in the regular project editor after certain
-  unrelated PR-context updates
-- Two crash-risk edge cases in diff/suggestion rendering (a diff preview for a hunk near the start
-  of a file; a suggestion gutter bar on a range touching the end of the file)
-- Mutation endpoints (resolve, submit review, merge, comment edit/delete, etc.) now surface the
-  same friendly error messages as read endpoints on auth/permission failures, instead of a raw
-  HTTP exception
-- Branch checkout from a PR's own changes branch, and local-commit author attribution, corrected
-- Stale account-context avatars in the Conversation tab after switching accounts; a leaked
-  Commit/CommitStatus DTO reaching UI code instead of a domain model
-- Review gutter controls and pre-existing draft comments could silently fail to appear on the
-  very first diff viewer shown (most reproducible on single-commit, single-file PRs)
-- Draft comments no longer disappear from the diff/live editor after closing and reopening the
-  file — they were persisted correctly all along, just never redrawn until re-created
-- Resolve/Unresolve reverted from a button back to a link (read better that way)
-- Review comments on a line right after a "No newline at end of file" marker showed no diff
-  preview: Gitea stores a malformed hunk for them, which is now repaired before rendering
-- A failed comment delete shows an error instead of crashing the timeline
-
-## [0.0.1] - 2026-03-13
+First public pre-release.
 
 ### Added
 
-- Initial Gitea integration plugin implementation
-- Token-based authentication for Gitea servers
-- Multiple account support
-- Account management UI (add, update, remove accounts)
-- Persistent account storage using IntelliJ's XML serialization
-- Git HTTP authentication provider for seamless Git operations
-- Account chooser dialog for selecting accounts per project
-- Default account per project support
-- Support for custom Gitea servers (self-hosted instances)
-- Full support for Gitea instances on sub-paths (e.g., `https://example.com/gitea`)
-- HTTP and HTTPS connection support
-- REST API client using IntelliJ's collaboration tools framework
-- User information retrieval from Gitea API
-- Settings panel for account management in IDE preferences
-- Internationalized UI strings (GiteaBundle)
-- Comprehensive test suite:
-  - Server path URI construction and sub-path handling tests
-  - JSON deserialization tests for Gitea API responses
-  - XML serialization/deserialization tests for account persistence
-  - Date/time parsing tests with various formats
-- Qodana code quality checks integration
-- CI/CD pipeline with automated builds and tests
+- Pull Requests tool window for the project's Gitea remote, with state, author and label filters
+- Pull request details: description, participants, labels, status checks, commits and changed
+  files
+- Conversation timeline with replies, edits, resolve/unresolve and deletion of comments
+- Code review in the diff viewer or directly in the editor: draft comments, suggested changes
+  applied in one click, and approve / request changes / comment verdicts
+- Merge with a choice of method, close/reopen, branch checkout and reviewer requests
+- @-mention completion in comment editors
+- Token login with multiple accounts and servers, including servers on a sub-path or plain HTTP
+- Git HTTPS authentication with the account's token
+- Gitea tab in *Get from Version Control* for cloning
+- Open in browser and copy link for files, lines and commits
+- Requires Gitea 1.27 or later and IntelliJ IDEA 2026.2
 
-### Technical Implementation
-
-- Clean separation between DTO (Data Transfer Objects) and domain models
-- `GiteaUserDTO` for JSON deserialization with Jackson
-- `GiteaUser` as clean domain model implementing `AccountDetails` and `CodeReviewUser`
-- `GiteaAccount` with proper XML serialization annotations
-- `GiteaServerPath` with robust URI construction handling edge cases
-- `GiteaApiManager` for API client management
-- `GiteaAccountManager` for account lifecycle management
-- `GiteaHttpAuthDataProvider` for Git integration
-- `GiteaLoginUtil` for authentication workflows
-- `GiteaTokenLoginPanelModel` for login UI
-- Service registrations in plugin.xml:
-  - Application services: Account management, API management, Settings
-  - Project services: Scope provider, Default account holder, Auth failure manager, Core service
-  - Git4Idea extension: HTTP auth data provider
-
-### Fixed
-
-- Sub-path URI construction for Gitea servers on custom paths
-- XML serialization tag case sensitivity (`<Server>` vs `<server>`)
-- Date/time parsing using StdDateFormat for flexible format support
-- Removed unused code symbols for cleaner codebase
-- Made internal methods private for better encapsulation
-
-[Unreleased]: https://github.com/JpMand/gitea-idea-integration/compare/0.0.1...HEAD
-[0.0.1]: https://github.com/JpMand/gitea-idea-integration/commits/0.0.1
+[Unreleased]: https://github.com/JpMand/gitea-idea-integration/commits/main
