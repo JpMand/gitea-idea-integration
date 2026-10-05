@@ -6,6 +6,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.showReviewersP
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.util.GiteaGitRepositoryMapping
 import com.intellij.collaboration.ui.CollaborationToolsUIUtil
+import com.intellij.icons.AllIcons
 import com.intellij.collaboration.ui.HorizontalListPanel
 import com.intellij.collaboration.ui.LoadingLabel
 import com.intellij.collaboration.ui.SimpleHtmlPane
@@ -18,7 +19,6 @@ import com.intellij.collaboration.ui.codereview.details.CommitPresentation
 import com.intellij.collaboration.ui.setHtmlBody
 import com.intellij.collaboration.util.CollectionDelta
 import com.intellij.openapi.application.EDT
-import com.intellij.openapi.util.text.HtmlBuilder
 import com.intellij.openapi.util.text.HtmlChunk
 import com.intellij.openapi.editor.ex.EditorEx
 import com.intellij.ui.DocumentAdapter
@@ -58,6 +58,7 @@ import java.util.Date
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JPanel
+import javax.swing.SwingConstants
 import javax.swing.event.DocumentEvent
 
 /**
@@ -80,7 +81,11 @@ object GiteaPRCreateComponentFactory {
         val fieldBackground = descriptionEditor.backgroundColor
 
         val top = VerticalListPanel(JBUI.scale(8)).apply {
-            add(directionSelector(cs, vm))
+            add(JPanel(BorderLayout(JBUI.scale(12), 0)).apply {
+                isOpaque = false
+                add(directionSelector(cs, vm), BorderLayout.WEST)
+                add(existsBanner(cs, vm, onOpenPullRequest), BorderLayout.CENTER)
+            })
             add(titleField(cs, vm, fieldBackground))
         }
         val description = FieldBox(descriptionEditor.component, descriptionEditor.contentComponent, fieldBackground).apply {
@@ -90,7 +95,7 @@ object GiteaPRCreateComponentFactory {
             add(wipLink(cs, vm))
             add(reviewersRow(cs, vm))
             add(labelsRow(cs, vm))
-            add(statusLine(cs, vm, onOpenPullRequest))
+            add(statusLine(cs, vm))
             add(buttons(cs, vm, onCancel))
         }
         // The description takes the free height, so the actions stay at the bottom of the form.
@@ -279,22 +284,46 @@ object GiteaPRCreateComponentFactory {
 
     // ── Status & buttons ──────────────────────────────────────────────────
 
-    private const val OPEN_EXISTING = "open-existing"
-
-    private fun statusLine(cs: CoroutineScope, vm: GiteaPRCreateViewModel, onOpenPullRequest: (GiteaPullRequest) -> Unit): JComponent {
+    /**
+     * Next to the branches, while a pull request for them is already open: an error icon, "A Pull
+     * Request already exists:" and a link to it on one line, its title cut with "..." when narrow.
+     */
+    private fun existsBanner(cs: CoroutineScope, vm: GiteaPRCreateViewModel, onOpenPullRequest: (GiteaPullRequest) -> Unit): JComponent {
         var existing: GiteaPullRequest? = null
-        val pane = SimpleHtmlPane(addBrowserListener = false).apply {
-            addHyperlinkListener { e ->
-                if (e.eventType == javax.swing.event.HyperlinkEvent.EventType.ACTIVATED && e.description == OPEN_EXISTING) {
-                    existing?.let(onOpenPullRequest)
+        val link = ActionLink("") { existing?.let(onOpenPullRequest) }.apply {
+            // Lets BorderLayout give the link less than its text needs; Swing then ends it with "...".
+            minimumSize = JBUI.size(0, 0)
+        }
+        val banner = JPanel(BorderLayout(JBUI.scale(4), 0)).apply {
+            isOpaque = false
+            isVisible = false
+            add(JBLabel(GiteaBundle.message("pull.request.create.status.exists"), AllIcons.General.Error, SwingConstants.LEFT), BorderLayout.WEST)
+            add(link, BorderLayout.CENTER)
+        }
+        cs.launch {
+            vm.check.collect { check ->
+                val pr = (check?.result?.getOrNull() as? GiteaPRCreateViewModel.Check.AlreadyExists)?.pullRequest
+                existing = pr
+                banner.isVisible = pr != null
+                if (pr != null) {
+                    link.text = "#${pr.number} ${pr.title}"
+                    link.toolTipText = link.text
                 }
             }
         }
+        return banner
+    }
+
+    private fun statusLine(cs: CoroutineScope, vm: GiteaPRCreateViewModel): JComponent {
+        val pane = SimpleHtmlPane(addBrowserListener = false)
         cs.launch {
             combine(vm.check, vm.creation, vm.baseBranch, vm.headBranch) { check, creation, base, head ->
-                existing = (check?.result?.getOrNull() as? GiteaPRCreateViewModel.Check.AlreadyExists)?.pullRequest
                 statusHtml(check, creation, base, head, vm)
-            }.collect { pane.setHtmlBody(it) }
+            }.collect { html ->
+                // Empty while the banner at the top says it all, so no blank row is left here.
+                pane.isVisible = html.isNotEmpty()
+                pane.setHtmlBody(html)
+            }
         }
         return pane
     }
@@ -325,11 +354,8 @@ object GiteaPRCreateComponentFactory {
         return when (value) {
             GiteaPRCreateViewModel.Check.NoCommits ->
                 HtmlChunk.text(GiteaBundle.message("pull.request.create.status.no.commits", head.name, base.nameForRemoteOperations)).toString()
-            is GiteaPRCreateViewModel.Check.AlreadyExists -> HtmlBuilder()
-                .append(GiteaBundle.message("pull.request.create.status.exists"))
-                .append(" ")
-                .append(HtmlChunk.link(OPEN_EXISTING, "#${value.pullRequest.number} ${value.pullRequest.title}"))
-                .toString()
+            // Shown by the banner next to the branches.
+            is GiteaPRCreateViewModel.Check.AlreadyExists -> ""
             is GiteaPRCreateViewModel.Check.Ready -> {
                 val parts = buildList {
                     if (value.needsPush) add(GiteaBundle.message("pull.request.create.status.push", head.name, vm.mapping.gitRemote.name))
