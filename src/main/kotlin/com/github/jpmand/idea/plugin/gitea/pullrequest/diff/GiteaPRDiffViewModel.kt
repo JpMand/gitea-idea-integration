@@ -31,7 +31,7 @@ private val LOG = logger<GiteaPRDiffViewModel>()
 /**
  * The changed files of one [GiteaPRDiffTarget] of the PR for the diff viewer: by default the whole
  * PR, compared from [GiteaPullRequest.diffBaseSha] to the head; [selectFile] switches to another
- * target, e.g. a single commit. Reloads whenever [prFlow] brings a new head or merge base (e.g.
+ * target, e.g. a single commit or the PR as a review saw it. Reloads whenever [prFlow] brings a new head or merge base (e.g.
  * after a push and a refresh), keeping the selected file when it's still part of the diff.
  */
 @Suppress("UnstableApiUsage")
@@ -66,11 +66,13 @@ class GiteaPRDiffViewModel(
                         val (baseSha, headSha) = when (target) {
                             GiteaPRDiffTarget.PullRequest -> pr.diffBaseSha to pr.head.sha
                             is GiteaPRDiffTarget.Commit -> target.parentSha to target.sha
+                            is GiteaPRDiffTarget.PullRequestAt -> pr.diffBaseSha to target.sha
                         }
                         val files = withContext(Dispatchers.IO) {
                             when (target) {
                                 GiteaPRDiffTarget.PullRequest -> repository.loadChangedFiles(pr.number.toInt())
                                 is GiteaPRDiffTarget.Commit -> repository.loadCommitChangedFiles(target.sha)
+                                is GiteaPRDiffTarget.PullRequestAt -> repository.loadComparedFiles(pr.diffBaseSha, target.sha)
                             }
                         }
                         LOG.debug("PR #${pr.number}: diff of $target has ${files.size} changed files ($baseSha..$headSha)")

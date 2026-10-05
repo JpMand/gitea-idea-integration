@@ -117,6 +117,8 @@ class GiteaPRDiffFileViewModel(
                 GiteaBundle.message("pull.request.diff.side.base", base) to GiteaBundle.message("pull.request.diff.side.head", head)
             is GiteaPRDiffTarget.Commit ->
                 GiteaBundle.message("pull.request.diff.side.parent", base) to GiteaBundle.message("pull.request.diff.side.commit", head)
+            is GiteaPRDiffTarget.PullRequestAt ->
+                GiteaBundle.message("pull.request.diff.side.base", base) to GiteaBundle.message("pull.request.diff.side.reviewed", head)
         }
         return SimpleDiffRequest(file.filename, baseDoc, headDoc, baseTitle, headTitle)
             .also { it.putUserData(CONTEXT_KEY, this) }

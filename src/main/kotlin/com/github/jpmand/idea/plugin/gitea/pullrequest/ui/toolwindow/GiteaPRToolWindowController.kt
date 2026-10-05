@@ -9,7 +9,6 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPRTimelineVirtualFil
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContext
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContextHolder
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
-import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffTarget
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListPanel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListViewModel
 import com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable
@@ -196,11 +195,11 @@ class GiteaPRToolWindowController(
         tab.selectCommitBySha(req.commitSha)
     }
 
-    /** Opens the given PR's diff on a file, through its Details tab (opened if needed), which owns
-     * the diff — see [GiteaPRShowDiffRequests]. */
+    /** Opens the given PR's diff on a review thread's file, through its Details tab (opened if
+     * needed), which owns the diff — see [GiteaPRShowDiffRequests]. */
     private fun handleShowDiff(req: GiteaPRShowDiffRequests.Request) {
-        LOG.debug("Showing ${req.path} in the diff of PR #${req.pr.number}")
-        openOrFocusDetailTab(req.ctx, req.repository, req.pr).showDiff(GiteaPRDiffTarget.PullRequest, req.path, req.scrollRequest)
+        LOG.debug("Showing ${req.thread.path} in the diff of PR #${req.pr.number}")
+        openOrFocusDetailTab(req.ctx, req.repository, req.pr).showThreadDiff(req.thread)
     }
 
     private fun openTimelineEditor(repository: GiteaPRRepository, pr: GiteaPullRequest, ctx: GiteaPRDataContext) {
