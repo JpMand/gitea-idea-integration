@@ -2,6 +2,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.diff
 
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.GiteaPRFileStatusEnum
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
+import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.codereview.diff.model.AsyncDiffViewModel
 import com.intellij.collaboration.ui.codereview.diff.model.DiffViewerScrollRequest
 import com.intellij.collaboration.ui.codereview.diff.model.DiffViewerScrollRequestProducer
@@ -9,6 +10,7 @@ import com.intellij.collaboration.util.ComputedResult
 import com.intellij.diff.DiffContentFactory
 import com.intellij.diff.requests.DiffRequest
 import com.intellij.diff.requests.SimpleDiffRequest
+import com.intellij.diff.util.Side
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
@@ -35,6 +37,10 @@ class GiteaPRDiffFileViewModel(
     private val project: Project,
     private val repository: GiteaPRRepository,
     val file: GiteaPRChangedFile,
+    /** Which version of the PR this file's diff belongs to; [baseSha]..[headSha] are its ends. */
+    val target: GiteaPRDiffTarget,
+    /** The PR's merge base — see [showsThread]. */
+    private val mergeBaseSha: String,
     private val baseSha: String,
     private val headSha: String,
 ) : AsyncDiffViewModel, DiffViewerScrollRequestProducer {
@@ -73,6 +79,9 @@ class GiteaPRDiffFileViewModel(
             }
         }.stateIn(cs, SharingStarted.Lazily, null)
 
+    /** Whether a thread of a review made on [reviewCommitId] belongs in this diff, on [side]. */
+    fun showsThread(reviewCommitId: String?, side: Side): Boolean = target.showsThread(reviewCommitId, side, mergeBaseSha)
+
     override fun reloadRequest() {
         _reloadTrigger.value++
     }
@@ -101,19 +110,23 @@ class GiteaPRDiffFileViewModel(
         val baseDoc = DiffContentFactory.getInstance().create(baseContent, fileType)
         val headDoc = DiffContentFactory.getInstance().create(headContent, fileType)
 
-        return SimpleDiffRequest(
-            file.filename,
-            baseDoc, headDoc,
-            "Base (${baseSha.take(7)})",
-            "Head (${headSha.take(7)})",
-        ).also { it.putUserData(CONTEXT_KEY, this) }
+        val base = baseSha.take(7)
+        val head = headSha.take(7)
+        val (baseTitle, headTitle) = when (target) {
+            GiteaPRDiffTarget.PullRequest ->
+                GiteaBundle.message("pull.request.diff.side.base", base) to GiteaBundle.message("pull.request.diff.side.head", head)
+            is GiteaPRDiffTarget.Commit ->
+                GiteaBundle.message("pull.request.diff.side.parent", base) to GiteaBundle.message("pull.request.diff.side.commit", head)
+        }
+        return SimpleDiffRequest(file.filename, baseDoc, headDoc, baseTitle, headTitle)
+            .also { it.putUserData(CONTEXT_KEY, this) }
     }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is GiteaPRDiffFileViewModel) return false
-        return file == other.file && baseSha == other.baseSha && headSha == other.headSha
+        return file == other.file && target == other.target && baseSha == other.baseSha && headSha == other.headSha
     }
 
-    override fun hashCode(): Int = 31 * (31 * file.hashCode() + baseSha.hashCode()) + headSha.hashCode()
+    override fun hashCode(): Int = 31 * (31 * (31 * file.hashCode() + target.hashCode()) + baseSha.hashCode()) + headSha.hashCode()
 }

@@ -191,10 +191,12 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     }
 
     /** Groups all review comments for a PR into synthetic [GiteaReviewThread]s, with
-     * [GiteaReviewThread.isOutdated] computed against the file content at [headSha]. */
+     * [GiteaReviewThread.isOutdated] computed against the file content at [headSha] and
+     * [GiteaReviewThread.reviewCommitId] set. */
     suspend fun loadThreads(prNumber: Int, headSha: String): List<GiteaReviewThread> {
         val reviews = loadReviews(prNumber)
-        return markOutdated(loadAllReviewComments(prNumber, reviews).toThreads(), reviews, headSha, mutableMapOf())
+        val threads = loadAllReviewComments(prNumber, reviews).toThreads().withReviewCommits(reviews)
+        return markOutdated(threads, reviews, headSha, mutableMapOf())
     }
 
     /**
@@ -240,7 +242,7 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         val headLinesCache = mutableMapOf<String, List<String>>()
         val threadsByReviewId = loadAllReviewComments(prNumber, reviews)
             .groupBy { it.reviewId ?: 0L }
-            .mapValues { (_, comments) -> markOutdated(comments.toThreads(), reviews, headSha, headLinesCache) }
+            .mapValues { (_, comments) -> markOutdated(comments.toThreads().withReviewCommits(reviews), reviews, headSha, headLinesCache) }
         mergeTimeline(timeline.await(), reviews.associateBy { it.id }, threadsByReviewId, commits.await())
     }
 

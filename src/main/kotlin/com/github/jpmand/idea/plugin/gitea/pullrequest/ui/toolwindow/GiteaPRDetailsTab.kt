@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.models.mentionCandidates
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
+import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffTarget
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffVirtualFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
@@ -20,7 +21,6 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.awt.BorderLayout
@@ -55,7 +55,7 @@ class GiteaPRDetailsTab(
     private val changesComponent = GiteaPRChangesTreeComponentFactory.create(
         cs, project, detailsVm.prFlow, repository, discussionsVm,
         selectedCommitFlow = detailsVm.changesVm.selectedCommit,
-        onOpenChange = { relPath -> showDiff(relPath, null) },
+        onOpenChange = { target, relPath -> showDiff(target, relPath, null) },
     )
 
     private val refresh: () -> Unit = {
@@ -65,20 +65,15 @@ class GiteaPRDetailsTab(
     }
 
     /**
-     * Opens the PR diff on [path] — a file's current name or, for a renamed file, its old one —
-     * scrolled by [scrollRequest], once the PR's changed files have loaded. Does nothing for a
-     * file that isn't part of the PR diff (any more).
+     * Opens the PR diff of [target] on [path] — a file's current name or, for a renamed file, its
+     * old one — scrolled by [scrollRequest], once that diff's files have loaded. Does nothing for a
+     * file that isn't part of that diff (any more).
      */
-    fun showDiff(path: String, scrollRequest: DiffViewerScrollRequest?) {
+    fun showDiff(target: GiteaPRDiffTarget, path: String, scrollRequest: DiffViewerScrollRequest?) {
+        LOG.debug("Opening $path in the diff of $target")
         cs.launch {
-            val files = diffVm.changes.first { it?.result != null }?.result?.getOrNull()?.selectedChanges?.list.orEmpty()
-            val idx = files.indexOfFirst { it.file.filename == path || it.file.previousFilename == path }
-            if (idx < 0) {
-                LOG.debug("$path is not among the ${files.size} changed files of the PR diff")
-                return@launch
-            }
+            if (!diffVm.selectFile(target, path, scrollRequest)) return@launch
             withContext(Dispatchers.EDT) {
-                diffVm.showChange(idx, scrollRequest)
                 FileEditorManager.getInstance(project).openFile(diffFile, true)
             }
         }

@@ -9,6 +9,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPRTimelineVirtualFil
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContext
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContextHolder
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
+import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffTarget
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListPanel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListViewModel
 import com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable
@@ -199,7 +200,7 @@ class GiteaPRToolWindowController(
      * the diff — see [GiteaPRShowDiffRequests]. */
     private fun handleShowDiff(req: GiteaPRShowDiffRequests.Request) {
         LOG.debug("Showing ${req.path} in the diff of PR #${req.pr.number}")
-        openOrFocusDetailTab(req.ctx, req.repository, req.pr).showDiff(req.path, req.scrollRequest)
+        openOrFocusDetailTab(req.ctx, req.repository, req.pr).showDiff(GiteaPRDiffTarget.PullRequest, req.path, req.scrollRequest)
     }
 
     private fun openTimelineEditor(repository: GiteaPRRepository, pr: GiteaPullRequest, ctx: GiteaPRDataContext) {
