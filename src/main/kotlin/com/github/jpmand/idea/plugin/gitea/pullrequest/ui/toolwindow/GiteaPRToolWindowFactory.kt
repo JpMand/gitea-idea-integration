@@ -19,7 +19,7 @@ import kotlinx.coroutines.withContext
 private val LOG = logger<GiteaPRToolWindowFactory>()
 
 /**
- * The "Gitea Pull Requests" tool window. It is available only while
+ * The "Gitea PR" tool window. It is available only while
  * [GiteaPRDataContextHolder.context] is set, that is while an account with a stored token is on
  * the same server as one of the project's git remotes. Without one there is nothing to show, and
  * every other pull request feature (the in-editor review, the PR diff, the Conversation tab)
@@ -28,7 +28,7 @@ private val LOG = logger<GiteaPRToolWindowFactory>()
 class GiteaPRToolWindowFactory : ToolWindowFactory, DumbAware {
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-        // The tabs name the repository and PRs; the "Gitea Pull Requests:" prefix only takes room.
+        // The tabs name the repository and PRs; the "Gitea PR:" prefix only takes room.
         toolWindow.component.putClientProperty(ToolWindowContentUi.HIDE_ID_LABEL, "true")
         val controller = GiteaPRToolWindowController(project, toolWindow)
         Disposer.register(toolWindow.disposable, controller)
@@ -43,7 +43,7 @@ class GiteaPRToolWindowFactory : ToolWindowFactory, DumbAware {
             .map { it != null }
             .distinctUntilChanged()
             .collect { available ->
-                LOG.info("Pull Requests tool window ${if (available) "available" else "hidden"} in ${toolWindow.project.name}")
+                LOG.info("Gitea PR tool window ${if (available) "available" else "hidden"} in ${toolWindow.project.name}")
                 withContext(Dispatchers.EDT) { toolWindow.isAvailable = available }
             }
     }

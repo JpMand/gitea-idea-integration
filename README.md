@@ -48,7 +48,7 @@ The plugin targets IntelliJ IDEA 2026.2.
    `read:user`, `write:repository` and `write:issue` scopes.
 2. In the IDE, open **Settings** > **Version Control** > **Gitea**, click **+**, enter the server URL
    (e.g. `https://gitea.example.com`) and the token, then click **Log In**.
-3. Open a project whose Git remote is on that server. The **Gitea Pull Requests** tool window
+3. Open a project whose Git remote is on that server. The **Gitea PR** tool window
    appears, and Git operations over HTTPS use the account's token.
 
 To update a token or remove an account, select it in **Settings** > **Version Control** > **Gitea**.
