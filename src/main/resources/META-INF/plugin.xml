@@ -42,7 +42,7 @@
              is done entirely via GITEA_MENTION_CANDIDATES_KEY on the editor. -->
         <completion.contributor language="any"
             implementationClass="com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.mention.GiteaMentionCompletionContributor"/>
-        <toolWindow id="Gitea Pull Requests"
+        <toolWindow id="Gitea PR"
                     anchor="left"
                     secondary="false"
                     canCloseContents="true"
@@ -74,7 +74,7 @@
         <!--suppress PluginXmlCapitalization -->
         <action id="Gitea.Open.Settings"
                 class="com.github.jpmand.idea.plugin.gitea.ui.action.GiteaOpenSettingsAction"
-                icon="/images/giteaLogo.svg">
+                icon="/icons/giteaLogo.svg">
             <!--suppress PluginXmlCapitalization -->
             <override-text place="MainMenu"/>
             <!--suppress PluginXmlCapitalization -->
