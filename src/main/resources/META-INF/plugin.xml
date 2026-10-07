@@ -70,6 +70,10 @@
                                  implementation="com.github.jpmand.idea.plugin.gitea.authentication.extensions.GiteaHttpAuthDataProvider"/>
     </extensions>
 
+    <extensions defaultExtensionNs="com.intellij">
+        <errorHandler implementation="com.intellij.diagnostic.JetBrainsMarketplaceErrorReportSubmitter"/>
+    </extensions>
+
     <actions>
         <!--suppress PluginXmlCapitalization -->
         <action id="Gitea.Open.Settings"

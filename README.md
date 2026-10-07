@@ -1,13 +1,15 @@
 # Gitea PR & Code Review
 
 ![Build](https://github.com/JpMand/gitea-idea-integration/workflows/Build/badge.svg)
+[![Version](https://img.shields.io/jetbrains/plugin/v/34787.svg)](https://plugins.jetbrains.com/plugin/34787)
+[![Downloads](https://img.shields.io/jetbrains/plugin/d/34787.svg)](https://plugins.jetbrains.com/plugin/34787)
 
-> [!NOTE]
-> This project is developed with heavy use of AI assistance, by someone still learning Kotlin and
-> the IntelliJ Platform. Most of its structure follows the official
-> [GitHub](https://github.com/JetBrains/intellij-community/tree/master/plugins/github) and
-> [GitLab](https://github.com/JetBrains/intellij-community/tree/master/plugins/gitlab) plugins.
-> Reviews, issues and contributions are very welcome.
+> [!NOTE]  
+> This is a project that makes use of AI during development and probably not as efficiently or as adequately as it should (mostly because I barely know kotlin and know almost nothing about the IntelliJ Platform libraries).
+> 
+> This means that this is not good quality code, most of the code is done by following (or attempting to do so) the structure and flow of [Github](https://github.com/JetBrains/intellij-community/tree/master/plugins/github) and [Gitlab](https://github.com/JetBrains/intellij-community/tree/master/plugins/gitlab) plugins.
+>
+> Any help is greatly appreciated
 
 <!-- Plugin description -->
 Review Gitea pull requests in your IDE: browse, comment, approve and merge, and clone
@@ -21,7 +23,7 @@ repositories from your Gitea servers.
 - A conversation timeline where you can reply to, edit, resolve and delete comments
 - Review in the diff viewer or directly in the editor: draft comments, suggested changes that can
   be applied in one click, and approve / request changes / comment verdicts
-- Merge (with a choice of method), close, reopen, check out the branch, and request reviewers
+- Merge, close, reopen, check out the branch, and request reviewers
 
 **Accounts and repositories**
 - Personal access token login, with several accounts across several servers
