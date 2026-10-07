@@ -4,6 +4,33 @@
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-07
+
+### Added
+
+- Read-only browsing of public repositories' pull requests without an account: Gitea servers are
+  detected from the project's Git remotes, and *Log in to comment…* in the conversation adds an
+  account for the server
+- Setting to accept Gitea dev builds and release candidates, in Settings > Version Control > Gitea
+- Errors from the plugin can be reported to JetBrains Marketplace from the IDE's error dialog
+
+### Changed
+
+- The tool window is now named *Gitea PR*, with new plugin and tool window icons, and pull request
+  tabs in the editor get their own icon
+- Login and Gitea detection require a Gitea 1.27 or later release; Forgejo isn't supported
+- Open in Browser is offered only for remotes on a Gitea server
+
+### Fixed
+
+- With a commit selected in the Details tab, opening a file from the changes tree shows that
+  commit's diff instead of the whole pull request's, including files the commit changed that
+  aren't in the final diff
+- Opening a review thread's file from the conversation shows the diff at the commit the review was
+  made on and scrolls to the thread's line, outdated threads included
+
+## [1.0.0-alpha] - 2026-10-05
+
 First public pre-release.
 
 ### Added
@@ -20,9 +47,7 @@ First public pre-release.
 - Git HTTPS authentication with the account's token
 - Gitea tab in *Get from Version Control* for cloning
 - Open in browser and copy link for files, lines and commits
-- Read-only browsing of public repositories' pull requests without an account, with Gitea servers
-  detected from the project's Git remotes
-- Requires a Gitea 1.27 or later release and IntelliJ IDEA 2026.2; dev builds and release
-  candidates can be allowed in Settings > Version Control > Gitea. Forgejo isn't supported
+- Requires Gitea 1.27 or later and IntelliJ IDEA 2026.2
 
-[Unreleased]: https://github.com/JpMand/gitea-idea-integration/commits/main
+[Unreleased]: https://github.com/JpMand/gitea-idea-integration/compare/1.1.0...HEAD
+[1.1.0]: https://github.com/JpMand/gitea-idea-integration/compare/1.0.0-alpha...1.1.0
