@@ -14,7 +14,8 @@ class GiteaVersionTest {
   private val manager = CachingGiteaServersManager(CoroutineScope(Dispatchers.Default))
   private val floor = manager.earliestSupportedVersion
 
-  private fun supported(version: String) = manager.isSupported(GiteaVersion.fromString(version))
+  private fun supported(version: String) = manager.isSupported(GiteaVersion.fromString(version), acceptPreReleases = false)
+  private fun supportedWithPreReleases(version: String) = manager.isSupported(GiteaVersion.fromString(version), acceptPreReleases = true)
 
   @Test
   fun `parses plain release`() {
@@ -46,7 +47,7 @@ class GiteaVersionTest {
     // 1.27.0-rc0 is treated as 1.27.0 -> not below the floor
     assertTrue(v >= floor)
     // ...but only releases are supported
-    assertFalse(manager.isSupported(v))
+    assertFalse(manager.isSupported(v, acceptPreReleases = false))
   }
 
   @Test
@@ -65,7 +66,7 @@ class GiteaVersionTest {
     assertEquals(1, v.patch)
     assertTrue(v >= floor)
     // ...but Forgejo isn't Gitea
-    assertFalse(manager.isSupported(v))
+    assertFalse(manager.isSupported(v, acceptPreReleases = false))
   }
 
   @Test
@@ -146,5 +147,23 @@ class GiteaVersionTest {
     assertFalse(supported("2.0.0"))
     assertFalse(supported("1.26.4"))
     assertFalse(supported("not-a-version"))
+  }
+
+  @Test
+  fun `with pre-releases accepted, dev builds and release candidates are supported`() {
+    assertTrue(supportedWithPreReleases("1.27.0+dev-1118-ge629c4fdc2"))
+    assertTrue(supportedWithPreReleases("29.0.0+dev-53-gfc44404843"))
+    assertTrue(supportedWithPreReleases("1.27.0-rc0"))
+    assertTrue(supportedWithPreReleases("28.0.0"))
+  }
+
+  @Test
+  fun `with pre-releases accepted, forgejo and old versions still are not`() {
+    assertFalse(supportedWithPreReleases("16.0.0-dev-753-6bcc6da0+gitea-1.22.0"))
+    assertFalse(supportedWithPreReleases("16.0.5+gitea-1.22.0"))
+    assertFalse(supportedWithPreReleases("16.0.5"))
+    assertFalse(supportedWithPreReleases("1.26.0+dev-1-gabc"))
+    assertFalse(supportedWithPreReleases("1.26.4"))
+    assertFalse(supportedWithPreReleases("not-a-version"))
   }
 }

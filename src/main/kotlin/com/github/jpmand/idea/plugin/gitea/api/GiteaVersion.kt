@@ -18,11 +18,15 @@ data class GiteaVersion(
      */
     /**
      * Whether this is a plain release, `MAJOR.MINOR.PATCH` as reported: no `-rc0` pre-release, no
-     * `+dev-…` build metadata (Forgejo's `+gitea-1.22.0` included), no leading `v`.
+     * `+dev-...` build metadata (Forgejo's `+gitea-1.22.0` included), no leading `v`.
      */
     val isRelease: Boolean
         get() = minor != null && patch != null && metadata == null &&
                 (original == null || original.trim() == "$major.$minor.$patch")
+
+    /** Forgejo: it reports its own version plus the Gitea API it is compatible with, `16.0.5+gitea-1.22.0`. */
+    val isForgejo: Boolean
+        get() = metadata?.contains("gitea-") == true
 
     override fun compareTo(other: GiteaVersion): Int =
         major.compareTo(other.major).takeIf { it != 0 } ?:

@@ -2,6 +2,7 @@ package com.github.jpmand.idea.plugin.gitea
 
 import com.github.jpmand.idea.plugin.gitea.api.*
 import com.github.jpmand.idea.plugin.gitea.api.rest.getServerVersion
+import com.github.jpmand.idea.plugin.gitea.ui.GiteaSettings
 import com.fasterxml.jackson.core.JacksonException
 import com.intellij.collaboration.api.HttpStatusErrorException
 import com.intellij.openapi.components.serviceAsync
@@ -18,13 +19,17 @@ interface GiteaServersManager {
     val earliestSupportedVersion: GiteaVersion
 
     /**
-     * Whether [version], as `/api/v1/version` reports it, is a Gitea release this plugin supports:
-     * a plain `MAJOR.MINOR.PATCH` (dev builds and release candidates aren't supported) that is 1.27
-     * or later. Gitea went from 1.27.x to 28.0.0, so no Gitea release has a major from 2 to 27.
-     * Forgejo reports its own version with the Gitea API it is compatible with
-     * (`16.0.5+gitea-1.22.0`), which this rejects as well.
+     * Whether [version], as `/api/v1/version` reports it, is a Gitea this plugin supports: 1.27 or
+     * later, and a plain `MAJOR.MINOR.PATCH` release unless [acceptPreReleases] (dev builds such as
+     * `1.27.0+dev-…`, release candidates such as `1.27.0-rc0`). Gitea went from 1.27.x to 28.0.0, so
+     * no Gitea has a major from 2 to 27. Forgejo reports its own version with the Gitea API it is
+     * compatible with (`16.0.5+gitea-1.22.0`), which is rejected either way.
      */
-    fun isSupported(version: GiteaVersion): Boolean
+    fun isSupported(version: GiteaVersion, acceptPreReleases: Boolean): Boolean
+
+    /** [isSupported] with the application setting [GiteaSettings.acceptPreReleaseVersions]. */
+    fun isSupported(version: GiteaVersion): Boolean =
+        isSupported(version, GiteaSettings.getInstance().acceptPreReleaseVersions)
 
     /**
      * Whether [server] runs a supported Gitea ([isSupported]), asked without credentials through
@@ -38,8 +43,17 @@ interface GiteaServersManager {
 
 internal class CachingGiteaServersManager(private val serviceCs: CoroutineScope) : GiteaServersManager {
 
-    /** Per server: whether it's a supported Gitea, or null when it couldn't be reached. */
-    private val testCache = ConcurrentHashMap<GiteaServerPath, Deferred<Boolean?>>()
+    /** Per server: the version it reports, or why there is none. The version, not whether it's
+     * supported, so that changing [GiteaSettings.acceptPreReleaseVersions] applies to the next ask. */
+    private val testCache = ConcurrentHashMap<GiteaServerPath, Deferred<ServerTest>>()
+
+    private sealed interface ServerTest {
+        /** The server answered: with its version, or null when it isn't a Gitea server. */
+        data class Answered(val version: GiteaVersion?) : ServerTest
+
+        /** A network failure, which says nothing about the server. */
+        data object Unreachable : ServerTest
+    }
 
     private val metadataCache = ConcurrentHashMap<GiteaServerPath, GiteaServerMetadata>()
     private val metadataCacheGuard = Mutex()
@@ -51,42 +65,47 @@ internal class CachingGiteaServersManager(private val serviceCs: CoroutineScope)
     // reference: 1.27.3.
     override val earliestSupportedVersion: GiteaVersion = GiteaVersion(1, 27, 0)
 
-    override fun isSupported(version: GiteaVersion): Boolean =
-        version.isRelease && version.major !in 2..27 && version >= earliestSupportedVersion
+    override fun isSupported(version: GiteaVersion, acceptPreReleases: Boolean): Boolean =
+        (version.isRelease || acceptPreReleases && !version.isForgejo) &&
+            version.major !in 2..27 && version >= earliestSupportedVersion
 
     override suspend fun isSupportedGiteaServer(server: GiteaServerPath): Boolean {
         val test = testCache.getOrPut(server) {
             serviceCs.async(Dispatchers.IO + CoroutineName("Gitea Server Tester")) { testServer(server) }
         }
-        val result = test.await()
-        // A network failure says nothing about the server: ask again next time.
-        if (result == null) testCache.remove(server, test)
-        return result == true
+        return when (val result = test.await()) {
+            // Ask again next time.
+            ServerTest.Unreachable -> false.also { testCache.remove(server, test) }
+            is ServerTest.Answered -> {
+                val supported = result.version != null && isSupported(result.version)
+                LOG.debug("$server: version ${result.version}, ${if (supported) "a supported Gitea" else "not a supported Gitea"}")
+                supported
+            }
+        }
     }
 
-    private suspend fun testServer(server: GiteaServerPath): Boolean? =
+    private suspend fun testServer(server: GiteaServerPath): ServerTest =
         try {
             val reported = serviceAsync<GiteaApiManager>().getUnauthenticatedClient(server).getServerVersion().version
-            val supported = reported != null && isSupported(GiteaVersion.fromString(reported))
-            LOG.info("$server reports version '$reported': ${if (supported) "a supported Gitea" else "not a supported Gitea"}")
-            supported
+            LOG.info("$server reports version '$reported'")
+            ServerTest.Answered(reported?.let { GiteaVersion.fromString(it) })
         } catch (e: CancellationException) {
             throw e
         } catch (e: HttpStatusErrorException) {
             LOG.info("$server is not a Gitea server (HTTP ${e.statusCode} for /api/v1/version)")
-            false
+            ServerTest.Answered(null)
         } catch (e: IOException) {
             // Jackson's parse errors are IOExceptions too, but they mean the server answered.
             if (e is JacksonException) {
                 LOG.info("$server is not a Gitea server (its /api/v1/version isn't Gitea's)")
-                false
+                ServerTest.Answered(null)
             } else {
                 LOG.debug("$server couldn't be reached to tell whether it's a Gitea server", e)
-                null
+                ServerTest.Unreachable
             }
         } catch (e: Exception) {
             LOG.info("$server is not a Gitea server (${e.javaClass.simpleName} for /api/v1/version)")
-            false
+            ServerTest.Answered(null)
         }
 
     override suspend fun getMetadata(api: GiteaApi): GiteaServerMetadata =

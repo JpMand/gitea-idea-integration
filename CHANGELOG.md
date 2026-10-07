@@ -22,7 +22,7 @@ First public pre-release.
 - Open in browser and copy link for files, lines and commits
 - Read-only browsing of public repositories' pull requests without an account, with Gitea servers
   detected from the project's Git remotes
-- Requires a Gitea 1.27 or later release (dev builds, release candidates and Forgejo aren't
-  supported) and IntelliJ IDEA 2026.2
+- Requires a Gitea 1.27 or later release and IntelliJ IDEA 2026.2; dev builds and release
+  candidates can be allowed in Settings > Version Control > Gitea. Forgejo isn't supported
 
 [Unreleased]: https://github.com/JpMand/gitea-idea-integration/commits/main
