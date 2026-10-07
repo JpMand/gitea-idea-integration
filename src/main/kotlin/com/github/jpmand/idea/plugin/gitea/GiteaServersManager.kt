@@ -32,11 +32,16 @@ interface GiteaServersManager {
         isSupported(version, GiteaSettings.getInstance().acceptPreReleaseVersions)
 
     /**
-     * Whether [server] runs a supported Gitea ([isSupported]), asked without credentials through
-     * `GET /api/v1/version` — public on every Gitea, and not served by GitHub or GitLab. Never throws
-     * except for cancellation; a server that can't be reached reads as false.
+     * The version [server] reports, asked without credentials through `GET /api/v1/version` — public
+     * on every Gitea, and not served by GitHub or GitLab — or null when it doesn't answer like Gitea
+     * or can't be reached. Cached per server, except for a server that couldn't be reached. Never
+     * throws except for cancellation.
      */
-    suspend fun isSupportedGiteaServer(server: GiteaServerPath): Boolean
+    suspend fun getReportedVersion(server: GiteaServerPath): GiteaVersion?
+
+    /** Whether [server] runs a supported Gitea: [getReportedVersion], then [isSupported]. */
+    suspend fun isSupportedGiteaServer(server: GiteaServerPath): Boolean =
+        getReportedVersion(server)?.let { isSupported(it) } == true
 
     suspend fun getMetadata(api: GiteaApi): GiteaServerMetadata
 }
@@ -44,7 +49,7 @@ interface GiteaServersManager {
 internal class CachingGiteaServersManager(private val serviceCs: CoroutineScope) : GiteaServersManager {
 
     /** Per server: the version it reports, or why there is none. The version, not whether it's
-     * supported, so that changing [GiteaSettings.acceptPreReleaseVersions] applies to the next ask. */
+     * supported, so that a change of [GiteaSettings.acceptPreReleaseVersions] needs no new request. */
     private val testCache = ConcurrentHashMap<GiteaServerPath, Deferred<ServerTest>>()
 
     private sealed interface ServerTest {
@@ -69,18 +74,14 @@ internal class CachingGiteaServersManager(private val serviceCs: CoroutineScope)
         (version.isRelease || acceptPreReleases && !version.isForgejo) &&
             version.major !in 2..27 && version >= earliestSupportedVersion
 
-    override suspend fun isSupportedGiteaServer(server: GiteaServerPath): Boolean {
+    override suspend fun getReportedVersion(server: GiteaServerPath): GiteaVersion? {
         val test = testCache.getOrPut(server) {
             serviceCs.async(Dispatchers.IO + CoroutineName("Gitea Server Tester")) { testServer(server) }
         }
         return when (val result = test.await()) {
             // Ask again next time.
-            ServerTest.Unreachable -> false.also { testCache.remove(server, test) }
-            is ServerTest.Answered -> {
-                val supported = result.version != null && isSupported(result.version)
-                LOG.debug("$server: version ${result.version}, ${if (supported) "a supported Gitea" else "not a supported Gitea"}")
-                supported
-            }
+            ServerTest.Unreachable -> null.also { testCache.remove(server, test) }
+            is ServerTest.Answered -> result.version
         }
     }
 

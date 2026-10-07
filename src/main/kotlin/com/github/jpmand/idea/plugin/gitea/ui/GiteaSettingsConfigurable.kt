@@ -21,7 +21,10 @@ import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.ui.dsl.builder.*
+import com.intellij.collaboration.async.mapState
+import com.intellij.collaboration.util.CollectableSerializablePersistentStateComponent
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.Serializable
 import org.jetbrains.annotations.ApiStatus
 
@@ -103,7 +106,8 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
   storages = [Storage("gitea.xml")],
   category = SettingsCategory.TOOLS
 )
-class GiteaSettings : SerializablePersistentStateComponent<GiteaSettings.State>(State()) {
+@Suppress("UnstableApiUsage")
+class GiteaSettings : CollectableSerializablePersistentStateComponent<GiteaSettings.State>(State()) {
   // Without a generated serializer the platform silently saves and loads nothing for this state.
   @Serializable
   data class State(
@@ -125,8 +129,11 @@ class GiteaSettings : SerializablePersistentStateComponent<GiteaSettings.State>(
   var acceptPreReleaseVersions: Boolean
     get() = state.acceptPreReleaseVersions
     set(value) {
-      updateState { it.copy(acceptPreReleaseVersions = value) }
+      updateStateAndEmit { it.copy(acceptPreReleaseVersions = value) }
     }
+
+  /** [acceptPreReleaseVersions] as a flow, so Gitea detection follows a change of it right away. */
+  val acceptPreReleaseVersionsState: StateFlow<Boolean> = stateFlow.mapState { it.acceptPreReleaseVersions }
 
   var connectionTimeout: Int
     get() = state.connectionTimeout

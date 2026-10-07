@@ -2,9 +2,9 @@ package com.github.jpmand.idea.plugin.gitea
 
 import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager
+import com.github.jpmand.idea.plugin.gitea.ui.GiteaSettings
 import com.github.jpmand.idea.plugin.gitea.util.GiteaGitRepositoryMapping
 import com.intellij.openapi.components.service
-import com.intellij.openapi.components.serviceAsync
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
 import git4idea.remote.hosting.GitHostingUrlUtil
@@ -13,11 +13,13 @@ import git4idea.remote.hosting.discoverServers
 import git4idea.remote.hosting.gitRemotesFlow
 import git4idea.remote.hosting.mapToServers
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.runningFold
 import kotlinx.coroutines.flow.stateIn
@@ -25,6 +27,7 @@ import kotlinx.coroutines.flow.stateIn
 @Suppress("UnstableApiUsage")
 interface GiteaRepositoriesManager : HostedGitRepositoriesManager<GiteaGitRepositoryMapping>
 
+@OptIn(ExperimentalCoroutinesApi::class)
 internal class GiteaRepositoriesManagerImpl(project: Project, cs: CoroutineScope) : GiteaRepositoriesManager {
 
   override val knownRepositoriesState: StateFlow<Set<GiteaGitRepositoryMapping>> by lazy {
@@ -35,14 +38,24 @@ internal class GiteaRepositoriesManagerImpl(project: Project, cs: CoroutineScope
     }.distinctUntilChanged()
 
     // A remote not on an account's server is used only once its server proves to be a supported
-    // Gitea (GiteaServersManager.isSupportedGiteaServer), so that a project's GitHub or Forgejo
-    // remote never gets a Gitea tool window or "Open in Browser" entry.
-    val discoveredServersFlow = gitRemotesFlow.discoverServers(accountsServersFlow) { remote ->
+    // Gitea, so that a project's GitHub or Forgejo remote never gets a Gitea tool window or "Open in
+    // Browser" entry. Discovery keeps every server that reported a version; whether that version is
+    // supported is applied afterwards, with the "accept pre-release versions" setting as a flow, so
+    // changing the setting re-evaluates the servers (from the cached versions) right away.
+    val serversManager = service<GiteaServersManager>()
+    val reportingServersFlow = gitRemotesFlow.discoverServers(accountsServersFlow) { remote ->
       val candidate = giteaServerCandidate(remote.url) ?: return@discoverServers null
-      candidate.takeIf { serviceAsync<GiteaServersManager>().isSupportedGiteaServer(it) }
-    }.onEach { LOG.trace("Servers discovered from git remotes: $it") }.runningFold(emptySet<GiteaServerPath>()) { acc, value ->
+      candidate.takeIf { serversManager.getReportedVersion(it) != null }
+    }.onEach { LOG.trace("Servers reporting a version among git remotes: $it") }.runningFold(emptySet<GiteaServerPath>()) { acc, value ->
       acc + value
     }.distinctUntilChanged()
+    val discoveredServersFlow = reportingServersFlow.combine(GiteaSettings.getInstance().acceptPreReleaseVersionsState, ::Pair)
+      .mapLatest { (servers, acceptPreReleases) ->
+        servers.filterTo(mutableSetOf()) { server ->
+          serversManager.getReportedVersion(server)?.let { serversManager.isSupported(it, acceptPreReleases) } == true
+        }.also { LOG.debug("Supported Gitea servers among git remotes (pre-releases ${if (acceptPreReleases) "accepted" else "not accepted"}): $it") }
+      }
+      .distinctUntilChanged()
 
     val serversFlow = accountsServersFlow.combine(discoveredServersFlow) { servers1, servers2 ->
       servers1 + servers2
