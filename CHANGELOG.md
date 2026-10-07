@@ -20,6 +20,7 @@
   tabs in the editor get their own icon
 - Login and Gitea detection require a Gitea 1.27 or later release; Forgejo isn't supported
 - Open in Browser is offered only for remotes on a Gitea server
+- Updated Logos & Icons
 
 ### Fixed
 
@@ -51,3 +52,4 @@ First public pre-release.
 
 [Unreleased]: https://github.com/JpMand/gitea-idea-integration/compare/1.1.0...HEAD
 [1.1.0]: https://github.com/JpMand/gitea-idea-integration/compare/1.0.0-alpha...1.1.0
+[1.0.0-alpha]: https://github.com/JpMand/gitea-idea-integration/commits/1.0.0-alpha
