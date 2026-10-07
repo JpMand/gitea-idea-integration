@@ -70,7 +70,7 @@ class GiteaPRListPanel(
     private val repositoryName: @NlsSafe String,
     private val repositoryWebUrl: String,
     private val onPROpenRequested: (GiteaPullRequest) -> Unit,
-    /** Offered instead of Retry when loading fails because the account's token is invalid. */
+    /** Offered instead of Retry when loading fails for want of a (valid) token: log in again, or log in. */
     private val logInAgain: Action? = null,
 ) {
 

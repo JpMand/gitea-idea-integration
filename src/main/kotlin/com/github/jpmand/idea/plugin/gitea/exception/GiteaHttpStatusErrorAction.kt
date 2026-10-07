@@ -1,8 +1,10 @@
 package com.github.jpmand.idea.plugin.gitea.exception
 
+import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager
+import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.messages.CollaborationToolsBundle
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.project.Project
@@ -17,6 +19,17 @@ import javax.swing.AbstractAction
 import javax.swing.JComponent
 
 internal sealed class GiteaHttpStatusErrorAction(@Nls name : String) : AbstractAction(name) {
+    /** Logs in to [server] from a view read without an account — see [GiteLoginUtil.logInToServer]. */
+    class LogIn(
+        private val project: Project,
+        private val parentScope: CoroutineScope,
+        private val server: GiteaServerPath,
+    ) : GiteaHttpStatusErrorAction(GiteaBundle.message("pull.request.login.action")) {
+        override fun actionPerformed(event: ActionEvent) {
+            GiteLoginUtil.logInToServer(project, event.source as? JComponent, server, parentScope)
+        }
+    }
+
     class LogInAgain(
         private val project: Project,
         private val parentScope : CoroutineScope,

@@ -76,6 +76,12 @@ labels (`bug`, `enhancement`, `documentation`), milestone `v1.0`, and PRs:
 | #6 Add CI build script (alice) | merged | merged state |
 | #7 Handle null in Util.trim (bob) | open | approved by carol |
 
+To test the read-only (anonymous) mode, remove alice's account in Settings > Version Control > Gitea:
+the tool window stays, with no write controls, and the conversation offers "Log in to comment…".
+`acme/webapp` is public. Dev builds and release candidates are only accepted with
+Settings > Version Control > Gitea > "Accept Gitea pre-release versions", so keep `gitea-up.sh` on a
+release version unless that is what you are testing.
+
 In the IDE, alice's clone is at `~/IdeaProjects/webapp`. Check out `feature/greeting` there to test
 the in-editor review (it works only when the local branch matches a PR's head branch).
 

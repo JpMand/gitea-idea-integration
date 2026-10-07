@@ -15,6 +15,8 @@ repositories from your Gitea servers.
 
 **Pull requests**
 - A Pull Requests tool window for the project's Gitea remote, filterable by state, author and label
+- No account needed to read: pull requests of public repositories can be browsed read-only, and
+  logging in from the conversation turns on commenting and reviewing
 - Details, commits, status checks and changed files for each pull request
 - A conversation timeline where you can reply to, edit, resolve and delete comments
 - Review in the diff viewer or directly in the editor: draft comments, suggested changes that can
@@ -50,6 +52,10 @@ The plugin targets IntelliJ IDEA 2026.2.
    (e.g. `https://gitea.example.com`) and the token, then click **Log In**.
 3. Open a project whose Git remote is on that server. The **Gitea PR** tool window
    appears, and Git operations over HTTPS use the account's token.
+
+Without an account, the tool window still appears for a project whose Git remote is on a Gitea
+server (detected through the server's `/api/v1/version`), showing public repositories' pull requests
+read-only. Use **Log in to comment…** in a conversation to add an account for that server.
 
 To update a token or remove an account, select it in **Settings** > **Version Control** > **Gitea**.
 

@@ -78,8 +78,11 @@ class GiteaPRTimelineItemComponentFactory(
     /** Renders a body to sanitized HTML via the server; null on failure (keep the fallback). */
     private val renderMarkdown: suspend (String) -> String?,
     /** The signed-in account's login — gates the edit/delete controls to a comment's own author
-     * (Gitea's API exposes no `viewerCanUpdate`-style flag, so this is a client-side check). */
-    private val currentUserLogin: String,
+     * (Gitea's API exposes no `viewerCanUpdate`-style flag, so this is a client-side check). Null
+     * when read anonymously: then no comment gets them. */
+    private val currentUserLogin: String?,
+    /** Read without an account: review threads get no Resolve/Reply row. */
+    private val readOnly: Boolean,
     /** Where server calls run: they must finish even when the item that started them is rebuilt
      * (a resolve elsewhere in the same review, a refresh) and its scope is cancelled. */
     private val actionScope: CoroutineScope,
@@ -261,7 +264,7 @@ class GiteaPRTimelineItemComponentFactory(
         body: String?,
     ): Pair<JComponent, JComponent?> {
         val pane = commentBodyPane(cs, body, renderMarkdown)
-        if (id <= 0 || authorLogin != currentUserLogin) return pane to null
+        if (id <= 0 || currentUserLogin == null || authorLogin != currentUserLogin) return pane to null
 
         val editVmFlow = MutableStateFlow<CodeReviewTextEditingViewModel?>(null)
         val bodyComponent = EditableComponentFactory.wrapTextComponent(cs, pane, editVmFlow)
@@ -357,6 +360,13 @@ class GiteaPRTimelineItemComponentFactory(
         }
 
         val replies = thread.comments.drop(1)
+        val repliesPanel = if (replies.isNotEmpty()) createThreadCommentsPanel(replies) { c -> replyItem(cs, c) } else null
+        if (readOnly) {
+            return VerticalListPanel(0).apply {
+                add(firstItem)
+                repliesPanel?.let(::add)
+            }
+        }
         val replyComposer = Wrapper()
         val actionsRow = HorizontalListPanel(THREAD_ACTIONS_GAP).apply {
             border = EmptyBorder(JBUI.scale(2), ComponentType.FULL.fullLeftShift, JBUI.scale(6), 0)
@@ -368,7 +378,7 @@ class GiteaPRTimelineItemComponentFactory(
         }
         return VerticalListPanel(0).apply {
             add(firstItem)
-            if (replies.isNotEmpty()) add(createThreadCommentsPanel(replies) { c -> replyItem(cs, c) })
+            repliesPanel?.let(::add)
             add(actionsRow)
             add(replyComposer)
         }

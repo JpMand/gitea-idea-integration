@@ -127,7 +127,7 @@ class GiteaPRDiffEditorModel(
             object : CodeReviewEditorGutterControlsModel.ControlsState {
                 override val linesWithComments: Set<Int> = linesWithComments
                 override val linesWithNewComments: Set<Int> = newComments.keys
-                override fun isLineCommentable(lineIdx: Int): Boolean = allowsNewComments && lineToLocation(lineIdx) != null
+                override fun isLineCommentable(lineIdx: Int): Boolean = allowsNewComments && !discussionsVm.isAnonymous && lineToLocation(lineIdx) != null
             }
         }.stateIn(cs, SharingStarted.Eagerly, null)
 
@@ -163,7 +163,7 @@ class GiteaPRDiffEditorModel(
         initialDraft: GiteaPRDraftComment? = null,
     ) {
         val proj = project ?: return
-        if (_newCommentVms.value.containsKey(displayLineIdx)) return
+        if (discussionsVm.isAnonymous || _newCommentVms.value.containsKey(displayLineIdx)) return
         val vm = GiteaPRNewCommentEditorViewModel(
             proj, cs, file, commentSide, zeroIndexedLine + 1, discussionsVm, suggestion, initialDraft,
         ) { cancelNewComment(displayLineIdx) }
@@ -177,7 +177,9 @@ class GiteaPRDiffEditorModel(
      * under the old filename (see [GiteaPRNewCommentEditorViewModel.path]), so that's what's looked
      * up for [Side.LEFT], not [GiteaPRChangedFile.filename]. */
     private fun seedExistingDrafts() {
-        if (project == null || !allowsNewComments) return
+        // Read without an account: drafts stay saved for after logging in, but can't be shown as
+        // composers here.
+        if (project == null || discussionsVm.isAnonymous || !allowsNewComments) return
         val sidesToSeed = when (side) {
             Side.RIGHT -> listOf(Side.RIGHT)
             Side.LEFT -> listOf(Side.LEFT)

@@ -49,4 +49,21 @@ class GiteaPreferredCandidateTest {
   fun `no candidates means no context`() {
     assertNull(preferredCandidate(emptyList<ContextCandidate<String>>(), alice, null) { it })
   }
+
+  @Test
+  fun `without a usable account the first repository is read anonymously`() {
+    val repos = listOf("https://gitea.example.com/acme/a", "http://localhost:3000/acme/webapp")
+    assertEquals(repos[0], anonymousCandidate(repos, emptyList()) { GiteaServerPath.from(it.substringBeforeLast("/acme")) })
+  }
+
+  @Test
+  fun `a repository on an account's server is read anonymously first`() {
+    val repos = listOf("https://gitea.example.com/acme/a", "http://localhost:3000/acme/webapp")
+    assertEquals(repos[1], anonymousCandidate(repos, listOf(alice)) { GiteaServerPath.from(it.substringBeforeLast("/acme")) })
+  }
+
+  @Test
+  fun `no repository means no anonymous context`() {
+    assertNull(anonymousCandidate(emptyList<String>(), listOf(alice)) { GiteaServerPath.from(it) })
+  }
 }

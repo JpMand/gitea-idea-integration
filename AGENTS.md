@@ -44,7 +44,8 @@ markers; keep it and `CHANGELOG.md` true to the code.
 Top-level packages under `…/gitea/`:
 - `api/` — HTTP client + JSON. `GiteaApi` (token auth via `HttpApiHelper`), `GiteaApiManager` (client factory), `GiteaJsonDeSerializer` (Jackson singleton, SNAKE_CASE), `GiteaServerPath` (URL parsing). `rest/` = suspend-fun wrappers, `rest/dto/` = generated DTOs, `models/` = domain objects (`.toXxx()` / `fromDto` from DTOs).
 - `authentication/` — `account/` (XML-serialized account state + PasswordSafe), `extensions/` (silent-then-interactive auth providers), `ui/` (login dialogs).
-- `pullrequest/` — the PR review feature. Everything in it hangs off `GiteaPRDataContextHolder.context` (an account with a token on the server of a project git remote); the Pull Requests tool window is available only while it is set.
+- `pullrequest/` — the PR review feature. Everything in it hangs off `GiteaPRDataContextHolder.context`: an account with a token on the server of a project git remote, or, without one, an anonymous (read-only) context on a remote whose server is a supported Gitea. The Pull Requests tool window is available only while it is set. With `GiteaPRDataContext.isAnonymous`, the UI leaves out every write control (merge, review, resolve, reply…) and only the conversation offers a log-in link (`GiteLoginUtil.logInToServer`).
+- Gitea detection: `GiteaRepositoriesManagerImpl` maps a remote not on an account's server only after `GiteaServersManager.isSupportedGiteaServer` (unauthenticated `GET /api/v1/version`). `GiteaServersManager.isSupported` is the single version rule, also used at login: 1.27.x or 28+ (Gitea's numbering after 1.27.3), and a plain release unless the application setting `GiteaSettings.acceptPreReleaseVersions` also allows dev builds and release candidates; Forgejo reports `X.Y.Z+gitea-<compat>` and is always rejected.
 - `ui/` — `GiteaSettingsConfigurable` (Settings > VCS > Gitea) + clone UI.
 - `util/` — `GiteaBundle` i18n wrapper.
 

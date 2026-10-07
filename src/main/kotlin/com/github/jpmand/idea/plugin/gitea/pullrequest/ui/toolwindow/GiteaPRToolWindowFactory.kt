@@ -20,10 +20,10 @@ private val LOG = logger<GiteaPRToolWindowFactory>()
 
 /**
  * The "Gitea PR" tool window. It is available only while
- * [GiteaPRDataContextHolder.context] is set, that is while an account with a stored token is on
- * the same server as one of the project's git remotes. Without one there is nothing to show, and
- * every other pull request feature (the in-editor review, the PR diff, the Conversation tab)
- * hangs off that same context, so they go away with it.
+ * [GiteaPRDataContextHolder.context] is set, that is while one of the project's git remotes is on a
+ * Gitea server: with an account's token, or read-only without one. Without a context there is
+ * nothing to show, and every other pull request feature (the in-editor review, the PR diff, the
+ * Conversation tab) hangs off that same context, so they go away with it.
  */
 class GiteaPRToolWindowFactory : ToolWindowFactory, DumbAware {
 
@@ -34,7 +34,7 @@ class GiteaPRToolWindowFactory : ToolWindowFactory, DumbAware {
         Disposer.register(toolWindow.disposable, controller)
     }
 
-    /** Hidden until [manage] finds a usable account and remote. */
+    /** Hidden until [manage] finds a Gitea remote. */
     override fun shouldBeAvailable(project: Project): Boolean = false
 
     /** Shows and hides the tool window as accounts, tokens and git remotes change. */

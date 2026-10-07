@@ -38,12 +38,20 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     val repositoryCoordinates: GiteaRepositoryCoordinates get() = ctx.repo
 
     /** The signed-in account this repository is scoped to — used for virtual-file identity so a
-     * diff/timeline tab from a stale account context is never conflated with a fresh one. */
-    val accountId: String get() = ctx.account.id
+     * diff/timeline tab from a stale account context is never conflated with a fresh one. Null
+     * when read anonymously. */
+    val accountId: String? get() = ctx.account?.id
 
     /** The signed-in account's login — gates inline-comment edit/delete/reply controls to a
-     * comment's own author (Gitea's API exposes no `viewerCanUpdate`-style flag). */
-    val accountLogin: String get() = ctx.account.name
+     * comment's own author (Gitea's API exposes no `viewerCanUpdate`-style flag). Null when read
+     * anonymously. */
+    val accountLogin: String? get() = ctx.account?.name
+
+    /** Read without an account (see [GiteaPRDataContext.isAnonymous]): the UI shows no write controls. */
+    val isAnonymous: Boolean get() = ctx.isAnonymous
+
+    /** The Gitea server of this repository — where to log in from a read-only view. */
+    val serverPath: GiteaServerPath get() = ctx.repo.serverPath
 
     /** The authenticated API client — used to build an avatar-icons loader for the diff-editor
      * review UI, the one place that still needs raw API access outside this repository. */
@@ -79,9 +87,18 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         poster: String? = null,
         page: Int? = null,
         limit: Int? = null,
-    ): List<GiteaPullRequest> = giteaApiCall {
-        ctx.api.repoListPullRequests(owner, repo, null, state, sort, null, labels, poster, page, limit)
-            .map { GiteaPullRequest.fromDto(it) }
+    ): List<GiteaPullRequest> = try {
+        giteaApiCall {
+            ctx.api.repoListPullRequests(owner, repo, null, state, sort, null, labels, poster, page, limit)
+                .map { GiteaPullRequest.fromDto(it) }
+        }
+    } catch (e: GiteaHttpError) {
+        // Without an account, a private repository answers 404 (or 401/403 on a server that only
+        // shows anything to signed-in users): say that logging in is what's missing.
+        if (ctx.isAnonymous && (e is GiteaHttpError.NotFound || e is GiteaHttpError.Unauthorized || e is GiteaHttpError.Forbidden)) {
+            throw GiteaHttpError.SignInRequired(e.cause ?: e)
+        }
+        throw e
     }
 
     /** Repository labels, for the PR-list "Label" filter. */
@@ -93,9 +110,17 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     /**
      * Candidate PR authors for the "Author" filter — the repo's collaborators. Returns an empty
      * list (rather than throwing) only on 403, i.e. when the token lacks permission to enumerate
-     * collaborators; any other failure gets the friendly [GiteaHttpError] treatment.
+     * collaborators; any other failure gets the friendly [GiteaHttpError] treatment. Listing
+     * collaborators needs a token, so without one these are the authors of the most recently
+     * updated pull requests instead.
      */
-    suspend fun loadPossibleAuthors(): List<GiteaUser> = shared.load("collaborators") { loadPossibleAuthorsNow() }
+    suspend fun loadPossibleAuthors(): List<GiteaUser> =
+        if (ctx.isAnonymous) shared.load("recent authors") { loadRecentAuthors() }
+        else shared.load("collaborators") { loadPossibleAuthorsNow() }
+
+    private suspend fun loadRecentAuthors(): List<GiteaUser> =
+        distinctAuthors(loadPullRequests(state = "all", sort = GiteaPullRequestSortEnum.RECENTUPDATE, page = 1, limit = GITEA_PAGE_SIZE))
+            .also { LOG.debug("$owner/$repo: ${it.size} authors among the recently updated pull requests") }
 
     private suspend fun loadPossibleAuthorsNow(): List<GiteaUser> = giteaApiCall {
         try {
@@ -274,8 +299,10 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     suspend fun findMyPendingReview(prNumber: Int): GiteaReview? = findMyPendingReviews(prNumber).firstOrNull()
 
     /** All of the signed-in user's pending reviews on the PR (normally at most one). */
-    suspend fun findMyPendingReviews(prNumber: Int): List<GiteaReview> =
-        loadReviews(prNumber).filter { it.state == GiteaReviewState.PENDING && it.author?.login == ctx.account.name }
+    suspend fun findMyPendingReviews(prNumber: Int): List<GiteaReview> {
+        val login = ctx.account?.name ?: return emptyList()
+        return loadReviews(prNumber).filter { it.state == GiteaReviewState.PENDING && it.author?.login == login }
+    }
 
     /** Posts a new top-level (non-inline) timeline comment. */
     suspend fun createComment(prNumber: Int, body: String): GiteaPRTimelineItemViewModel.Comment = changeCall {
@@ -290,8 +317,10 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         )
     }
 
-    /** The signed-in account's own profile — used for the "leave a comment" avatar. */
-    suspend fun currentUser(): GiteaUser = shared.load("current user") { giteaApiCall { ctx.api.currentUser() } }
+    /** The signed-in account's own profile — used for the "leave a comment" avatar. Null, without
+     * asking the server, when read anonymously. */
+    suspend fun currentUserOrNull(): GiteaUser? =
+        if (ctx.isAnonymous) null else shared.load("current user") { giteaApiCall { ctx.api.currentUser() } }
 
     /**
      * Edits an existing comment's body. Gitea uses the same endpoint for both top-level timeline
@@ -370,6 +399,10 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         ctx.api.repoCombinedStatus(owner, repo, ref).statuses.orEmpty().map { GiteaCommitStatus.fromDto(it) }
     }
 }
+
+/** The distinct authors of [prs], in order of first appearance. */
+internal fun distinctAuthors(prs: List<GiteaPullRequest>): List<GiteaUser> =
+    prs.map { it.author }.filter { it.login.isNotBlank() }.distinctBy { it.login }
 
 /**
  * Pure merge of the raw timeline endpoint with the reviews and commits endpoints into a single
