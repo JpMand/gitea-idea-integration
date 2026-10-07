@@ -35,7 +35,7 @@ import javax.swing.JComponent
 private val LOG = logger<GiteaPRToolWindowController>()
 
 /**
- * Manages the "Gitea Pull Requests" tool window as a tab container:
+ * Manages the "Gitea PR" tool window as a tab container:
  *  - a fixed, non-closeable first tab (named after the repository) holding the PR list;
  *  - one closeable tab per opened PR (`#<number>`), holding the read-only details view.
  *
