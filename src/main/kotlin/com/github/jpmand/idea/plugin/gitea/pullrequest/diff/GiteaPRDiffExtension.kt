@@ -61,7 +61,17 @@ class GiteaPRDiffExtension : DiffExtension() {
                         // GitHub plugin's split between GHPRReviewDiffExtension (gutter/inlays) and
                         // GHPRDiffService.createDiffContext (header toolbar).
                         modelFactory = { editor, side, locationToLine, lineToLocation, _ ->
-                            GiteaPRDiffEditorModel(this, project, fileVm.file, side, discussionsVm, locationToLine, lineToLocation, editor)
+                            GiteaPRDiffEditorModel(
+                                this, project, fileVm.file, side, discussionsVm, locationToLine, lineToLocation, editor,
+                                // A thread groups the comments at one line, possibly from reviews on
+                                // different commits: it belongs wherever one of them does.
+                                showsThread = { thread, threadSide ->
+                                    val commits = thread.reviewCommitIds
+                                    if (commits.isEmpty()) fileVm.showsThread(null, threadSide)
+                                    else commits.any { fileVm.showsThread(it, threadSide) }
+                                },
+                                allowsNewComments = fileVm.target.allowsNewComments,
+                            )
                         },
                         rendererFactory = { inlayModel ->
                             GiteaPRInlayComponentsFactory.createRenderer(project, this, inlayModel, discussionsVm)

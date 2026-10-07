@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPRDraftComment
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
+import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRThreadViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaSuggestion
 import com.intellij.collaboration.ui.codereview.diff.DiffLineLocation
 import com.intellij.collaboration.ui.codereview.diff.DiscussionsViewOption
@@ -41,6 +42,11 @@ class GiteaPRDiffEditorModel(
     private val locationToLine: (DiffLineLocation) -> Int?,
     private val lineToLocation: (Int) -> DiffLineLocation?,
     private val editor: Editor,
+    /** Whether a thread belongs in this editor, given the side its line is on — a diff of an older
+     * commit shows only the threads made on it (see [com.github.jpmand.idea.plugin.gitea.pullrequest.diff.showsThread]). */
+    private val showsThread: (GiteaPRThreadViewModel, Side) -> Boolean = { _, _ -> true },
+    /** False where new comments can't be anchored: drafts are made against the current head. */
+    private val allowsNewComments: Boolean = true,
 ) : CodeReviewEditorModel<GiteaPRInlayModel> {
 
     private val path: String get() = file.filename
@@ -59,12 +65,13 @@ class GiteaPRDiffEditorModel(
             threadVms.mapNotNull { vm ->
                 if (vm.path != path) return@mapNotNull null
                 if (viewOption == DiscussionsViewOption.UNRESOLVED_ONLY && vm.isResolved) return@mapNotNull null
-                val lineIdx = when (side) {
-                    Side.RIGHT -> vm.newLine?.let { locationToLine(Pair(Side.RIGHT, it - 1)) }
-                    Side.LEFT -> vm.oldLine?.let { locationToLine(Pair(Side.LEFT, it - 1)) }
-                    null -> vm.newLine?.let { locationToLine(Pair(Side.RIGHT, it - 1)) }
-                        ?: vm.oldLine?.let { locationToLine(Pair(Side.LEFT, it - 1)) }
-                }?.takeIf { it in 0 until editor.document.lineCount } ?: return@mapNotNull null
+                val location = when (side) {
+                    Side.RIGHT -> vm.newLine?.let { Side.RIGHT to it - 1 }
+                    Side.LEFT -> vm.oldLine?.let { Side.LEFT to it - 1 }
+                    null -> vm.newLine?.let { Side.RIGHT to it - 1 } ?: vm.oldLine?.let { Side.LEFT to it - 1 }
+                } ?: return@mapNotNull null
+                if (!showsThread(vm, location.first)) return@mapNotNull null
+                val lineIdx = locationToLine(location)?.takeIf { it in 0 until editor.document.lineCount } ?: return@mapNotNull null
                 GiteaPRInlayModel.Thread(vm, lineIdx, editor, MutableStateFlow(lineIdx !in collapsed))
             }.also { LOG.trace("$path ($side): ${it.size} thread inlays (view option $viewOption, ${collapsed.size} collapsed)") }
         }.stateIn(cs, SharingStarted.Eagerly, emptyList())
@@ -120,7 +127,7 @@ class GiteaPRDiffEditorModel(
             object : CodeReviewEditorGutterControlsModel.ControlsState {
                 override val linesWithComments: Set<Int> = linesWithComments
                 override val linesWithNewComments: Set<Int> = newComments.keys
-                override fun isLineCommentable(lineIdx: Int): Boolean = !discussionsVm.isAnonymous && lineToLocation(lineIdx) != null
+                override fun isLineCommentable(lineIdx: Int): Boolean = allowsNewComments && !discussionsVm.isAnonymous && lineToLocation(lineIdx) != null
             }
         }.stateIn(cs, SharingStarted.Eagerly, null)
 
@@ -128,6 +135,7 @@ class GiteaPRDiffEditorModel(
 
     @RequiresEdt
     override fun requestNewComment(lineIdx: Int) {
+        if (!allowsNewComments) return
         val (commentSide, zeroIndexedLine) = lineToLocation(lineIdx) ?: return
         createNewCommentVm(lineIdx, commentSide, zeroIndexedLine, suggestion = null)
     }
@@ -171,7 +179,7 @@ class GiteaPRDiffEditorModel(
     private fun seedExistingDrafts() {
         // Read without an account: drafts stay saved for after logging in, but can't be shown as
         // composers here.
-        if (project == null || discussionsVm.isAnonymous) return
+        if (project == null || discussionsVm.isAnonymous || !allowsNewComments) return
         val sidesToSeed = when (side) {
             Side.RIGHT -> listOf(Side.RIGHT)
             Side.LEFT -> listOf(Side.LEFT)

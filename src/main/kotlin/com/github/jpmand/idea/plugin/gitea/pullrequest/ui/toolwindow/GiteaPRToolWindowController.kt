@@ -35,7 +35,7 @@ import javax.swing.JComponent
 private val LOG = logger<GiteaPRToolWindowController>()
 
 /**
- * Manages the "Gitea Pull Requests" tool window as a tab container:
+ * Manages the "Gitea PR" tool window as a tab container:
  *  - a fixed, non-closeable first tab (named after the repository) holding the PR list;
  *  - one closeable tab per opened PR (`#<number>`), holding the read-only details view.
  *
@@ -224,11 +224,11 @@ class GiteaPRToolWindowController(
         tab.selectCommitBySha(req.commitSha)
     }
 
-    /** Opens the given PR's diff on a file, through its Details tab (opened if needed), which owns
-     * the diff — see [GiteaPRShowDiffRequests]. */
+    /** Opens the given PR's diff on a review thread's file, through its Details tab (opened if
+     * needed), which owns the diff — see [GiteaPRShowDiffRequests]. */
     private fun handleShowDiff(req: GiteaPRShowDiffRequests.Request) {
-        LOG.debug("Showing ${req.path} in the diff of PR #${req.pr.number}")
-        openOrFocusDetailTab(req.ctx, req.repository, req.pr).showDiff(req.path, req.scrollRequest)
+        LOG.debug("Showing ${req.thread.path} in the diff of PR #${req.pr.number}")
+        openOrFocusDetailTab(req.ctx, req.repository, req.pr).showThreadDiff(req.thread)
     }
 
     private fun openTimelineEditor(repository: GiteaPRRepository, pr: GiteaPullRequest, ctx: GiteaPRDataContext) {

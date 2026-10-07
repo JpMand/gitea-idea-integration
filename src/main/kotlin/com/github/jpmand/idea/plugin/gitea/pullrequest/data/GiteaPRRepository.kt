@@ -6,6 +6,7 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.*
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.*
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.*
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
+import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.parseDiffChangedFiles
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.toChangedFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineItemViewModel
 import com.intellij.collaboration.api.HttpStatusErrorException
@@ -216,10 +217,12 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     }
 
     /** Groups all review comments for a PR into synthetic [GiteaReviewThread]s, with
-     * [GiteaReviewThread.isOutdated] computed against the file content at [headSha]. */
+     * [GiteaReviewThread.isOutdated] computed against the file content at [headSha] and
+     * [GiteaReviewThread.reviewCommitId] set. */
     suspend fun loadThreads(prNumber: Int, headSha: String): List<GiteaReviewThread> {
         val reviews = loadReviews(prNumber)
-        return markOutdated(loadAllReviewComments(prNumber, reviews).toThreads(), reviews, headSha, mutableMapOf())
+        val threads = loadAllReviewComments(prNumber, reviews).toThreads().withReviewCommits(reviews)
+        return markOutdated(threads, reviews, headSha, mutableMapOf())
     }
 
     /**
@@ -265,7 +268,7 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         val headLinesCache = mutableMapOf<String, List<String>>()
         val threadsByReviewId = loadAllReviewComments(prNumber, reviews)
             .groupBy { it.reviewId ?: 0L }
-            .mapValues { (_, comments) -> markOutdated(comments.toThreads(), reviews, headSha, headLinesCache) }
+            .mapValues { (_, comments) -> markOutdated(comments.toThreads().withReviewCommits(reviews), reviews, headSha, headLinesCache) }
         mergeTimeline(timeline.await(), reviews.associateBy { it.id }, threadsByReviewId, commits.await())
     }
 
@@ -351,9 +354,18 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     }
 
     /** Returns domain models for files changed by a single commit. */
-    suspend fun loadCommitChangedFiles(sha: String): List<GiteaPRChangedFile> = giteaApiCall {
-        ctx.api.repoGetSingleCommit(owner, repo, sha).files.orEmpty().map { it.toChangedFile() }
+    suspend fun loadCommitChangedFiles(sha: String): List<GiteaPRChangedFile> = shared.load("commit files" to sha) {
+        giteaApiCall {
+            ctx.api.repoGetSingleCommit(owner, repo, sha).files.orEmpty().map { it.toChangedFile() }
+        }
     }
+
+    /** Returns domain models for files changed from [baseSha] to [headSha], e.g. the PR as it was
+     * at an older head — read from the raw diff, the one comparison Gitea lists files in. */
+    suspend fun loadComparedFiles(baseSha: String, headSha: String): List<GiteaPRChangedFile> =
+        shared.load(Triple("compared files", baseSha, headSha)) {
+            giteaApiCall { parseDiffChangedFiles(ctx.api.repoCompareDiff(owner, repo, baseSha, headSha)) }
+        }
 
     /**
      * Fetches the raw text content of a file at a specific ref (branch name, tag, or SHA).

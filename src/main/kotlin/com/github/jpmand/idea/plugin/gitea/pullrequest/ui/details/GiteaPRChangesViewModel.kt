@@ -89,5 +89,5 @@ class GiteaPRChangesViewModel(
     }
 
     /** Abbreviated SHA — this is what the commits dropdown / selector renders. */
-    override fun commitHash(commit: GiteaCommit): String = commit.sha.take(8)
+    override fun commitHash(commit: GiteaCommit): String = commit.sha.take(7)
 }

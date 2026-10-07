@@ -4,6 +4,7 @@ import com.github.jpmand.idea.plugin.gitea.api.models.GiteaCommit
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.GiteaPRFileStatusEnum
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
+import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffTarget
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.CollaborationToolsUIUtil
@@ -38,7 +39,8 @@ import javax.swing.JComponent
  * a specific commit = just that commit's files. It also reloads when [prFlow] brings a new head
  * or merge base. Directory grouping and per-file comment counts come
  * from [GiteaPRChangesTreeViewModel]; opening a file goes through the existing REST diff via
- * [onOpenChange] (called with the repo-relative path).
+ * [onOpenChange], called with the diff to open (the selected commit's, or the whole PR's) and the
+ * repo-relative path.
  */
 @Suppress("UnstableApiUsage")
 object GiteaPRChangesTreeComponentFactory {
@@ -50,7 +52,7 @@ object GiteaPRChangesTreeComponentFactory {
         repository: GiteaPRRepository,
         discussionsVm: GiteaPRDiscussionsViewModels,
         selectedCommitFlow: Flow<GiteaCommit?>,
-        onOpenChange: (String) -> Unit,
+        onOpenChange: (GiteaPRDiffTarget, String) -> Unit,
     ): JComponent {
         val wrapper = Wrapper(LoadingLabel())
         // Bumped by the error panel's Retry to load the same selection again.
@@ -76,6 +78,8 @@ object GiteaPRChangesTreeComponentFactory {
                     } else {
                         val beforeSha = selectedCommit?.firstParentSha ?: pr.diffBaseSha
                         val afterSha = selectedCommit?.sha ?: pr.head.sha
+                        val diffTarget = if (selectedCommit == null) GiteaPRDiffTarget.PullRequest
+                        else GiteaPRDiffTarget.Commit(afterSha, beforeSha)
                         val repoRoot = ProjectLevelVcsManager.getInstance(project).getAllVersionedRoots().firstOrNull()?.path
                         val before = Sha(beforeSha)
                         val after = Sha(afterSha)
@@ -97,7 +101,8 @@ object GiteaPRChangesTreeComponentFactory {
                         }
                         val vm = GiteaPRChangesTreeViewModel(
                             cs, project, CodeReviewChangeList(afterSha, changes),
-                            relPathByChange, previousRelPathByChange, discussionsVm, onOpenChange,
+                            relPathByChange, previousRelPathByChange, discussionsVm,
+                            onOpenChange = { relPath -> onOpenChange(diffTarget, relPath) },
                         )
                         val progressModel = CodeReviewProgressTreeModelFromDetails(cs, vm)
                         val tree = CodeReviewChangeListComponentFactory.createIn(
