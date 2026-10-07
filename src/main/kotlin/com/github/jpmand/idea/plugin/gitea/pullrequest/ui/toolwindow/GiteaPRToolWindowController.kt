@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow
 
+import com.github.jpmand.idea.plugin.gitea.GiteaRepositoriesManager
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager
@@ -9,6 +10,8 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPRTimelineVirtualFil
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContext
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContextHolder
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.create.GiteaPRCreateComponentFactory
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.create.GiteaPRCreateViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListPanel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListViewModel
 import com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable
@@ -16,7 +19,10 @@ import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.util.GiteaPluginProjectScopeProvider
 import com.intellij.collaboration.ui.icon.AsyncImageIconsProvider
 import com.intellij.collaboration.ui.icon.CachingIconsProvider
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.fileEditor.FileEditorManager
@@ -29,6 +35,7 @@ import com.intellij.ui.content.Content
 import com.intellij.ui.content.ContentManagerEvent
 import com.intellij.ui.content.ContentManagerListener
 import com.intellij.util.ui.UIUtil
+import git4idea.GitBranch
 import kotlinx.coroutines.*
 import javax.swing.JComponent
 
@@ -60,7 +67,26 @@ class GiteaPRToolWindowController(
 
     private class DetailTab(val content: Content, val scope: CoroutineScope, val tab: GiteaPRDetailsTab)
 
+    private var currentRepository: GiteaPRRepository? = null
+    private var currentListVm: GiteaPRListViewModel? = null
+
+    private class CreateTab(val content: Content, val vm: GiteaPRCreateViewModel)
+
+    private var createTab: CreateTab? = null
+
     private val detailTabs = LinkedHashMap<Int, DetailTab>()
+
+    /**
+     * The "+" in the tool window's header. Declared before `init`: the context collector runs on
+     * Main.immediate, so the list tab (which sets it) is built inside the constructor.
+     */
+    private val newPullRequestAction = object : DumbAwareAction(
+        GiteaBundle.messagePointer("pull.request.create.tab"),
+        GiteaBundle.messagePointer("pull.request.create.action.description"),
+        AllIcons.General.Add,
+    ) {
+        override fun actionPerformed(e: AnActionEvent) = openCreateTab(null)
+    }
 
     init {
         cm.addContentManagerListener(object : ContentManagerListener {
@@ -69,6 +95,7 @@ class GiteaPRToolWindowController(
             }
 
             override fun contentRemoved(event: ContentManagerEvent) {
+                if (createTab?.content === event.content) createTab = null
                 val entry = detailTabs.entries.firstOrNull { it.value.content === event.content } ?: return
                 LOG.debug("Closed the details tab of PR #${entry.key}")
                 detailTabs.remove(entry.key)
@@ -84,12 +111,16 @@ class GiteaPRToolWindowController(
         cs.launch {
             project.service<GiteaPRShowDiffRequests>().requests.collect { req -> handleShowDiff(req) }
         }
+        cs.launch {
+            project.service<GiteaPRCreateRequests>().requests.collect { req -> openCreateTab(req.head) }
+        }
     }
 
     private fun updateContent(ctx: GiteaPRDataContext?) {
         when {
             ctx == null -> {
                 closeAllDetailTabs()
+                closeCreateTab()
                 closeAllTimelineEditors()
                 showEmptyState()
             }
@@ -98,6 +129,7 @@ class GiteaPRToolWindowController(
             ctx === currentCtx -> Unit
             else -> {
                 closeAllDetailTabs()
+                closeCreateTab()
                 closeAllTimelineEditors()
                 rebuildListTab(ctx)
             }
@@ -107,6 +139,7 @@ class GiteaPRToolWindowController(
     private fun showEmptyState() {
         LOG.debug("No PR context, showing the empty state")
         currentCtx = null
+        toolWindow.setTitleActions(emptyList())
         listPanelJob?.cancel()
         listPanelJob = null
         val empty = cm.factory.createContent(createEmptyStatePanel(), null, false).apply { isCloseable = false }
@@ -122,6 +155,8 @@ class GiteaPRToolWindowController(
 
         val repository = GiteaPRRepository(ctx)
         val listVm = GiteaPRListViewModel(panelCs, repository)
+        currentRepository = repository
+        currentListVm = listVm
         val avatarIconsProvider =
             CachingIconsProvider(AsyncImageIconsProvider<GiteaUser>(panelCs, GiteaImageLoader(ctx.api, ctx.avatarImages)))
         val listPanel = GiteaPRListPanel(
@@ -129,6 +164,7 @@ class GiteaPRToolWindowController(
             repositoryName = ctx.repo.repositoryPath.toString(),
             repositoryWebUrl = ctx.repo.getWebURI().toString(),
             onPROpenRequested = { pr -> openPullRequest(ctx, repository, pr) },
+            onCreateRequested = { openCreateTab(null) },
             // In the controller's scope: saving the new token rebuilds this list, cancelling panelCs.
             logInAgain = GiteaHttpStatusErrorAction.LogInAgain(project, cs, ctx.account, service<GiteaAccountManager>()),
         ).create()
@@ -142,6 +178,7 @@ class GiteaPRToolWindowController(
         }
         replaceListContent(content)
         currentCtx = ctx
+        toolWindow.setTitleActions(listOf(newPullRequestAction))
     }
 
     private fun replaceListContent(content: Content) {
@@ -176,6 +213,57 @@ class GiteaPRToolWindowController(
         cm.addContent(content)
         cm.setSelectedContent(content, true)
         return tab
+    }
+
+    /**
+     * Opens the "New Pull Request" tab, or focuses it and switches its head to [head] when given. It
+     * creates the pull request on the PR context's repository and remote; after that, the new pull
+     * request opens like one picked from the list.
+     */
+    private fun openCreateTab(head: GitBranch?) {
+        val ctx = currentCtx ?: return
+        val repository = currentRepository ?: return
+        toolWindow.activate(null)
+        createTab?.let { tab ->
+            if (head != null) tab.vm.setHeadBranch(head)
+            cm.setSelectedContent(tab.content, true)
+            return
+        }
+        val mapping = project.service<GiteaRepositoriesManager>().knownRepositoriesState.value.firstOrNull {
+            it.repository.repositoryPath == ctx.repo.repositoryPath && it.repository.serverPath.equals(ctx.repo.serverPath, ignoreProtocol = true)
+        }
+        if (mapping == null) {
+            LOG.warn("No git repository for ${ctx.repo}, can't create a pull request")
+            return
+        }
+        LOG.info("Opening the New Pull Request tab for ${ctx.repo} (head ${head?.name ?: "current branch"})")
+        val tabJob = SupervisorJob(cs.coroutineContext[Job])
+        val tabScope = CoroutineScope(cs.coroutineContext + tabJob)
+        val vm = GiteaPRCreateViewModel(project, tabScope, repository, mapping, head) { pr ->
+            closeCreateTab()
+            currentListVm?.refresh()
+            openPullRequest(ctx, repository, pr)
+        }
+        val component = GiteaPRCreateComponentFactory.create(
+            tabScope, vm,
+            onOpenPullRequest = { pr -> openPullRequest(ctx, repository, pr) },
+            onCancel = ::closeCreateTab,
+        )
+        val content = cm.factory.createContent(component, GiteaBundle.message("pull.request.create.tab"), false).apply {
+            description = GiteaBundle.message("pull.request.create.tab.description", ctx.repo.repositoryPath.toString())
+            isCloseable = true
+            isPinnable = false
+            setDisposer(Disposable { tabJob.cancel() })
+        }
+        createTab = CreateTab(content, vm)
+        cm.addContent(content)
+        cm.setSelectedContent(content, true)
+    }
+
+    private fun closeCreateTab() {
+        val tab = createTab ?: return
+        createTab = null
+        cm.removeContent(tab.content, true)
     }
 
     /** Opens a PR from the list: both the Details tab and the Conversation timeline editor, not

@@ -70,6 +70,8 @@ class GiteaPRListPanel(
     private val repositoryName: @NlsSafe String,
     private val repositoryWebUrl: String,
     private val onPROpenRequested: (GiteaPullRequest) -> Unit,
+    /** Opens the "New Pull Request" tab. */
+    private val onCreateRequested: () -> Unit,
     /** Offered instead of Retry when loading fails because the account's token is invalid. */
     private val logInAgain: Action? = null,
 ) {
@@ -107,6 +109,10 @@ class GiteaPRListPanel(
             add(GiteaPRCopyLinkAction())
             addSeparator()
             add(GiteaPROpenRepositoryAction(repositoryWebUrl))
+            add(object : AnAction(GiteaBundle.message("pull.request.create.action")) {
+                override fun getActionUpdateThread() = ActionUpdateThread.BGT
+                override fun actionPerformed(e: AnActionEvent) = onCreateRequested()
+            })
             add(object : AnAction(GiteaBundle.message("pull.request.action.refresh")) {
                 override fun getActionUpdateThread() = ActionUpdateThread.BGT
                 override fun actionPerformed(e: AnActionEvent) = vm.refresh()

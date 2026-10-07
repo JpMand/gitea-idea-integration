@@ -6,6 +6,7 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.dto.ChangedFile
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.Comment
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.Commit
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreateIssueCommentOption
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreatePullRequestOption
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreatePullReviewCommentReplyOptions
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.CreatePullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.DismissPullReviewOptions
@@ -89,6 +90,16 @@ suspend fun GiteaApi.repoListPinnedPullRequests(owner: String, repo: String): Li
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/pinned")
   val request = request(uri).GET().build()
   return rest.loadJsonList<PullRequest>(request).body()
+}
+
+/** POST /repos/{owner}/{repo}/pulls — open a pull request from [CreatePullRequestOption.head] into its base. */
+@Suppress("UnstableApiUsage")
+suspend fun GiteaApi.repoCreatePullRequest(owner: String, repo: String, body: CreatePullRequestOption): PullRequest {
+  val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls")
+  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
+    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
+    .build()
+  return rest.loadJsonValue<PullRequest>(request).body()
 }
 
 // ── Single PR ─────────────────────────────────────────────────────────────

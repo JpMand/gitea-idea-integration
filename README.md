@@ -1,13 +1,15 @@
 # Gitea PR & Code Review
 
 ![Build](https://github.com/JpMand/gitea-idea-integration/workflows/Build/badge.svg)
+[![Version](https://img.shields.io/jetbrains/plugin/v/34787.svg)](https://plugins.jetbrains.com/plugin/34787)
+[![Downloads](https://img.shields.io/jetbrains/plugin/d/34787.svg)](https://plugins.jetbrains.com/plugin/34787)
 
-> [!NOTE]
-> This project is developed with heavy use of AI assistance, by someone still learning Kotlin and
-> the IntelliJ Platform. Most of its structure follows the official
-> [GitHub](https://github.com/JetBrains/intellij-community/tree/master/plugins/github) and
-> [GitLab](https://github.com/JetBrains/intellij-community/tree/master/plugins/gitlab) plugins.
-> Reviews, issues and contributions are very welcome.
+> [!NOTE]  
+> This is a project that makes use of AI during development and probabily not as efficiently or as adequately as it should (mostly because I barely know kotlin and know almost nothing about the IntelliJ Platform libraries).
+> 
+> This means that this is not good quality code, most of the code is done by following (or attempting to follow) the structure and flow of [Github](https://github.com/JetBrains/intellij-community/tree/master/plugins/github) and [Gitlab](https://github.com/JetBrains/intellij-community/tree/master/plugins/gitlab) plugins and their usage of the collaboration tools features (which are mostly marked as `@ExperimentalApi`).
+>
+> Any help is greatly appreciated
 
 <!-- Plugin description -->
 Review Gitea pull requests in your IDE: browse, comment, approve and merge, and clone
@@ -20,6 +22,9 @@ repositories from your Gitea servers.
 - Review in the diff viewer or directly in the editor: draft comments, suggested changes that can
   be applied in one click, and approve / request changes / comment verdicts
 - Merge (with a choice of method), close, reopen, check out the branch, and request reviewers
+- Create pull requests from the current or any local branch: base branch, title and description
+  (prefilled from the commits and the PR template), WIP, reviewers and labels, with a preview of
+  the commits and changes; unpushed branches are pushed on create
 
 **Accounts and repositories**
 - Personal access token login, with several accounts across several servers

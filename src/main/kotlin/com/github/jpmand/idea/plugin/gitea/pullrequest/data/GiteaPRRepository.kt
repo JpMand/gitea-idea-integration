@@ -84,6 +84,42 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
             .map { GiteaPullRequest.fromDto(it) }
     }
 
+    /** The repository's default branch, the usual target of a new pull request. */
+    suspend fun loadDefaultBranch(): String? = shared.load("repository") {
+        giteaApiCall { ctx.api.getRepository(owner, repo) }
+    }?.defaultBranch
+
+    /**
+     * The open pull request from [head] into [base], if there is one: every open PR into [base] is
+     * listed and matched by head branch. (`GET /pulls/{base}/{head}` can't take a base branch name
+     * containing a slash.)
+     */
+    suspend fun findOpenPullRequest(base: String, head: String): GiteaPullRequest? = giteaApiCall {
+        loadAllGiteaPages { page ->
+            ctx.api.repoListPullRequests(owner, repo, base, "open", null, null, null, null, page, GITEA_PAGE_SIZE)
+        }.map { GiteaPullRequest.fromDto(it) }.firstOrNull { it.head.ref == head && it.base.ref == base }
+    }
+
+    /** Opens a pull request from [head] into [base]; [labelIds] and [reviewers] (logins) are set on it. */
+    suspend fun createPullRequest(
+        base: String,
+        head: String,
+        title: String,
+        body: String,
+        labelIds: List<Long>,
+        reviewers: List<String>,
+    ): GiteaPullRequest = changeCall {
+        val option = CreatePullRequestOption(
+            base = base,
+            head = head,
+            title = title,
+            body = body.ifBlank { null },
+            labels = labelIds.toTypedArray().takeIf { it.isNotEmpty() },
+            reviewers = reviewers.toTypedArray().takeIf { it.isNotEmpty() },
+        )
+        GiteaPullRequest.fromDto(ctx.api.repoCreatePullRequest(owner, repo, option))
+    }
+
     /** Repository labels, for the PR-list "Label" filter. */
     suspend fun loadLabels(): List<GiteaLabel> = giteaApiCall {
         loadAllGiteaPages { page -> ctx.api.repoListLabels(owner, repo, page = page, limit = GITEA_PAGE_SIZE) }

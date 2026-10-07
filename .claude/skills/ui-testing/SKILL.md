@@ -53,6 +53,9 @@ The IDE's settings, accounts and opened project live in `.intellijPlatform/sandb
 `ide.sh stop/start`. The container has no `libsecret`, so the IDE keeps tokens in memory only:
 after an IDE restart, log the accounts in again from Settings > Version Control > Gitea (tokens
 are in `~/.gitea-ui/<user>.token`).
+If `~/.gitea-ui/*.token` are gone but the `gitea` container survived, recover them from
+`docker exec gitea cat /root/.config/tea/config.yml` (the `tok` helper in `fixture.sh`) rather than
+rebuilding the fixture.
 
 Expected noise on a fresh start, not caused by the plugin: an "IDE error occurred" balloon from
 JetBrains' OS integration daemon and a `PasswordSafeSettings` "Unable to load library 'secret-1'"
@@ -102,6 +105,9 @@ Rules learned the hard way:
   `FileEditorManager.getInstance(project).openFile(file, true)`), not keyboard shortcuts.
 - Run `clear-notifications.sh` before clicks and screenshots; balloons cover the tool windows.
 - Prefer XPath lookups to fixed coordinates; coordinates change with window size and zoom.
+- `xdotool` clicks on items of a popup list (combo-box drop-downs, the branches popup's submenus)
+  often don't register. Open the popup with a click, then pick with the keyboard (`Down`/`Up`,
+  `Return`), and click dialog buttons by XPath.
 - Look at every screenshot (Read the PNG) before drawing conclusions from it.
 - To compare UI variants without rebuilding, gate the code on a system property and flip it with
   `ui.py js 'java.lang.System.setProperty("name", "value")'`, then refresh the view. Remove the
