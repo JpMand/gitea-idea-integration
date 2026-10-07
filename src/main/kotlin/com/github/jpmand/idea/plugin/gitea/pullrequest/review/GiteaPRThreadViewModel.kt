@@ -37,6 +37,9 @@ class GiteaPRThreadViewModel(
      */
     val isOutdated: Boolean get() = thread.isOutdated
 
+    /** The commits its comments' reviews were made on — see [GiteaReviewThread.reviewCommitIds]. */
+    val reviewCommitIds: Set<String> get() = thread.reviewCommitIds
+
     val commentVMs: List<GiteaPRCommentViewModel> = thread.comments.map(::GiteaPRCommentViewModel)
 
     /** Resolves this thread via the API. Triggers a full thread list reload. */
