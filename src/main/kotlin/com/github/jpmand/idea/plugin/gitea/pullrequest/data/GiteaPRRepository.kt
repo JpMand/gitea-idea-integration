@@ -6,6 +6,7 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.*
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.*
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.*
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
+import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.parseDiffChangedFiles
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.toChangedFile
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineItemViewModel
 import com.intellij.collaboration.api.HttpStatusErrorException
@@ -37,12 +38,20 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     val repositoryCoordinates: GiteaRepositoryCoordinates get() = ctx.repo
 
     /** The signed-in account this repository is scoped to — used for virtual-file identity so a
-     * diff/timeline tab from a stale account context is never conflated with a fresh one. */
-    val accountId: String get() = ctx.account.id
+     * diff/timeline tab from a stale account context is never conflated with a fresh one. Null
+     * when read anonymously. */
+    val accountId: String? get() = ctx.account?.id
 
     /** The signed-in account's login — gates inline-comment edit/delete/reply controls to a
-     * comment's own author (Gitea's API exposes no `viewerCanUpdate`-style flag). */
-    val accountLogin: String get() = ctx.account.name
+     * comment's own author (Gitea's API exposes no `viewerCanUpdate`-style flag). Null when read
+     * anonymously. */
+    val accountLogin: String? get() = ctx.account?.name
+
+    /** Read without an account (see [GiteaPRDataContext.isAnonymous]): the UI shows no write controls. */
+    val isAnonymous: Boolean get() = ctx.isAnonymous
+
+    /** The Gitea server of this repository — where to log in from a read-only view. */
+    val serverPath: GiteaServerPath get() = ctx.repo.serverPath
 
     /** The authenticated API client — used to build an avatar-icons loader for the diff-editor
      * review UI, the one place that still needs raw API access outside this repository. */
@@ -78,9 +87,18 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         poster: String? = null,
         page: Int? = null,
         limit: Int? = null,
-    ): List<GiteaPullRequest> = giteaApiCall {
-        ctx.api.repoListPullRequests(owner, repo, null, state, sort, null, labels, poster, page, limit)
-            .map { GiteaPullRequest.fromDto(it) }
+    ): List<GiteaPullRequest> = try {
+        giteaApiCall {
+            ctx.api.repoListPullRequests(owner, repo, null, state, sort, null, labels, poster, page, limit)
+                .map { GiteaPullRequest.fromDto(it) }
+        }
+    } catch (e: GiteaHttpError) {
+        // Without an account, a private repository answers 404 (or 401/403 on a server that only
+        // shows anything to signed-in users): say that logging in is what's missing.
+        if (ctx.isAnonymous && (e is GiteaHttpError.NotFound || e is GiteaHttpError.Unauthorized || e is GiteaHttpError.Forbidden)) {
+            throw GiteaHttpError.SignInRequired(e.cause ?: e)
+        }
+        throw e
     }
 
     /** The repository's default branch, the usual target of a new pull request. */
@@ -128,9 +146,17 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     /**
      * Candidate PR authors for the "Author" filter — the repo's collaborators. Returns an empty
      * list (rather than throwing) only on 403, i.e. when the token lacks permission to enumerate
-     * collaborators; any other failure gets the friendly [GiteaHttpError] treatment.
+     * collaborators; any other failure gets the friendly [GiteaHttpError] treatment. Listing
+     * collaborators needs a token, so without one these are the authors of the most recently
+     * updated pull requests instead.
      */
-    suspend fun loadPossibleAuthors(): List<GiteaUser> = shared.load("collaborators") { loadPossibleAuthorsNow() }
+    suspend fun loadPossibleAuthors(): List<GiteaUser> =
+        if (ctx.isAnonymous) shared.load("recent authors") { loadRecentAuthors() }
+        else shared.load("collaborators") { loadPossibleAuthorsNow() }
+
+    private suspend fun loadRecentAuthors(): List<GiteaUser> =
+        distinctAuthors(loadPullRequests(state = "all", sort = GiteaPullRequestSortEnum.RECENTUPDATE, page = 1, limit = GITEA_PAGE_SIZE))
+            .also { LOG.debug("$owner/$repo: ${it.size} authors among the recently updated pull requests") }
 
     private suspend fun loadPossibleAuthorsNow(): List<GiteaUser> = giteaApiCall {
         try {
@@ -227,10 +253,12 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     }
 
     /** Groups all review comments for a PR into synthetic [GiteaReviewThread]s, with
-     * [GiteaReviewThread.isOutdated] computed against the file content at [headSha]. */
+     * [GiteaReviewThread.isOutdated] computed against the file content at [headSha] and
+     * [GiteaReviewThread.reviewCommitId] set. */
     suspend fun loadThreads(prNumber: Int, headSha: String): List<GiteaReviewThread> {
         val reviews = loadReviews(prNumber)
-        return markOutdated(loadAllReviewComments(prNumber, reviews).toThreads(), reviews, headSha, mutableMapOf())
+        val threads = loadAllReviewComments(prNumber, reviews).toThreads().withReviewCommits(reviews)
+        return markOutdated(threads, reviews, headSha, mutableMapOf())
     }
 
     /**
@@ -276,7 +304,7 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         val headLinesCache = mutableMapOf<String, List<String>>()
         val threadsByReviewId = loadAllReviewComments(prNumber, reviews)
             .groupBy { it.reviewId ?: 0L }
-            .mapValues { (_, comments) -> markOutdated(comments.toThreads(), reviews, headSha, headLinesCache) }
+            .mapValues { (_, comments) -> markOutdated(comments.toThreads().withReviewCommits(reviews), reviews, headSha, headLinesCache) }
         mergeTimeline(timeline.await(), reviews.associateBy { it.id }, threadsByReviewId, commits.await())
     }
 
@@ -307,8 +335,10 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     suspend fun findMyPendingReview(prNumber: Int): GiteaReview? = findMyPendingReviews(prNumber).firstOrNull()
 
     /** All of the signed-in user's pending reviews on the PR (normally at most one). */
-    suspend fun findMyPendingReviews(prNumber: Int): List<GiteaReview> =
-        loadReviews(prNumber).filter { it.state == GiteaReviewState.PENDING && it.author?.login == ctx.account.name }
+    suspend fun findMyPendingReviews(prNumber: Int): List<GiteaReview> {
+        val login = ctx.account?.name ?: return emptyList()
+        return loadReviews(prNumber).filter { it.state == GiteaReviewState.PENDING && it.author?.login == login }
+    }
 
     /** Posts a new top-level (non-inline) timeline comment. */
     suspend fun createComment(prNumber: Int, body: String): GiteaPRTimelineItemViewModel.Comment = changeCall {
@@ -323,8 +353,10 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         )
     }
 
-    /** The signed-in account's own profile — used for the "leave a comment" avatar. */
-    suspend fun currentUser(): GiteaUser = shared.load("current user") { giteaApiCall { ctx.api.currentUser() } }
+    /** The signed-in account's own profile — used for the "leave a comment" avatar. Null, without
+     * asking the server, when read anonymously. */
+    suspend fun currentUserOrNull(): GiteaUser? =
+        if (ctx.isAnonymous) null else shared.load("current user") { giteaApiCall { ctx.api.currentUser() } }
 
     /**
      * Edits an existing comment's body. Gitea uses the same endpoint for both top-level timeline
@@ -358,9 +390,18 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
     }
 
     /** Returns domain models for files changed by a single commit. */
-    suspend fun loadCommitChangedFiles(sha: String): List<GiteaPRChangedFile> = giteaApiCall {
-        ctx.api.repoGetSingleCommit(owner, repo, sha).files.orEmpty().map { it.toChangedFile() }
+    suspend fun loadCommitChangedFiles(sha: String): List<GiteaPRChangedFile> = shared.load("commit files" to sha) {
+        giteaApiCall {
+            ctx.api.repoGetSingleCommit(owner, repo, sha).files.orEmpty().map { it.toChangedFile() }
+        }
     }
+
+    /** Returns domain models for files changed from [baseSha] to [headSha], e.g. the PR as it was
+     * at an older head — read from the raw diff, the one comparison Gitea lists files in. */
+    suspend fun loadComparedFiles(baseSha: String, headSha: String): List<GiteaPRChangedFile> =
+        shared.load(Triple("compared files", baseSha, headSha)) {
+            giteaApiCall { parseDiffChangedFiles(ctx.api.repoCompareDiff(owner, repo, baseSha, headSha)) }
+        }
 
     /**
      * Fetches the raw text content of a file at a specific ref (branch name, tag, or SHA).
@@ -394,6 +435,10 @@ class GiteaPRRepository(private val ctx: GiteaPRDataContext) {
         ctx.api.repoCombinedStatus(owner, repo, ref).statuses.orEmpty().map { GiteaCommitStatus.fromDto(it) }
     }
 }
+
+/** The distinct authors of [prs], in order of first appearance. */
+internal fun distinctAuthors(prs: List<GiteaPullRequest>): List<GiteaUser> =
+    prs.map { it.author }.filter { it.login.isNotBlank() }.distinctBy { it.login }
 
 /**
  * Pure merge of the raw timeline endpoint with the reviews and commits endpoints into a single

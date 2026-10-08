@@ -9,11 +9,13 @@ import com.intellij.collaboration.ui.VerticalListPanel
 import com.intellij.collaboration.ui.codereview.CodeReviewChatItemUIUtil.ComponentType
 import com.intellij.collaboration.ui.codereview.CodeReviewTimelineUIUtil
 import com.intellij.collaboration.ui.codereview.CodeReviewTitleUIUtil
+import com.intellij.collaboration.ui.codereview.comment.CodeReviewCommentUIUtil
 import com.intellij.collaboration.ui.codereview.list.error.ErrorStatusPanelFactory
 import com.intellij.collaboration.ui.codereview.list.error.ErrorStatusPresenter
 import com.intellij.collaboration.ui.setHtmlBody
 import com.intellij.collaboration.ui.util.swingAction
 import com.intellij.collaboration.ui.icon.IconsProvider
+import com.intellij.ui.RoundedLineBorder
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
@@ -53,6 +55,8 @@ object GiteaPRTimelineComponentFactory {
         vm: GiteaPRTimelineViewModel,
         itemFactory: GiteaPRTimelineItemComponentFactory,
         avatars: IconsProvider<GiteaUser>,
+        /** Logs in from the comment box's place when the timeline is read without an account. */
+        onLogIn: (JComponent) -> Unit,
         onRefresh: () -> Unit,
     ): JComponent {
         // The platform's review title: bold, with a grey "#N" that links to the PR, as in the GitHub plugin.
@@ -166,7 +170,7 @@ object GiteaPRTimelineComponentFactory {
         val commentField = JPanel(java.awt.BorderLayout()).apply {
             isOpaque = false
             border = EmptyBorder(ComponentType.FULL.inputPaddingInsets)
-            add(commentFieldPanel(cs, vm, avatars), java.awt.BorderLayout.CENTER)
+            add(if (vm.isAnonymous) logInPlaceholder(onLogIn) else commentFieldPanel(cs, vm, avatars), java.awt.BorderLayout.CENTER)
         }
 
         val column = VerticalListPanel(0).apply {
@@ -199,6 +203,26 @@ object GiteaPRTimelineComponentFactory {
             )
         }
     }
+
+    /**
+     * Stands in for the comment box when the timeline is read without an account: an empty, greyed
+     * box of the same shape, with a centred "Log in to comment…" link.
+     */
+    private fun logInPlaceholder(onLogIn: (JComponent) -> Unit): JComponent {
+        lateinit var link: ActionLink
+        link = ActionLink(GiteaBundle.message("pull.request.login.to.comment")) { onLogIn(link) }
+        return JPanel(java.awt.GridBagLayout()).apply {
+            background = UIUtil.getPanelBackground()
+            border = JBUI.Borders.compound(
+                RoundedLineBorder(CodeReviewCommentUIUtil.COMMENT_BUBBLE_BORDER_COLOR, JBUI.scale(LOG_IN_BOX_ARC), 1),
+                JBUI.Borders.empty(LOG_IN_BOX_PADDING),
+            )
+            add(link)
+        }
+    }
+
+    private const val LOG_IN_BOX_ARC = 8
+    private const val LOG_IN_BOX_PADDING = 16
 
     /**
      * The "leave a comment" field needs the signed-in account's [GiteaUser] (for its avatar

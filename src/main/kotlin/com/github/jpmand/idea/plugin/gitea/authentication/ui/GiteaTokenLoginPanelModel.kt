@@ -51,7 +51,7 @@ class GiteaTokenLoginPanelModel(
     // giteaApiCall: a rejected token reads "invalid or expired token", not a raw HTTP dump.
     val metadata = withContext(Dispatchers.IO) { giteaApiCall { serversManager.getMetadata(api) } }
     LOG.debug("$server runs Gitea ${metadata.version}")
-    if (metadata.version < serversManager.earliestSupportedVersion) {
+    if (!serversManager.isSupported(metadata.version)) {
       throw LoginException.UnsupportedServerVersion(serversManager.earliestSupportedVersion.toString())
     }
     val user = withContext(Dispatchers.IO) {

@@ -40,6 +40,9 @@ class GiteaPRDetailsViewModel(
 
     val prNumber: Int = initialPr.number.toInt()
 
+    /** Read without an account: the details show no write actions (merge, close, request review…). */
+    val isAnonymous: Boolean get() = repository.isAnonymous
+
     override val number: String = "#${initialPr.number}"
     override val url: String = initialPr.htmlUrl
 

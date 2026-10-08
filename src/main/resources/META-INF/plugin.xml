@@ -2,7 +2,7 @@
 <idea-plugin>
     <id>com.github.jpmand.idea.plugin.gitea</id>
     <name>Gitea PR &amp; Code Review</name>
-    <vendor url="https://github.com/JpMand/gitea-idea-integration">JpMand</vendor>
+    <vendor url="https://github.com/JpMand">JpMand</vendor>
     <!-- version and idea-version are patched in from gradle.properties by the Gradle plugin. -->
 
     <!-- Bundled platform content modules used at runtime. Two-sided with `platformBundledModules`
@@ -44,7 +44,7 @@
              is done entirely via GITEA_MENTION_CANDIDATES_KEY on the editor. -->
         <completion.contributor language="any"
             implementationClass="com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.mention.GiteaMentionCompletionContributor"/>
-        <toolWindow id="Gitea Pull Requests"
+        <toolWindow id="Gitea PR"
                     anchor="left"
                     secondary="false"
                     canCloseContents="true"
@@ -72,11 +72,15 @@
                                  implementation="com.github.jpmand.idea.plugin.gitea.authentication.extensions.GiteaHttpAuthDataProvider"/>
     </extensions>
 
+    <extensions defaultExtensionNs="com.intellij">
+        <errorHandler implementation="com.intellij.diagnostic.JetBrainsMarketplaceErrorReportSubmitter"/>
+    </extensions>
+
     <actions>
         <!--suppress PluginXmlCapitalization -->
         <action id="Gitea.Open.Settings"
                 class="com.github.jpmand.idea.plugin.gitea.ui.action.GiteaOpenSettingsAction"
-                icon="/images/giteaLogo.svg">
+                icon="/icons/giteaLogo.svg">
             <!--suppress PluginXmlCapitalization -->
             <override-text place="MainMenu"/>
             <!--suppress PluginXmlCapitalization -->

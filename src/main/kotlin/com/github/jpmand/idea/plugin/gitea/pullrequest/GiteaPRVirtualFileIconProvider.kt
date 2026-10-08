@@ -14,5 +14,5 @@ import javax.swing.Icon
  */
 class GiteaPRVirtualFileIconProvider : FileIconProvider {
     override fun getIcon(file: VirtualFile, flags: Int, project: Project?): Icon? =
-        if (file is GiteaPRTimelineVirtualFile) GiteaIcons.Logo else null
+        if (file is GiteaPRTimelineVirtualFile) GiteaIcons.ReviewLogo else null
 }

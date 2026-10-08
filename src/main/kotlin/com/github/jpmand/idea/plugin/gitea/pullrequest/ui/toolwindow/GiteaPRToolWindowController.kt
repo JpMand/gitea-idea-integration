@@ -42,7 +42,7 @@ import javax.swing.JComponent
 private val LOG = logger<GiteaPRToolWindowController>()
 
 /**
- * Manages the "Gitea Pull Requests" tool window as a tab container:
+ * Manages the "Gitea PR" tool window as a tab container:
  *  - a fixed, non-closeable first tab (named after the repository) holding the PR list;
  *  - one closeable tab per opened PR (`#<number>`), holding the read-only details view.
  *
@@ -65,7 +65,7 @@ class GiteaPRToolWindowController(
     private var listContent: Content? = null
     private var listPanelJob: Job? = null
 
-    private class DetailTab(val content: Content, val scope: CoroutineScope, val tab: GiteaPRDetailsTab)
+    private class DetailTab(val content: Content, val scope: CoroutineScope, val tab: GiteaPRDetailsTab, val pr: GiteaPullRequest)
 
     private var currentRepository: GiteaPRRepository? = null
     private var currentListVm: GiteaPRListViewModel? = null
@@ -128,12 +128,39 @@ class GiteaPRToolWindowController(
             // token changed, so anything new needs rebuilding: open tabs hold the old API client.
             ctx === currentCtx -> Unit
             else -> {
+                // Logged in from a read-only view of the same repository: come back to what was open.
+                val previous = currentCtx
+                val reopen = if (previous != null && previous.isAnonymous && !ctx.isAnonymous &&
+                    previous.repo.getWebURI() == ctx.repo.getWebURI()
+                ) openPullRequests() else null
                 closeAllDetailTabs()
                 closeCreateTab()
                 closeAllTimelineEditors()
-                rebuildListTab(ctx)
+                val repository = rebuildListTab(ctx)
+                if (reopen != null) reopenPullRequests(ctx, repository, reopen)
             }
         }
+    }
+
+    /** The PRs open in a details tab and those open in a Conversation editor (the selected one last). */
+    private fun openPullRequests(): Pair<List<GiteaPullRequest>, List<GiteaPullRequest>> {
+        val fileEditorManager = FileEditorManager.getInstance(project)
+        val selected = fileEditorManager.selectedFiles.filterIsInstance<GiteaPRTimelineVirtualFile>().toSet()
+        val timelines = fileEditorManager.openFiles.filterIsInstance<GiteaPRTimelineVirtualFile>()
+            .sortedBy { it in selected }
+            .map { it.pr }
+        return detailTabs.values.map { it.pr } to timelines
+    }
+
+    private fun reopenPullRequests(
+        ctx: GiteaPRDataContext,
+        repository: GiteaPRRepository,
+        prs: Pair<List<GiteaPullRequest>, List<GiteaPullRequest>>,
+    ) {
+        val (details, timelines) = prs
+        LOG.info("Logged in on ${ctx.repo}: reopening ${details.size} details tabs and ${timelines.size} conversations")
+        details.forEach { openOrFocusDetailTab(ctx, repository, it) }
+        timelines.forEach { openTimelineEditor(repository, it, ctx) }
     }
 
     private fun showEmptyState() {
@@ -146,8 +173,8 @@ class GiteaPRToolWindowController(
         replaceListContent(empty)
     }
 
-    private fun rebuildListTab(ctx: GiteaPRDataContext) {
-        LOG.debug("Building the PR list for ${ctx.repo} as ${ctx.account.name}")
+    private fun rebuildListTab(ctx: GiteaPRDataContext): GiteaPRRepository {
+        LOG.debug("Building the PR list for ${ctx.repo} as ${ctx.account?.name ?: "anonymous"}")
         listPanelJob?.cancel()
         val job = SupervisorJob(cs.coroutineContext[Job])
         listPanelJob = job
@@ -166,7 +193,8 @@ class GiteaPRToolWindowController(
             onPROpenRequested = { pr -> openPullRequest(ctx, repository, pr) },
             onCreateRequested = { openCreateTab(null) },
             // In the controller's scope: saving the new token rebuilds this list, cancelling panelCs.
-            logInAgain = GiteaHttpStatusErrorAction.LogInAgain(project, cs, ctx.account, service<GiteaAccountManager>()),
+            logInAgain = ctx.account?.let { GiteaHttpStatusErrorAction.LogInAgain(project, cs, it, service<GiteaAccountManager>()) }
+                ?: GiteaHttpStatusErrorAction.LogIn(project, cs, ctx.repo.serverPath),
         ).create()
 
         val content = cm.factory.createContent(
@@ -179,6 +207,7 @@ class GiteaPRToolWindowController(
         replaceListContent(content)
         currentCtx = ctx
         toolWindow.setTitleActions(listOf(newPullRequestAction))
+        return repository
     }
 
     private fun replaceListContent(content: Content) {
@@ -209,7 +238,7 @@ class GiteaPRToolWindowController(
             isPinnable = false
             setDisposer(Disposable { tabJob.cancel() })
         }
-        detailTabs[number] = DetailTab(content, tabScope, tab)
+        detailTabs[number] = DetailTab(content, tabScope, tab, pr)
         cm.addContent(content)
         cm.setSelectedContent(content, true)
         return tab
@@ -283,11 +312,11 @@ class GiteaPRToolWindowController(
         tab.selectCommitBySha(req.commitSha)
     }
 
-    /** Opens the given PR's diff on a file, through its Details tab (opened if needed), which owns
-     * the diff — see [GiteaPRShowDiffRequests]. */
+    /** Opens the given PR's diff on a review thread's file, through its Details tab (opened if
+     * needed), which owns the diff — see [GiteaPRShowDiffRequests]. */
     private fun handleShowDiff(req: GiteaPRShowDiffRequests.Request) {
-        LOG.debug("Showing ${req.path} in the diff of PR #${req.pr.number}")
-        openOrFocusDetailTab(req.ctx, req.repository, req.pr).showDiff(req.path, req.scrollRequest)
+        LOG.debug("Showing ${req.thread.path} in the diff of PR #${req.pr.number}")
+        openOrFocusDetailTab(req.ctx, req.repository, req.pr).showThreadDiff(req.thread)
     }
 
     private fun openTimelineEditor(repository: GiteaPRRepository, pr: GiteaPullRequest, ctx: GiteaPRDataContext) {

@@ -83,11 +83,15 @@ class GiteaPRDiscussionsViewModels(
     }
 
     /** The signed-in account's login — gates inline-comment edit/delete/reply controls to a
-     * comment's own author, same as the Timeline's `currentUserLogin`. */
-    val currentUserLogin: String get() = repository.accountLogin
+     * comment's own author, same as the Timeline's `currentUserLogin`. Null when read anonymously. */
+    val currentUserLogin: String? get() = repository.accountLogin
+
+    /** Read without an account: threads are shown, but nothing that writes (new comments, drafts,
+     * replies, resolve, review submission). */
+    val isAnonymous: Boolean get() = repository.isAnonymous
 
     /** Whether the signed-in account opened this PR (it can then only leave comment reviews). */
-    val viewerIsAuthor: Boolean get() = prAuthorLogin != null && prAuthorLogin.equals(currentUserLogin, ignoreCase = true)
+    val viewerIsAuthor: Boolean get() = prAuthorLogin != null && currentUserLogin != null && prAuthorLogin.equals(currentUserLogin, ignoreCase = true)
 
     companion object {
         val CONTEXT_KEY: Key<GiteaPRDiscussionsViewModels> = Key.create("gitea.pr.discussions.vm")
@@ -149,9 +153,23 @@ class GiteaPRDiscussionsViewModels(
                 }
             }
         }
+        // The rest is only for writing, which needs an account.
+        if (!repository.isAnonymous) loadWriterData()
+        cs.launch {
+            project.service<GiteaPRReviewChanges>().changes.collect { change ->
+                if (change.prNumber == prNumber && change.source !== this@GiteaPRDiscussionsViewModels) {
+                    LOG.debug("PR #$prNumber: review changed elsewhere, reloading")
+                    reload()
+                    reloadPendingReview()
+                }
+            }
+        }
+    }
+
+    private fun loadWriterData() {
         cs.launch(Dispatchers.IO) {
             try {
-                _currentUser.value = repository.currentUser()
+                _currentUser.value = repository.currentUserOrNull()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -173,18 +191,10 @@ class GiteaPRDiscussionsViewModels(
             LOG.debug("PR #$prNumber: ${_mentionCandidates.value.size} mention candidates")
         }
         reloadPendingReview()
-        cs.launch {
-            project.service<GiteaPRReviewChanges>().changes.collect { change ->
-                if (change.prNumber == prNumber && change.source !== this@GiteaPRDiscussionsViewModels) {
-                    LOG.debug("PR #$prNumber: review changed elsewhere, reloading")
-                    reload()
-                    reloadPendingReview()
-                }
-            }
-        }
     }
 
     private fun reloadPendingReview() {
+        if (repository.isAnonymous) return
         cs.launch(Dispatchers.IO) {
             try {
                 val pending = repository.findMyPendingReview(prNumber)

@@ -1,6 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
+import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil
 import com.github.jpmand.idea.plugin.gitea.data.GiteaImageLoader
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRReviewChanges
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.timeline.GiteaPRTimelineComponentFactory
@@ -46,7 +47,8 @@ class GiteaPRTimelineFileEditor(
         CachingIconsProvider(AsyncImageIconsProvider<GiteaUser>(cs, GiteaImageLoader(file.ctx.api, file.ctx.avatarImages)))
     private val itemFactory = GiteaPRTimelineItemComponentFactory(
         project, avatarIconsProvider, { m -> GiteaUtil.safeConvertMarkdownToHtml(m) },
-        currentUserLogin = file.ctx.account.name,
+        currentUserLogin = file.ctx.account?.name,
+        readOnly = file.ctx.isAnonymous,
         actionScope = cs,
         onEditComment = { id, body ->
             LOG.info("PR #${file.pr.number}: editing comment $id")
@@ -104,7 +106,10 @@ class GiteaPRTimelineFileEditor(
     }
 
     private val component: JComponent =
-        GiteaPRTimelineComponentFactory.create(cs, vm, itemFactory, avatarIconsProvider) {
+        GiteaPRTimelineComponentFactory.create(
+            cs, vm, itemFactory, avatarIconsProvider,
+            onLogIn = { component -> GiteLoginUtil.logInToServer(project, component, file.repository.serverPath, cs) },
+        ) {
             file.repository.dropSharedLoads()
             vm.reload()
         }

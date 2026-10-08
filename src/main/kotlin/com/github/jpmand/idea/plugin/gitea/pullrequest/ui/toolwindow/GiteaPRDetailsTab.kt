@@ -1,10 +1,13 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow
 
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
+import com.github.jpmand.idea.plugin.gitea.api.models.GiteaReviewThread
 import com.github.jpmand.idea.plugin.gitea.api.models.mentionCandidates
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
+import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffTarget
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffViewModel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffVirtualFile
+import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.reviewThreadDiffTarget
 import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.GiteaPRChangesTreeComponentFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.details.GiteaPRDetailsPanel
@@ -14,13 +17,14 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.giteaReviewErrorPanel
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.CollaborationToolsUIUtil
 import com.intellij.collaboration.ui.codereview.diff.model.DiffViewerScrollRequest
+import com.intellij.diff.util.Side
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.awt.BorderLayout
@@ -38,7 +42,7 @@ private val LOG = logger<GiteaPRDetailsTab>()
 class GiteaPRDetailsTab(
     private val project: Project,
     private val cs: CoroutineScope,
-    repository: GiteaPRRepository,
+    private val repository: GiteaPRRepository,
     pr: GiteaPullRequest,
     onShowTimeline: () -> Unit,
 ) {
@@ -55,7 +59,7 @@ class GiteaPRDetailsTab(
     private val changesComponent = GiteaPRChangesTreeComponentFactory.create(
         cs, project, detailsVm.prFlow, repository, discussionsVm,
         selectedCommitFlow = detailsVm.changesVm.selectedCommit,
-        onOpenChange = { relPath -> showDiff(relPath, null) },
+        onOpenChange = { target, relPath -> showDiff(target, relPath, null) },
     )
 
     private val refresh: () -> Unit = {
@@ -65,22 +69,48 @@ class GiteaPRDetailsTab(
     }
 
     /**
-     * Opens the PR diff on [path] — a file's current name or, for a renamed file, its old one —
-     * scrolled by [scrollRequest], once the PR's changed files have loaded. Does nothing for a
-     * file that isn't part of the PR diff (any more).
+     * Opens the PR diff of [target] on [path] — a file's current name or, for a renamed file, its
+     * old one — scrolled by [scrollRequest], once that diff's files have loaded. Does nothing for a
+     * file that isn't part of that diff (any more).
      */
-    fun showDiff(path: String, scrollRequest: DiffViewerScrollRequest?) {
+    fun showDiff(target: GiteaPRDiffTarget, path: String, scrollRequest: DiffViewerScrollRequest?) {
+        LOG.debug("Opening $path in the diff of $target")
         cs.launch {
-            val files = diffVm.changes.first { it?.result != null }?.result?.getOrNull()?.selectedChanges?.list.orEmpty()
-            val idx = files.indexOfFirst { it.file.filename == path || it.file.previousFilename == path }
-            if (idx < 0) {
-                LOG.debug("$path is not among the ${files.size} changed files of the PR diff")
-                return@launch
-            }
+            if (!diffVm.selectFile(target, path, scrollRequest)) return@launch
             withContext(Dispatchers.EDT) {
-                diffVm.showChange(idx, scrollRequest)
                 FileEditorManager.getInstance(project).openFile(diffFile, true)
             }
+        }
+    }
+
+    /**
+     * Opens the diff the review [thread] belongs in — see [reviewThreadDiffTarget] — on its file,
+     * at its line. Falls back to the PR diff if the review's commit can't be looked up.
+     */
+    fun showThreadDiff(thread: GiteaReviewThread) {
+        val path = thread.path ?: return
+        cs.launch {
+            val target = try {
+                reviewThreadTarget(thread, path)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                LOG.warn("Couldn't look up review commit ${thread.reviewCommitId} of thread ${thread.id}, showing the PR diff", e)
+                GiteaPRDiffTarget.PullRequest
+            }
+            LOG.debug("Thread ${thread.id} (review commit ${thread.reviewCommitId}) opens the diff of $target")
+            showDiff(target, path, thread.diffScrollRequest(target))
+        }
+    }
+
+    private suspend fun reviewThreadTarget(thread: GiteaReviewThread, path: String): GiteaPRDiffTarget {
+        val sha = thread.reviewCommitId ?: return GiteaPRDiffTarget.PullRequest
+        val pr = detailsVm.prFlow.value
+        return withContext(Dispatchers.IO) {
+            val commit = repository.loadCommits(pr.number.toInt()).firstOrNull { it.sha == sha }
+            val commitFiles = if (commit == null) emptyList() else repository.loadCommitChangedFiles(sha)
+            val side = if (thread.newLine == null && thread.oldLine != null) Side.LEFT else Side.RIGHT
+            reviewThreadDiffTarget(commit, commitFiles, path, side, pr.head.sha, pr.diffBaseSha)
         }
     }
 

@@ -24,6 +24,14 @@ data class GiteaReviewThread(
      * freshly grouped thread starts out current.
      */
     val isOutdated: Boolean = false,
+    /**
+     * The commit the thread's review was made on (its `commit_id`) — see [withReviewCommits]. Not
+     * a comment's own `commit_id`: Gitea sets that to the last commit that touched the line.
+     */
+    val reviewCommitId: String? = null,
+    /** The commits of the reviews of all its comments — [toThreads] groups the comments at one
+     * line, which can come from reviews on different commits. */
+    val reviewCommitIds: Set<String> = emptySet(),
 )
 
 /**
@@ -81,3 +89,18 @@ fun List<GiteaReviewComment>.toThreads(): List<GiteaReviewThread> =
             )
         }
         .sortedBy { it.id }
+
+/**
+ * Sets [GiteaReviewThread.reviewCommitId] on each thread from the review its anchor comment
+ * belongs to, among [reviews], and [GiteaReviewThread.reviewCommitIds] from the reviews of all its
+ * comments. A review without a commit (e.g. a review request) adds none.
+ */
+fun List<GiteaReviewThread>.withReviewCommits(reviews: List<GiteaReview>): List<GiteaReviewThread> {
+    val commitByReviewId = reviews.mapNotNull { r -> r.commitId?.takeIf { it.isNotBlank() }?.let { r.id to it } }.toMap()
+    return map { thread ->
+        thread.copy(
+            reviewCommitId = thread.comments.firstOrNull()?.reviewId?.let(commitByReviewId::get),
+            reviewCommitIds = thread.comments.mapNotNullTo(LinkedHashSet()) { c -> c.reviewId?.let(commitByReviewId::get) },
+        )
+    }
+}

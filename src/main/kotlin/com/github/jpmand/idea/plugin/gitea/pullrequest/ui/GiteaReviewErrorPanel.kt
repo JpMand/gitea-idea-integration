@@ -15,7 +15,8 @@ import javax.swing.JComponent
  * A banner that is collapsed while [errorFlow] holds null and, when it holds a throwable, shows
  * [title] plus that throwable's message (see [com.github.jpmand.idea.plugin.gitea.api.GiteaHttpError]
  * for the friendly messages) and a Retry link — or [logInAgain], when given, for an invalid or
- * expired token, since retrying with the same token can't succeed.
+ * expired token, or a repository that can't be read without one, since retrying the same way can't
+ * succeed.
  */
 @Suppress("UnstableApiUsage")
 internal fun giteaReviewErrorPanel(
@@ -32,7 +33,7 @@ internal fun giteaReviewErrorPanel(
       title,
       descriptionProvider = { it.message },
       actionProvider = { error ->
-        logInAgain?.takeIf { error is GiteaHttpError.Unauthorized }
+        logInAgain?.takeIf { error is GiteaHttpError.Unauthorized || error is GiteaHttpError.SignInRequired }
           ?: swingAction(GiteaBundle.message("pull.request.error.retry")) { onRetry() }
       },
     ),

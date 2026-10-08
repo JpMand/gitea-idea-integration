@@ -138,7 +138,8 @@ class GiteaPRDetailsPanel(
             horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
         }
 
-        val actionsComponent = createActionsComponent()
+        // Without an account nothing here can be changed, so the write-action bar isn't shown at all.
+        val actionsComponent = if (vm.isAnonymous) null else createActionsComponent()
 
         // Title with its links underneath, 8px apart, like the platform's ReviewDetailsUIUtil.createTitlePanel.
         val titlePanel = VerticalListPanel(8).apply {
@@ -172,7 +173,7 @@ class GiteaPRDetailsPanel(
             )
             add(changesComponent, CC().grow().push().shrinkPrioY(200))
             add(statusComponent, CC().growX().maxHeight("${ReviewDetailsUIUtil.STATUSES_MAX_HEIGHT}").gaps(ReviewDetailsUIUtil.STATUSES_GAPS))
-            add(actionsComponent, CC().growX().minHeight("pref").gaps(ReviewDetailsUIUtil.ACTIONS_GAPS))
+            if (actionsComponent != null) add(actionsComponent, CC().growX().minHeight("pref").gaps(ReviewDetailsUIUtil.ACTIONS_GAPS))
         }
     }
 

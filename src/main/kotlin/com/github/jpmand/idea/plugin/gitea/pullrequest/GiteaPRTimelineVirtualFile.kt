@@ -54,14 +54,14 @@ class GiteaPRTimelineVirtualFile(
         if (other !is GiteaPRTimelineVirtualFile) return false
         return prNumber == other.prNumber &&
             project == other.project &&
-            ctx.account.id == other.ctx.account.id &&
+            ctx.account?.id == other.ctx.account?.id &&
             ctx.repo.repositoryPath == other.ctx.repo.repositoryPath
     }
 
     override fun hashCode(): Int {
         var result = prNumber
         result = 31 * result + project.hashCode()
-        result = 31 * result + ctx.account.id.hashCode()
+        result = 31 * result + ctx.account?.id.hashCode()
         result = 31 * result + ctx.repo.repositoryPath.hashCode()
         return result
     }

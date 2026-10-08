@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.data
 import com.github.jpmand.idea.plugin.gitea.GiteaRepositoriesManager
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager
 import com.github.jpmand.idea.plugin.gitea.api.GiteaRepositoryCoordinates
+import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaProjectDefaultAccountHolder
@@ -39,6 +40,9 @@ private val LOG = logger<GiteaPRDataContextHolder>()
  * Which `(repository, account)` pair is used is decided by [preferredCandidate]. Servers are
  * matched with [com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath.equals] ignoring the
  * protocol, and the context's repository is expressed on the account's configured server.
+ *
+ * Without such a pair, a known repository is read anonymously ([anonymousCandidate]): every known
+ * repository is on a Gitea server, either an account's or one detected from the git remote.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @Service(Service.Level.PROJECT)
@@ -105,12 +109,7 @@ class GiteaPRDataContextHolder(
         ) { it.repository.getWebURI().toString() }
         LOG.debug("Resolving the PR context: ${repos.size} known repositories, ${accounts.size} accounts, ${candidates.size} candidates")
         if (chosen == null) {
-            if (_context.value != null) {
-                LOG.info("No PR context: no account with a token on the server of a project git remote " +
-                    "(${repos.size} known repositories, ${accounts.size} accounts)")
-            }
-            _context.value = null
-            contextToken = null
+            updateAnonymousContext(repos, accounts)
             return
         }
 
@@ -119,7 +118,7 @@ class GiteaPRDataContextHolder(
         // protocol (and so in the web URLs built from it).
         val repo = GiteaRepositoryCoordinates(account.server, mapping.repository.repositoryPath)
         val current = _context.value
-        if (current != null && current.account.id == account.id && current.account.server == account.server &&
+        if (current?.account != null && current.account.id == account.id && current.account.server == account.server &&
             current.repo.getWebURI() == repo.getWebURI() && contextToken == token
         ) {
             LOG.debug("PR context unchanged: ${account.name}@${account.server} on $repo")
@@ -127,9 +126,34 @@ class GiteaPRDataContextHolder(
         }
 
         LOG.info("PR context: ${account.name}@${account.server} on $repo" +
-            if (current != null && current.account.id == account.id && current.repo.getWebURI() == repo.getWebURI()) " (token changed)" else "")
+            if (current?.account?.id == account.id && current.repo.getWebURI() == repo.getWebURI()) " (token changed)" else "")
         contextToken = token
         _context.value = GiteaPRDataContext(account, repo, service<GiteaApiManager>().getClient(account.server, token))
+    }
+
+    /** No account with a token on a project remote's server: reads a known repository without one. */
+    private fun updateAnonymousContext(repos: Set<GiteaGitRepositoryMapping>, accounts: Set<GiteaAccount>) {
+        val mapping = anonymousCandidate(repos.toList(), accounts) { it.repository.serverPath }
+        contextToken = null
+        if (mapping == null) {
+            if (_context.value != null) {
+                LOG.info("No PR context: no Gitea server among the project's git remotes " +
+                    "(${repos.size} known repositories, ${accounts.size} accounts)")
+            }
+            _context.value = null
+            return
+        }
+        // An account's configured server wins here too, as for an account context.
+        val server = accounts.firstOrNull { it.server.equals(mapping.repository.serverPath, ignoreProtocol = true) }?.server
+            ?: mapping.repository.serverPath
+        val repo = GiteaRepositoryCoordinates(server, mapping.repository.repositoryPath)
+        val current = _context.value
+        if (current != null && current.isAnonymous && current.repo.getWebURI() == repo.getWebURI()) {
+            LOG.debug("PR context unchanged: anonymous on $repo")
+            return
+        }
+        LOG.info("PR context: anonymous (read-only) on $repo")
+        _context.value = GiteaPRDataContext(null, repo, service<GiteaApiManager>().getUnauthenticatedClient(server))
     }
 }
 
@@ -152,3 +176,10 @@ internal fun <M> preferredCandidate(
     defaultAccount?.let { default -> candidates.firstOrNull { it.account.id == default.id } }
         ?: selected?.let { (url, accountId) -> candidates.firstOrNull { it.account.id == accountId && webUrl(it.mapping) == url } }
         ?: candidates.firstOrNull()
+
+/**
+ * The repository to read anonymously when no account with a token can be used: preferably one on a
+ * server that has an account (its token is just missing), otherwise the first.
+ */
+internal fun <M> anonymousCandidate(mappings: List<M>, accounts: Collection<GiteaAccount>, server: (M) -> GiteaServerPath): M? =
+    mappings.firstOrNull { m -> accounts.any { it.server.equals(server(m), ignoreProtocol = true) } } ?: mappings.firstOrNull()

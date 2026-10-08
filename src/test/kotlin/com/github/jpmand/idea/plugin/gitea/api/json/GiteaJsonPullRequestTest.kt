@@ -3,6 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.api.json
 import com.github.jpmand.idea.plugin.gitea.api.GiteaJsonDeSerializer
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.PullRequest
+import com.github.jpmand.idea.plugin.gitea.pullrequest.data.distinctAuthors
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -67,5 +68,14 @@ class GiteaJsonPullRequestTest {
     val pr = GiteaPullRequest.fromDto(dto)
     assertEquals(dto.mergeBase, pr.diffBaseSha)
     assertTrue(pr.diffBaseSha != pr.base.sha)
+  }
+
+  @Test
+  fun `distinct authors keep the order of first appearance`() {
+    val prs = FileReader(fixture()).use { reader ->
+      GiteaJsonDeSerializer.fromJson(reader, Array<PullRequest>::class.java)
+    }!!.map { GiteaPullRequest.fromDto(it) }
+
+    assertEquals(listOf("pasture3992", "omdika"), distinctAuthors(prs).map { it.login })
   }
 }

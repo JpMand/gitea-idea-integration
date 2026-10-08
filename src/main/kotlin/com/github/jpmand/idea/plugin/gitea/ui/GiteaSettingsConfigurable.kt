@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.ui
 
+import com.github.jpmand.idea.plugin.gitea.GiteaServersManager
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApiManager
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaProjectDefaultAccountHolder
@@ -20,7 +21,10 @@ import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.ui.dsl.builder.*
+import com.intellij.collaboration.async.mapState
+import com.intellij.collaboration.util.CollectableSerializablePersistentStateComponent
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.Serializable
 import org.jetbrains.annotations.ApiStatus
 
@@ -79,6 +83,13 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
             { giteaSettings.allUsersArePotentialReviewers },
             { giteaSettings.allUsersArePotentialReviewers = it })
       }
+      row {
+        checkBox(message("settings.accept.pre.release.versions"))
+          .bindSelected(
+            { giteaSettings.acceptPreReleaseVersions },
+            { giteaSettings.acceptPreReleaseVersions = it })
+          .comment(message("settings.accept.pre.release.versions.comment"))
+      }
       addWarningForMemoryOnlyPasswordSafeAndGet(
         scope,
         service<GiteaAccountManager>().canPersistCredentials,
@@ -95,13 +106,16 @@ internal class GiteaSettingsConfigurable internal constructor(private val projec
   storages = [Storage("gitea.xml")],
   category = SettingsCategory.TOOLS
 )
-class GiteaSettings : SerializablePersistentStateComponent<GiteaSettings.State>(State()) {
+@Suppress("UnstableApiUsage")
+class GiteaSettings : CollectableSerializablePersistentStateComponent<GiteaSettings.State>(State()) {
   // Without a generated serializer the platform silently saves and loads nothing for this state.
   @Serializable
   data class State(
     val connectionTimeout: Int = 5_000,
     val cloneWithSsh: Boolean = false,
-    val allUsersArePotentialReviewers : Boolean = false
+    val allUsersArePotentialReviewers : Boolean = false,
+    /** Accept Gitea dev builds and release candidates, not only releases — see [GiteaServersManager.isSupported]. */
+    val acceptPreReleaseVersions: Boolean = false,
     /** [GiteaAccount.id] -> whether the Request Review picker should offer every user on the
      * instance rather than just the repo's collaborators. Default (absent) is collaborators-only. */
   )
@@ -111,6 +125,15 @@ class GiteaSettings : SerializablePersistentStateComponent<GiteaSettings.State>(
     set(value) {
       updateState { it.copy(allUsersArePotentialReviewers = value) }
     }
+
+  var acceptPreReleaseVersions: Boolean
+    get() = state.acceptPreReleaseVersions
+    set(value) {
+      updateStateAndEmit { it.copy(acceptPreReleaseVersions = value) }
+    }
+
+  /** [acceptPreReleaseVersions] as a flow, so Gitea detection follows a change of it right away. */
+  val acceptPreReleaseVersionsState: StateFlow<Boolean> = stateFlow.mapState { it.acceptPreReleaseVersions }
 
   var connectionTimeout: Int
     get() = state.connectionTimeout

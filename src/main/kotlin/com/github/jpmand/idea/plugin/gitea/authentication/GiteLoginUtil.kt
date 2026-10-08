@@ -2,6 +2,7 @@ package com.github.jpmand.idea.plugin.gitea.authentication
 
 import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
+import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaProjectDefaultAccountHolder
 import com.github.jpmand.idea.plugin.gitea.authentication.ui.GiteaChooseAccountDialog
 import com.github.jpmand.idea.plugin.gitea.authentication.ui.GiteaTokenLoginPanelModel
@@ -19,6 +20,8 @@ import com.intellij.openapi.util.NlsContexts
 import com.intellij.util.Urls.parseEncoded
 import com.intellij.util.asSafely
 import com.intellij.util.concurrency.annotations.RequiresEdt
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import org.jetbrains.annotations.Nls
 import java.awt.Component
 import javax.swing.JComponent
@@ -106,6 +109,26 @@ object GiteLoginUtil {
 
     LOG.info("Token update for ${account.name} on ${account.server} cancelled")
     return LoginResult.Failure
+  }
+
+  /**
+   * Logs in to [server] from a read-only (anonymous) pull request view: asks the token of an account
+   * already set up for that server (its token is missing — the project's default account first),
+   * or else adds a new account, with the server pre-filled. The account is saved in [cs];
+   * `GiteaPRDataContextHolder` then switches the views over to it.
+   */
+  @RequiresEdt
+  fun logInToServer(project: Project, parentComponent: JComponent?, server: GiteaServerPath, cs: CoroutineScope) {
+    val accountManager = service<GiteaAccountManager>()
+    val onServer = accountManager.accountsState.value.filter { it.server.equals(server, ignoreProtocol = true) }
+    // The view is read-only because none of them has a token (with one, it would be in use).
+    val defaultAccount = project.service<GiteaProjectDefaultAccountHolder>().account
+    val tokenless = defaultAccount?.takeIf { it in onServer } ?: onServer.firstOrNull()
+    LOG.info("Logging in to $server from a read-only view (${if (tokenless != null) "existing account ${tokenless.name}" else "new account"})")
+    val result = if (tokenless != null) updateToken(project, parentComponent, tokenless) { _, _ -> true }
+    else logInViaToken(project, parentComponent, server, null, accountManager::isAccountUnique)
+    val success = result.asSafely<LoginResult.Success>() ?: return
+    cs.launch { accountManager.updateAccount(success.account, success.token) }
   }
 
   @RequiresEdt

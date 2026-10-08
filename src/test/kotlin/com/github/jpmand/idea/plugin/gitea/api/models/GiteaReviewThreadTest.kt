@@ -6,11 +6,11 @@ import org.junit.Test
 
 class GiteaReviewThreadTest {
 
-  private fun comment(id: Long, path: String?, newLine: Int?, oldLine: Int? = null, resolved: Boolean = false) =
+  private fun comment(id: Long, path: String?, newLine: Int?, oldLine: Int? = null, resolved: Boolean = false, reviewId: Long = 1L) =
     GiteaReviewComment(
       id = id, author = null, body = "c$id", createdAt = null, updatedAt = null,
       path = path, newLine = newLine, oldLine = oldLine, diffHunk = null,
-      commitId = null, originalCommitId = null, reviewId = 1L,
+      commitId = null, originalCommitId = null, reviewId = reviewId,
       resolver = if (resolved) GiteaUser(id = 9, login = "r", email = null, fullName = null, avatarUrl = null, htmlUrl = null) else null,
     )
 
@@ -39,5 +39,37 @@ class GiteaReviewThreadTest {
   fun `resolution state comes from the anchor comment`() {
     val threads = listOf(comment(1, "a.kt", 10, resolved = true), comment(2, "a.kt", 10)).toThreads()
     assertTrue(threads.single().isResolved)
+  }
+
+  private fun review(id: Long, commitId: String?) = GiteaReview(
+    id = id, author = null, body = null, state = GiteaReviewState.COMMENT, submittedAt = null,
+    dismissed = false, stale = false, commitId = commitId, commentsCount = 1, htmlUrl = "",
+  )
+
+  @Test
+  fun `a thread takes the commit of its anchor comment's review`() {
+    val threads = listOf(comment(1, "a.kt", 10, reviewId = 5), comment(2, "a.kt", 20, reviewId = 7))
+      .toThreads()
+      .withReviewCommits(listOf(review(5, "c3"), review(7, "c1")))
+    assertEquals(listOf("c3", "c1"), threads.map { it.reviewCommitId })
+  }
+
+  @Test
+  fun `a thread knows the commits of all its comments' reviews`() {
+    val thread = listOf(comment(1, "a.kt", 19, reviewId = 5), comment(2, "a.kt", 19, reviewId = 7))
+      .toThreads()
+      .withReviewCommits(listOf(review(5, "c3"), review(7, "c1")))
+      .single()
+    assertEquals("c3", thread.reviewCommitId)
+    assertEquals(setOf("c3", "c1"), thread.reviewCommitIds)
+  }
+
+  @Test
+  fun `a review without a commit leaves the thread's review commit unset`() {
+    val threads = listOf(comment(1, "a.kt", 10, reviewId = 5), comment(2, "a.kt", 20, reviewId = 6))
+      .toThreads()
+      .withReviewCommits(listOf(review(5, ""), review(6, null)))
+    assertEquals(listOf(null, null), threads.map { it.reviewCommitId })
+    assertEquals(listOf(emptySet<String>(), emptySet<String>()), threads.map { it.reviewCommitIds })
   }
 }
