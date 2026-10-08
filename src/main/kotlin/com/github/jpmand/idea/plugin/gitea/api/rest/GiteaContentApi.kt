@@ -3,7 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.api.rest
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApi
 import com.github.jpmand.idea.plugin.gitea.api.GiteaUriUtil
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.ContentsResponse
-import com.intellij.collaboration.api.json.loadJsonValue
+import com.github.jpmand.idea.plugin.gitea.api.loadJsonValue
 import com.intellij.collaboration.util.resolveRelative
 import com.intellij.openapi.diagnostic.fileLogger
 import java.net.URLEncoder

@@ -30,15 +30,15 @@ internal class GiteaApiImpl(
   constructor(server: GiteaServerPath, tokenSupplier: (() -> String)? = null)
           : this(server, tokenSupplier?.let { httpHelper(server, it) } ?: httpHelper())
 
+  // The platform helper logs request and response bodies at TRACE through LOG
+  // (#com.github.jpmand.idea.plugin.gitea.api.GiteaApi:trace).
   override val rest: GiteaApi.Rest =
     RestImpl(
-      GiteaApiRequestLogging(
-        JsonHttpApiHelper(
-          LOG,
-          this,
-          GiteaJsonDeSerializer,
-          GiteaJsonDeSerializer
-        )
+      JsonHttpApiHelper(
+        LOG,
+        this,
+        GiteaJsonDeSerializer,
+        GiteaJsonDeSerializer
       )
     )
 

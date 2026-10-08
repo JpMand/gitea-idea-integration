@@ -17,7 +17,7 @@ group = providers.gradleProperty("pluginGroup").get()
 version = providers.gradleProperty("pluginVersion").get()
 
 // Set the JVM language level used to build the project.
-// IntelliJ IDEA 2026.2.x bundles JBR 25, so the plugin is compiled and tested against Java 25.
+// IntelliJ IDEA 2026.3 bundles JBR 25, so the plugin is compiled and tested against Java 25.
 // CI (setup-java) and qodana.yml (projectJDK) are aligned to 25 to match.
 kotlin {
     jvmToolchain(25)
@@ -109,8 +109,10 @@ intellijPlatform {
     }
 
     pluginVerification {
-        // untilBuild is capped at 262.*, so `recommended()` verifies against the 2026.2.x line only.
+        // untilBuild is capped at 263.*. While 2026.3 is EAP only, `recommended()` (release channel)
+        // finds no 263 IDE, so verify against platformVersion; switch back to `recommended()` at GA.
         ides {
+            current()
             recommended()
         }
     }
@@ -118,7 +120,6 @@ intellijPlatform {
 
 // Configure Gradle Changelog Plugin - read more: https://github.com/JetBrains/gradle-changelog-plugin
 changelog {
-    groups.empty()
     repositoryUrl = providers.gradleProperty("pluginRepositoryUrl")
     versionPrefix = ""
 }

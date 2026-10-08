@@ -3,7 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.api.rest
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApi
 import com.github.jpmand.idea.plugin.gitea.api.GiteaUriUtil
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.User
-import com.intellij.collaboration.api.json.loadJsonList
+import com.github.jpmand.idea.plugin.gitea.api.loadJsonList
 import com.intellij.collaboration.util.resolveRelative
 
 /**

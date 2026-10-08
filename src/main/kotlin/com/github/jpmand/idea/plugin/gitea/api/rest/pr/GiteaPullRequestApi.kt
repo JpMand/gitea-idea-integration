@@ -17,10 +17,9 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.dto.PullReview
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.PullReviewComment
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.SubmitPullReviewOptions
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.TimelineComment
-import com.intellij.collaboration.api.httpclient.HttpClientUtil
-import com.intellij.collaboration.api.json.loadJsonList
-import com.intellij.collaboration.api.json.loadJsonValue
-import com.intellij.collaboration.api.json.loadOptionalJsonValue
+import com.github.jpmand.idea.plugin.gitea.api.loadJsonList
+import com.github.jpmand.idea.plugin.gitea.api.loadJsonValue
+import com.github.jpmand.idea.plugin.gitea.api.loadOptionalJsonValue
 import com.intellij.collaboration.util.resolveRelative
 import java.net.URI
 import java.net.http.HttpRequest
@@ -145,9 +144,7 @@ suspend fun GiteaApi.repoCreatePullRequestReview(
   body: CreatePullReviewOptions,
 ): PullReview {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/reviews")
-  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
-    .build()
+  val request = rest.postJson(uri, body).build()
   return rest.loadJsonValue<PullReview>(request).body()
 }
 
@@ -168,9 +165,7 @@ suspend fun GiteaApi.repoSubmitPullRequestReview(
   body: SubmitPullReviewOptions,
 ): PullReview {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/reviews/$id")
-  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
-    .build()
+  val request = rest.postJson(uri, body).build()
   return rest.loadJsonValue<PullReview>(request).body()
 }
 
@@ -184,9 +179,7 @@ suspend fun GiteaApi.repoDismissPullRequestReview(
 ): PullReview {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/reviews/$id/dismissals")
   val body = DismissPullReviewOptions(message)
-  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
-    .build()
+  val request = rest.postJson(uri, body).build()
   return rest.loadJsonValue<PullReview>(request).body()
 }
 
@@ -245,9 +238,7 @@ suspend fun GiteaApi.repoCreatePullRequestComment(
   body: CreateIssueCommentOption,
 ): Comment {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/issues/$index/comments")
-  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
-    .build()
+  val request = rest.postJson(uri, body).build()
   return rest.loadJsonValue<Comment>(request).body()
 }
 
@@ -259,9 +250,7 @@ suspend fun GiteaApi.repoEditPullRequestComment(
   body: EditIssueCommentOption,
 ): Comment {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/issues/comments/$commentId")
-  val request = request(uri).method("PATCH", rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
-    .build()
+  val request = rest.sendJson(uri, "PATCH", body).build()
   return rest.loadJsonValue<Comment>(request).body()
 }
 
@@ -283,9 +272,7 @@ suspend fun GiteaApi.repoCreatePullReviewCommentReply(
   body: CreatePullReviewCommentReplyOptions,
 ): PullReviewComment {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/comments/$commentId/replies")
-  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
-    .build()
+  val request = rest.postJson(uri, body).build()
   return rest.loadJsonValue<PullReviewComment>(request).body()
 }
 
@@ -334,9 +321,7 @@ suspend fun GiteaApi.repoEditPullRequest(
   body: EditPullRequestOption,
 ): PullRequest {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index")
-  val request = request(uri).method("PATCH", rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
-    .build()
+  val request = rest.sendJson(uri, "PATCH", body).build()
   return rest.loadJsonValue<PullRequest>(request).body()
 }
 
@@ -349,9 +334,7 @@ suspend fun GiteaApi.repoMergePullRequest(
   body: MergePullRequestOption,
 ) {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/merge")
-  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
-    .build()
+  val request = rest.postJson(uri, body).build()
   rest.loadOptionalJsonValue<Unit>(request)
 }
 

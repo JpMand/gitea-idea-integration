@@ -6,7 +6,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.giteaWriteActio
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.ui.*
-import com.intellij.collaboration.ui.codereview.avatar.CodeReviewAvatarUtils
+import com.intellij.collaboration.ui.codereview.avatar.Avatar
 import com.intellij.collaboration.ui.codereview.details.*
 import com.intellij.ide.BrowserUtil
 import com.intellij.notification.NotificationGroupManager
@@ -121,14 +121,8 @@ class GiteaPRDetailsPanel(
             add(
                 CodeReviewDetailsStatusComponentFactory.createReviewersReviewStateComponent(
                     cs, statusVm.reviewerStates,
-                    reviewerActionProvider = { null },
-                    reviewerNameProvider = { user -> user.fullName ?: user.login },
-                    avatarKeyProvider = { user -> user },
-                    iconProvider = { state, user, size ->
-                        CodeReviewAvatarUtils.createIconWithOutline(
-                            discussionsVm.avatars.getIcon(user, size), ReviewDetailsUIUtil.getReviewStateIconBorder(state),
-                        )
-                    },
+                    reviewerName = { user -> user.fullName ?: user.login },
+                    reviewerAvatar = { user -> discussionsVm.avatars.getIcon(user, Avatar.Sizes.OUTLINED) },
                 ),
             )
         }

@@ -5,10 +5,13 @@ import com.github.jpmand.idea.plugin.gitea.api.GiteaUriUtil
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaUser
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.Repository
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.User
-import com.intellij.collaboration.api.json.loadJsonList
-import com.intellij.collaboration.api.json.loadJsonValue
+import com.github.jpmand.idea.plugin.gitea.api.loadJsonList
+import com.github.jpmand.idea.plugin.gitea.api.loadJsonValue
+import com.intellij.collaboration.api.request
+import com.intellij.collaboration.api.sendAndReadBody
 import com.intellij.collaboration.util.resolveRelative
 import java.awt.Image
+import javax.imageio.ImageIO
 
 @Suppress("UnstableApiUsage")
 suspend fun GiteaApi.currentUser(): GiteaUser {
@@ -30,5 +33,5 @@ suspend fun GiteaApi.userCurrentListRepos(page: Int, limit: Int): Collection<Rep
 @Suppress("UnstableApiUsage")
 suspend fun GiteaApi.loadImage(uri: String): Image {
   val request = request(uri).GET().build()
-  return loadImage(request).body()
+  return sendAndReadBody(request) { _, _ -> ImageIO.read(this) }
 }

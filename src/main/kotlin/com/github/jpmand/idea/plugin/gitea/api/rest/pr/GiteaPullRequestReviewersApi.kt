@@ -3,9 +3,8 @@ package com.github.jpmand.idea.plugin.gitea.api.rest.pr
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApi
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.PullReview
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.PullReviewRequestOptions
-import com.intellij.collaboration.api.httpclient.HttpClientUtil
-import com.intellij.collaboration.api.json.loadJsonList
-import com.intellij.collaboration.api.json.loadOptionalJsonValue
+import com.github.jpmand.idea.plugin.gitea.api.loadJsonList
+import com.github.jpmand.idea.plugin.gitea.api.loadOptionalJsonValue
 import com.intellij.collaboration.util.resolveRelative
 
 /** POST /repos/{owner}/{repo}/pulls/{index}/requested_reviewers — request reviewers for a pull
@@ -18,9 +17,7 @@ suspend fun GiteaApi.repoCreatePullReviewRequests(
   body: PullReviewRequestOptions,
 ): List<PullReview> {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/requested_reviewers")
-  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
-    .build()
+  val request = rest.postJson(uri, body).build()
   return rest.loadJsonList<PullReview>(request).body()
 }
 
@@ -35,8 +32,6 @@ suspend fun GiteaApi.repoDeletePullReviewRequests(
   body: PullReviewRequestOptions,
 ) {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/requested_reviewers")
-  val request = request(uri).method("DELETE", rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
-    .build()
+  val request = rest.sendJson(uri, "DELETE", body).build()
   rest.loadOptionalJsonValue<Unit>(request)
 }
