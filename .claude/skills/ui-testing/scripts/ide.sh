@@ -27,6 +27,14 @@ intellijPlatformTesting {
                         "-Djb.consents.confirmation.enabled=false",
                         "-Didea.trust.all.projects=true",
                         "-Dide.show.tips.on.startup.default.value=false",
+                        // 2026.3, from JetBrains on the Platform forum: the modal welcome screen instead of
+                        // the "IntelliJ IDEA Home" frame (temporary, t/5083), and EAP builds in free-tier
+                        // mode instead of asking for a JetBrains Account login (t/3007).
+                        "-Didea.welcome.screen.non.modal.enabled=false",
+                        "-Deap.require.license=release",
+                        // EAP builds send exceptions to JetBrains automatically; the container's missing
+                        // D-Bus and libsecret would be reported on every start (registry key as a property).
+                        "-Dea.auto.report.allowed=false",
                     )
                 }
             }

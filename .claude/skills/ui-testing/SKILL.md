@@ -11,8 +11,19 @@ small driver that clicks, types and takes screenshots. Nothing here runs in CI.
 
 ## Environment facts
 
-- **Platform:** IntelliJ IDEA 2026.2.1 (`platformVersion` in `gradle.properties`). Gradle downloads
-  it on the first build (about 1 GB, several minutes).
+- **Platform:** IntelliJ IDEA 2026.3 EAP, build 263.6259.32 (`platformVersion` in `gradle.properties`).
+  Gradle downloads it on the first build (about 1 GB, several minutes).
+- **2026.3 switches in `ide.sh`** (the first two are JetBrains' answers on the Platform forum for UI tests):
+  - `-Didea.welcome.screen.non.modal.enabled=false` brings back the modal welcome screen
+    (`FlatWelcomeFrame`) that `login-and-clone.sh` starts from, instead of the new "IntelliJ IDEA Home"
+    frame ([t/5083](https://platform.jetbrains.com/t/no-more-welcome-screen/5083)). It is temporary: the
+    modal screen goes away in a later major release, and the scripts will then have to start from the
+    Home frame.
+  - `-Deap.require.license=release` runs an EAP build like a release in free-tier mode, so it doesn't ask
+    for a JetBrains Account login ([t/3007](https://platform.jetbrains.com/t/ui-tests-blocked-by-login-popup-and-bash-requesting-screen-access-dialog-in-the-latest-2025-3-eap-build-253-27864-23/3007)). Paid features stay off; the plugin needs none.
+  - `-Dea.auto.report.allowed=false`: EAP builds send exceptions to JetBrains automatically, and the
+    container's missing D-Bus and libsecret fail on every start. This registry key, set as a JVM property,
+    turns the automatic reports off.
 - **JDK:** the build needs Java 25. The container's default is Java 21; the foojay toolchain
   resolver in `settings.gradle.kts` downloads Temurin 25 on the first build, so nothing to install.
 - **Base image already has:** Docker (daemon not started), Xvfb, Go, Python 3, `jq`.
@@ -55,8 +66,8 @@ after an IDE restart, log the accounts in again from Settings > Version Control 
 are in `~/.gitea-ui/<user>.token`).
 
 Expected noise on a fresh start, not caused by the plugin: an "IDE error occurred" balloon from
-JetBrains' OS integration daemon and a `PasswordSafeSettings` "Unable to load library 'secret-1'"
-error in `idea.log`, a warning about `JAVA_TOOL_OPTIONS` (the container's proxy settings), and
+JetBrains' OS integration daemon and a `PasswordSafeSettings` error about the missing `libsecret`
+library in `idea.log`, a warning about `JAVA_TOOL_OPTIONS` (the container's proxy settings), and
 "JCEF sandboxing is not supported" because the IDE runs as root. The IDE log is
 `.intellijPlatform/sandbox/gitea/IU-*/log_runIdeForUiTests/idea.log`.
 
@@ -107,11 +118,35 @@ Rules learned the hard way:
 - Open Settings and files through `ui.py js` (e.g. `ShowSettingsUtil.getInstance().showSettingsDialog(project, "Gitea")`,
   `FileEditorManager.getInstance(project).openFile(file, true)`), not keyboard shortcuts.
 - Run `clear-notifications.sh` before clicks and screenshots; balloons cover the tool windows.
+- A PR opens from the list on double-click (`dclicktext`) or Return. Right after the tool window
+  opens, the list may not have focus yet and a double-click only selects the row: focus it with
+  `ui.py cjs LIST 'com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(function(){ com.intellij.openapi.wm.IdeFocusManager.getGlobalInstance().requestFocus(component, true) }); "ok"'`,
+  check the focus owner, then `ui.py key Return`.
 - Prefer XPath lookups to fixed coordinates; coordinates change with window size and zoom.
 - Look at every screenshot (Read the PNG) before drawing conclusions from it.
 - To compare UI variants without rebuilding, gate the code on a system property and flip it with
   `ui.py js 'java.lang.System.setProperty("name", "value")'`, then refresh the view. Remove the
   switch before committing.
+
+## Module-dependency check
+
+The Plugin Verifier counts every product module as part of `com.intellij`, so a missing `<module>` entry
+in `plugin.xml` passes `verifyPlugin` and fails only at runtime (`NoClassDefFoundError`). With the IDE
+running, load one class of each module the plugin uses through the plugin's classloader:
+
+```bash
+ui.py js '
+var cl = com.intellij.ide.plugins.PluginManagerCore.getPlugin(
+  com.intellij.openapi.extensions.PluginId.getId("com.github.jpmand.idea.plugin.gitea")).getPluginClassLoader();
+var names = ["com.fasterxml.jackson.module.kotlin.ExtensionsKt", "com.fasterxml.jackson.databind.ObjectMapper",
+             "icons.CollaborationToolsIcons", "com.intellij.openapi.vcs.ProjectLevelVcsManager",
+             "com.intellij.dvcs.ui.DvcsBundle", "git4idea.repo.GitRepository"];
+var r = ""; for (var i = 0; i < names.length; i++) {
+  try { java.lang.Class.forName(names[i], false, cl); r += names[i] + "=yes\n"; } catch (e) { r += names[i] + "=NO\n"; } }
+r'
+```
+
+Every class must say `yes`.
 
 ## Internal-API check
 

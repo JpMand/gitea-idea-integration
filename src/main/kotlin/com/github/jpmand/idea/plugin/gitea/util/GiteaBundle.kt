@@ -9,7 +9,7 @@ import java.util.function.Supplier
 @NonNls
 private const val BUNDLE = "messages.GiteaBundle"
 
-object GiteaBundle {
+internal object GiteaBundle {
     private val instance = DynamicBundle(GiteaBundle::class.java, BUNDLE)
 
     @JvmStatic

@@ -108,9 +108,9 @@ block the UI setup adds.
 ---
 
 ## Dependency Notes
-Platform/dependency coordinates live in `gradle.properties` (`platformVersion`, `platformBundledPlugins` for `Git4Idea`, `platformBundledModules` for `intellij.platform.collaborationTools` + the vcs modules, `kotlin.stdlib.default.dependency = false`). Bundled modules are also declared in `plugin.xml` `<dependencies><module>` so they reach the plugin classloader at runtime.
+Platform/dependency coordinates live in `gradle.properties` (`platformVersion`, `platformBundledPlugins` for `Git4Idea` + `com.intellij.platform.vcs`, `platformBundledModules` for `intellij.platform.collaborationTools(.shared)`, the Jackson 2 modules and the vcs `.shared` modules, `kotlin.stdlib.default.dependency = false`). Since 2026.3 `intellij.platform.vcs`, `.vcs.impl`, `.vcs.dvcs` and `.vcs.dvcs.impl` ship in the `com.intellij.platform.vcs` bundled plugin, so Gradle gets them through `bundledPlugin` (as the SDK's incompatible-changes page asks). The modules the plugin uses at runtime are declared in `plugin.xml` `<dependencies><module>` so they reach the plugin classloader, including the VCS modules and Jackson 2 (no longer on every plugin's classloader since 2026.3). Compile-only entries (`intellij.libraries.jackson`, the vcs `.shared` modules) stay out of `plugin.xml`: they come with the declared modules. The Plugin Verifier cannot see a missing `<module>`; check class visibility in the sandbox IDE (`ui-testing` skill, "Module-dependency check").
 
-`pluginUntilBuild` is **deliberately capped** at the tested platform branch (`262.*`). The plugin
+`pluginUntilBuild` is **deliberately capped** at the tested platform branch (`263.*`). The plugin
 leans on `@Suppress("UnstableApiUsage")` `com.intellij.collaboration.*` APIs, which carry no
 cross-release compatibility guarantee; capping makes the plugin fail closed on an untested future
 platform rather than fail open with a possibly-broken unstable-API call. Widen it one platform
