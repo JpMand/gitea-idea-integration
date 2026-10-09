@@ -3,9 +3,13 @@ package com.github.jpmand.idea.plugin.gitea.api.rest
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApi
 import com.github.jpmand.idea.plugin.gitea.api.GiteaUriUtil
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.ContentsResponse
+import com.github.jpmand.idea.plugin.gitea.api.rest.dto.Label
+import com.intellij.collaboration.api.json.loadJsonList
 import com.intellij.collaboration.api.json.loadJsonValue
 import com.intellij.collaboration.util.resolveRelative
 import com.intellij.openapi.diagnostic.fileLogger
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.net.URLEncoder
 import java.util.Base64
 
@@ -24,7 +28,11 @@ suspend fun GiteaApi.getFileContents(
     val baseUri = server.restApiUri().resolveRelative("repos/$owner/$repo/contents/$encodedPath")
     val uri = GiteaUriUtil.QueryBuilder().addParam("ref", ref).build(baseUri)
     val request = request(uri).GET().build()
-    return rest.loadJsonValue<ContentsResponse>(request).body()
+    return withContext(Dispatchers.IO){
+        with(rest){
+            request.loadJsonValue<ContentsResponse>()
+        }
+    }.body()
 }
 
 fun ContentsResponse.decodeContent(): String? {

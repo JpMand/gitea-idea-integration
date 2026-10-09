@@ -5,6 +5,8 @@ import com.github.jpmand.idea.plugin.gitea.api.GiteaUriUtil
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.UserSearchResult
 import com.intellij.collaboration.api.json.loadJsonValue
 import com.intellij.collaboration.util.resolveRelative
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Search for users across the whole Gitea instance — unlike `GET /admin/users`, this needs no
@@ -26,5 +28,9 @@ suspend fun GiteaApi.userSearch(
     .addParam("limit", limit)
     .build(server.restApiUri().resolveRelative("users/search"))
   val request = request(uri).GET().build()
-  return rest.loadJsonValue<UserSearchResult>(request).body()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonValue<UserSearchResult>()
+    }
+  }.body()
 }

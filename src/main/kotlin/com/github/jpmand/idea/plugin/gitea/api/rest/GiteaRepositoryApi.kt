@@ -6,12 +6,18 @@ import com.github.jpmand.idea.plugin.gitea.api.rest.dto.Repository
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.SearchResults
 import com.intellij.collaboration.api.json.loadJsonValue
 import com.intellij.collaboration.util.resolveRelative
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Suppress("UnstableApiUsage")
 suspend fun GiteaApi.getRepository(owner: String, name: String): Repository? {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$name")
   val request = request(uri).GET().build()
-  return rest.loadJsonValue<Repository>(request).body()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonValue<Repository>()
+    }
+  }.body()
 }
 
 @Suppress("UnstableApiUsage")
@@ -53,5 +59,9 @@ suspend fun GiteaApi.repoSearch(
     .addParam("limit", limit)
     .build(baseUri)
   val request = request(uri).GET().build()
-  return rest.loadJsonValue<SearchResults>(request).body()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonValue<SearchResults>()
+    }
+  }.body()
 }

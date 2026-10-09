@@ -7,6 +7,8 @@ import com.intellij.collaboration.api.httpclient.HttpClientUtil
 import com.intellij.collaboration.api.json.loadJsonList
 import com.intellij.collaboration.api.json.loadOptionalJsonValue
 import com.intellij.collaboration.util.resolveRelative
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** POST /repos/{owner}/{repo}/pulls/{index}/requested_reviewers — request reviewers for a pull
  * request. */
@@ -18,10 +20,12 @@ suspend fun GiteaApi.repoCreatePullReviewRequests(
   body: PullReviewRequestOptions,
 ): List<PullReview> {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/requested_reviewers")
-  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
-    .build()
-  return rest.loadJsonList<PullReview>(request).body()
+  val request =  rest.postJson(uri, body).build()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonList<PullReview>()
+    }
+  }.body()
 }
 
 /** DELETE /repos/{owner}/{repo}/pulls/{index}/requested_reviewers — cancel review requests for a
@@ -35,8 +39,12 @@ suspend fun GiteaApi.repoDeletePullReviewRequests(
   body: PullReviewRequestOptions,
 ) {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/requested_reviewers")
-  val request = request(uri).method("DELETE", rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
+  val request = request(uri).method("DELETE", rest.jsonBodyPublisher("DELETE", uri, body))
+    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.MIME_TYPE_JSON)
     .build()
-  rest.loadOptionalJsonValue<Unit>(request)
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadOptionalJsonValue<Unit>()
+    }
+  }
 }
