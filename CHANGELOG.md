@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Allow reply to outdated review threads, matching Gitea's behavior.
+
 ## [1.1.0] - 2026-10-07
 
 ### Added

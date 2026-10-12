@@ -371,10 +371,9 @@ class GiteaPRTimelineItemComponentFactory(
         val actionsRow = HorizontalListPanel(THREAD_ACTIONS_GAP).apply {
             border = EmptyBorder(JBUI.scale(2), ComponentType.FULL.fullLeftShift, JBUI.scale(6), 0)
             add(resolveLink(cs, thread))
-            // Outdated threads (anchored to a diff that's no longer current) can't be replied to.
             // Reply targets the thread's last comment (not the anchor) so Gitea's reply chain
             // threads correctly — see GiteaPRThreadViewModel.lastCommentId.
-            if (!thread.isOutdated) add(replyLink(cs, thread.comments.last().id, replyComposer))
+            add(replyLink(cs, thread.comments.last().id, replyComposer))
         }
         return VerticalListPanel(0).apply {
             add(firstItem)
