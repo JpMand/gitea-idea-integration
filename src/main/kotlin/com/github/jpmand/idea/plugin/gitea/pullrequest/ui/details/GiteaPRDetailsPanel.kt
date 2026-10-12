@@ -12,10 +12,10 @@ import com.intellij.ide.BrowserUtil
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionGroup
-import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NlsSafe
 import com.intellij.openapi.util.text.StringUtil
@@ -180,7 +180,7 @@ class GiteaPRDetailsPanel(
     // ── actions ────────────────────────────────────────────────────────────
 
     private fun createActionGroup(): ActionGroup = DefaultActionGroup().apply {
-        add(object : AnAction(GiteaBundle.message("pull.request.action.open.in.browser")) {
+        add(object : DumbAwareAction(GiteaBundle.message("pull.request.action.open.in.browser")) {
             override fun actionPerformed(e: AnActionEvent) = BrowserUtil.browse(vm.url)
         })
     }

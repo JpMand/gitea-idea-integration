@@ -5,9 +5,9 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.GiteaPRActionKeys
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.actionSystem.ActionUpdateThread
-import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.ide.CopyPasteManager
+import com.intellij.openapi.project.DumbAwareAction
 import java.awt.datatransfer.StringSelection
 
 /**
@@ -15,7 +15,7 @@ import java.awt.datatransfer.StringSelection
  * registered in plugin.xml) so they can capture the list's callbacks; installed via
  * `PopupHandler.installPopupMenu` in `GiteaPRListPanel`.
  */
-internal abstract class GiteaPRSelectionAction(text: String) : AnAction(text) {
+internal abstract class GiteaPRSelectionAction(text: String) : DumbAwareAction(text) {
 
     final override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
@@ -43,10 +43,11 @@ internal class GiteaPRCopyLinkAction :
 
 /** Not PR-scoped — always enabled; opens the repository's web page. */
 internal class GiteaPROpenRepositoryAction(private val repositoryWebUrl: String) :
-    AnAction(GiteaBundle.message("pull.request.action.open.repo.in.browser")) {
+    DumbAwareAction(GiteaBundle.message("pull.request.action.open.repo.in.browser")) {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
     override fun update(e: AnActionEvent) {
         e.presentation.isEnabledAndVisible = repositoryWebUrl.isNotBlank()
     }
+
     override fun actionPerformed(e: AnActionEvent) = BrowserUtil.browse(repositoryWebUrl)
 }

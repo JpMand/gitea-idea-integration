@@ -3,8 +3,8 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action
 import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.GiteaPRActionKeys
 import com.intellij.openapi.actionSystem.ActionUpdateThread
-import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.project.DumbAwareAction
 
 /**
  * Opens the currently-selected PR (see [GiteaPRActionKeys.SELECTED_PULL_REQUEST]).
@@ -15,7 +15,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent
  */
 class GiteaPROpenPullRequestAction(
     private val onOpen: (GiteaPullRequest) -> Unit,
-) : AnAction() {
+) : DumbAwareAction() {
 
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 

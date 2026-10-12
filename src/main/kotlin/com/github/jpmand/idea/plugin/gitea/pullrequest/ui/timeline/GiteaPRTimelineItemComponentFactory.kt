@@ -33,6 +33,7 @@ import com.intellij.openapi.diff.impl.patch.PatchHunkUtil
 import com.intellij.openapi.diff.impl.patch.PatchReader
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.ide.CopyPasteManager
+import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.text.HtmlBuilder
 import com.intellij.openapi.util.text.HtmlChunk
@@ -588,7 +589,7 @@ class GiteaPRTimelineItemComponentFactory(
         }.await()
 
     private fun simpleAction(bundleKey: String, run: () -> Unit): AnAction =
-        object : AnAction(GiteaBundle.message(bundleKey)) {
+        object : DumbAwareAction(GiteaBundle.message(bundleKey)) {
             override fun getActionUpdateThread() = ActionUpdateThread.BGT
             override fun actionPerformed(e: AnActionEvent) = run()
         }
