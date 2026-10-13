@@ -4,7 +4,7 @@
 
 ## [Unreleased]
 
-## Fixed
+### Fixed
 
 - Enable Code inspections and "Jump To Code" feature from Diffs (where possible)
 
