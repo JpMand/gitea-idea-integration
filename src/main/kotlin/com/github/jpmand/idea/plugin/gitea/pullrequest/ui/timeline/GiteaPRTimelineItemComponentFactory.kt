@@ -33,6 +33,7 @@ import com.intellij.openapi.diff.impl.patch.PatchHunkUtil
 import com.intellij.openapi.diff.impl.patch.PatchReader
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.ide.CopyPasteManager
+import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.text.HtmlBuilder
 import com.intellij.openapi.util.text.HtmlChunk
@@ -371,10 +372,9 @@ class GiteaPRTimelineItemComponentFactory(
         val actionsRow = HorizontalListPanel(THREAD_ACTIONS_GAP).apply {
             border = EmptyBorder(JBUI.scale(2), ComponentType.FULL.fullLeftShift, JBUI.scale(6), 0)
             add(resolveLink(cs, thread))
-            // Outdated threads (anchored to a diff that's no longer current) can't be replied to.
             // Reply targets the thread's last comment (not the anchor) so Gitea's reply chain
             // threads correctly — see GiteaPRThreadViewModel.lastCommentId.
-            if (!thread.isOutdated) add(replyLink(cs, thread.comments.last().id, replyComposer))
+            add(replyLink(cs, thread.comments.last().id, replyComposer))
         }
         return VerticalListPanel(0).apply {
             add(firstItem)
@@ -589,7 +589,7 @@ class GiteaPRTimelineItemComponentFactory(
         }.await()
 
     private fun simpleAction(bundleKey: String, run: () -> Unit): AnAction =
-        object : AnAction(GiteaBundle.message(bundleKey)) {
+        object : DumbAwareAction(GiteaBundle.message(bundleKey)) {
             override fun getActionUpdateThread() = ActionUpdateThread.BGT
             override fun actionPerformed(e: AnActionEvent) = run()
         }
