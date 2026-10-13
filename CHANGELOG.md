@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## Fixed
+
+- Enable Code inspections and "Jump To Code" feature from Diffs (where possible)
+
 ## [1.1.0] - 2026-10-07
 
 ### Added
