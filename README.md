@@ -24,6 +24,9 @@ repositories from your Gitea servers.
 - Review in the diff viewer or directly in the editor: draft comments and approve / request changes / comment verdicts
   - Also supports an implementation of suggested changes, which can be applied in one click[^1]
 - Merge, close, reopen, check out the branch, and request reviewers
+- Create pull requests from the current or any local branch: base branch, title and description
+  (prefilled from the commits and the PR template), WIP, reviewers and labels, with a preview of
+  the commits and changes; unpushed branches are pushed on create
 
 **Accounts and repositories**
 - Personal access token login, with several accounts across several servers
@@ -38,7 +41,7 @@ bundled Git plugin.
 
 [Source code and issue tracker](https://github.com/JpMand/gitea-idea-integration)
 
-[^1]: Suggested changes are not supported in Gitea, their implementation is made with usage of a custom HTML comment blocks. See [GiteaSuggestionUtil.kt](src/main/kotlin/com/github/jpmand/idea/plugin/gitea/pullrequest/review/GiteaSuggestionUtil.kt) for details.
+[^1]: Suggested changes are not supported in Gitea, their implementation is made with usage of a custom HTML comment blocks. See [GiteaSuggestionUtil.kt](/src/main/kotlin/com/github/jpmand/idea/plugin/gitea/pullrequest/review/GiteaSuggestionUtil.kt) for details.
 <!-- Plugin description end -->
 
 ## Screenshots
