@@ -4,11 +4,16 @@
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-13
+
+### Changed
+
+- Allow reply to outdated review threads, matching Gitea's behavior.
+
 ### Fixed
 
-- Enable Code inspections and "Jump To Code" feature from Diffs (where possible)
-- Allow reply to outdated review threads, matching Gitea's behavior.
-- Enable actions to be `dumbAware`, allowing usage during project analysis.
+- Fix missing code inspections and "Jump To Code" feature from Diff views.
+- Fix actions to be `dumbAware`, avoiding no response during project analysis.
 
 ## [1.1.0] - 2026-10-07
 
@@ -56,6 +61,7 @@ First public pre-release.
 - Open in browser and copy link for files, lines and commits
 - Requires Gitea 1.27 or later and IntelliJ IDEA 2026.2
 
-[Unreleased]: https://github.com/JpMand/gitea-idea-integration/compare/1.1.0...HEAD
+[Unreleased]: https://github.com/JpMand/gitea-idea-integration/compare/1.1.1...HEAD
+[1.1.1]: https://github.com/JpMand/gitea-idea-integration/compare/1.1.0...1.1.1
 [1.1.0]: https://github.com/JpMand/gitea-idea-integration/compare/1.0.0-alpha...1.1.0
 [1.0.0-alpha]: https://github.com/JpMand/gitea-idea-integration/commits/1.0.0-alpha

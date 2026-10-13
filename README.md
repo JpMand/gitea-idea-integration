@@ -15,6 +15,10 @@
 Review Gitea pull requests in your IDE: browse, comment, approve and merge, and clone
 repositories from your Gitea servers.
 
+> Note: Development of this plugin was made with heavy assistance of AI. 
+> It is used both for coding and building and improving the developer's knowledge of the platform. 
+> All generated code is verified and manually tested to ensure it does what it needs to do. 
+
 **Pull requests**
 - A Pull Requests tool window for the project's Gitea remote, filterable by state, author and label
 - No account needed to read: pull requests of public repositories can be browsed read-only, and
@@ -22,7 +26,7 @@ repositories from your Gitea servers.
 - Details, commits, status checks and changed files for each pull request
 - A conversation timeline where you can reply to, edit, resolve and delete comments
 - Review in the diff viewer or directly in the editor: draft comments and approve / request changes / comment verdicts
-  - Also supports an implementation of suggested changes, which can be applied in one click[^1]
+  - Also supports an implementation of suggested changes, which can be applied in one click
 - Merge, close, reopen, check out the branch, and request reviewers
 
 **Accounts and repositories**
@@ -38,7 +42,6 @@ bundled Git plugin.
 
 [Source code and issue tracker](https://github.com/JpMand/gitea-idea-integration)
 
-[^1]: Suggested changes are not supported in Gitea, their implementation is made with usage of a custom HTML comment blocks. See [GiteaSuggestionUtil.kt](src/main/kotlin/com/github/jpmand/idea/plugin/gitea/pullrequest/review/GiteaSuggestionUtil.kt) for details.
 <!-- Plugin description end -->
 
 ## Screenshots
