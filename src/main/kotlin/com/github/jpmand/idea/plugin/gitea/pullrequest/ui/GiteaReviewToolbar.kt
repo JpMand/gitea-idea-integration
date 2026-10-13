@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import com.intellij.openapi.diagnostic.fileLogger
+import com.intellij.openapi.project.DumbAwareAction
 
 private val LOG = fileLogger()
 
@@ -71,7 +72,7 @@ fun CoroutineScope.launchReviewToolbar(project: Project, editor: Editor, discuss
  * like the popup the GitHub plugin shows.
  */
 fun submitReviewAction(project: Project, discussionsVm: GiteaPRDiscussionsViewModels): AnAction =
-    object : AnAction() {
+    object : DumbAwareAction() {
         override fun getActionUpdateThread() = ActionUpdateThread.BGT
 
         override fun update(e: AnActionEvent) {

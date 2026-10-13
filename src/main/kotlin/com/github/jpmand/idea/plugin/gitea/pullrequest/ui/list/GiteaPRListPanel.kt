@@ -24,7 +24,6 @@ import com.intellij.collaboration.ui.codereview.list.TagPresentation
 import com.intellij.collaboration.ui.codereview.list.UserPresentation
 import com.intellij.collaboration.ui.icon.IconsProvider
 import com.intellij.openapi.actionSystem.ActionUpdateThread
-import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonShortcuts
 import com.intellij.openapi.actionSystem.CompositeShortcutSet
@@ -33,6 +32,7 @@ import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.UiDataProvider
 import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.application.EDT
+import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.util.NlsSafe
 import com.intellij.ui.ColorHexUtil
 import com.intellij.ui.PopupHandler
@@ -94,7 +94,7 @@ class GiteaPRListPanel(
             }
         })
         val popupGroup = DefaultActionGroup().apply {
-            add(object : AnAction(GiteaBundle.message("pull.request.action.open")) {
+            add(object : DumbAwareAction(GiteaBundle.message("pull.request.action.open")) {
                 override fun getActionUpdateThread() = ActionUpdateThread.BGT
                 override fun update(e: AnActionEvent) {
                     e.presentation.isEnabledAndVisible = e.getData(GiteaPRActionKeys.SELECTED_PULL_REQUEST) != null
@@ -107,7 +107,7 @@ class GiteaPRListPanel(
             add(GiteaPRCopyLinkAction())
             addSeparator()
             add(GiteaPROpenRepositoryAction(repositoryWebUrl))
-            add(object : AnAction(GiteaBundle.message("pull.request.action.refresh")) {
+            add(object : DumbAwareAction(GiteaBundle.message("pull.request.action.refresh")) {
                 override fun getActionUpdateThread() = ActionUpdateThread.BGT
                 override fun actionPerformed(e: AnActionEvent) = vm.refresh()
             })

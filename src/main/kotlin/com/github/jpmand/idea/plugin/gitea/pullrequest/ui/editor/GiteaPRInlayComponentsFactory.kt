@@ -150,8 +150,7 @@ object GiteaPRInlayComponentsFactory {
         val actionsRow = HorizontalListPanel(THREAD_ACTIONS_GAP).apply {
             border = JBUI.Borders.empty(JBUI.scale(4), ComponentType.COMPACT.fullLeftShift, JBUI.scale(2), 0)
             add(createResolveLink(project, cs, vm))
-            // Outdated threads (anchored to a diff that's no longer current) can't be replied to.
-            if (!vm.isOutdated) add(replyLink(project, cs, discussionsVm, vm.lastCommentId, replyComposer))
+            add(replyLink(project, cs, discussionsVm, vm.lastCommentId, replyComposer))
         }
 
         return VerticalListPanel(0).apply {
