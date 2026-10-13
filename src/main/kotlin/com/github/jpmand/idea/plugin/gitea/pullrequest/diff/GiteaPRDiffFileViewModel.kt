@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.diff
 
+import com.github.jpmand.idea.plugin.gitea.GiteaRepositoriesManager
 import com.github.jpmand.idea.plugin.gitea.api.rest.pr.GiteaPRFileStatusEnum
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
@@ -11,23 +12,17 @@ import com.intellij.diff.DiffContentFactory
 import com.intellij.diff.requests.DiffRequest
 import com.intellij.diff.requests.SimpleDiffRequest
 import com.intellij.diff.util.Side
+import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
+import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.vcsUtil.VcsUtil
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.transformLatest
+import kotlinx.coroutines.flow.*
 
 private val LOG = logger<GiteaPRDiffFileViewModel>()
 
@@ -107,8 +102,18 @@ class GiteaPRDiffFileViewModel(
         }
 
         val fileType = FileTypeManager.getInstance().getFileTypeByFileName(file.filename)
-        val baseDoc = DiffContentFactory.getInstance().create(baseContent, fileType)
-        val headDoc = DiffContentFactory.getInstance().create(headContent, fileType)
+
+        val coordinates = repository.repositoryCoordinates
+
+        // Find the local root of the repository in the project, if any, to resolve the file paths against it.
+        val localRoot = project.service<GiteaRepositoriesManager>().knownRepositoriesState.value.firstOrNull {
+                it.repository.repositoryPath == coordinates.repositoryPath &&
+                it.repository.serverPath.equals(coordinates.serverPath, ignoreProtocol = true)
+            }?.gitRepository?.root
+
+        val (baseDoc, headDoc) = withContext(Dispatchers.Default) {
+            diffContent(baseContent, baseFilename, localRoot, fileType) to diffContent(headContent, file.filename, localRoot, fileType)
+        }
 
         val base = baseSha.take(7)
         val head = headSha.take(7)
@@ -131,4 +136,8 @@ class GiteaPRDiffFileViewModel(
     }
 
     override fun hashCode(): Int = 31 * (31 * (31 * file.hashCode() + target.hashCode()) + baseSha.hashCode()) + headSha.hashCode()
+
+    fun diffContent(text: String, path: String, localRoot: VirtualFile?, fileType: FileType) =
+        if (localRoot == null) DiffContentFactory.getInstance().create(project, text, fileType)
+        else DiffContentFactory.getInstance().create(project, text, VcsUtil.getFilePath("${localRoot.path}/$path", false))
 }
