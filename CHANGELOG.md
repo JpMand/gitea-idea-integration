@@ -6,6 +6,7 @@
 
 ### Fixed
 
+- Enable Code inspections and "Jump To Code" feature from Diffs (where possible)
 - Allow reply to outdated review threads, matching Gitea's behavior.
 - Enable actions to be `dumbAware`, allowing usage during project analysis.
 
