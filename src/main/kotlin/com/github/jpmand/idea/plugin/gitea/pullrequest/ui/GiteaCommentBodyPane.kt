@@ -3,7 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.ui
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
 import com.intellij.collaboration.ui.SimpleHtmlPane
-import com.intellij.openapi.application.EDT
+import com.intellij.openapi.application.UI
 import com.intellij.openapi.util.text.HtmlBuilder
 import com.intellij.openapi.util.text.HtmlChunk
 import com.intellij.util.ui.UIUtil
@@ -32,7 +32,7 @@ internal fun commentBodyPane(
     cs.launch {
         // Off the UI thread: callers' scopes usually run on it, and parsing many bodies there stutters.
         val html = withContext(Dispatchers.Default) { render(body) } ?: return@launch
-        withContext(Dispatchers.EDT) {
+        withContext(Dispatchers.UI) {
             pane.text = html
             pane.contentType = "text/html"
         }

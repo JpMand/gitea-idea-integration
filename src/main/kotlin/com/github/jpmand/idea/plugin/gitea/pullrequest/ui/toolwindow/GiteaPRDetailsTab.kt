@@ -18,15 +18,11 @@ import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.ui.CollaborationToolsUIUtil
 import com.intellij.collaboration.ui.codereview.diff.model.DiffViewerScrollRequest
 import com.intellij.diff.util.Side
-import com.intellij.openapi.application.EDT
+import com.intellij.openapi.application.UI
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import java.awt.BorderLayout
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -77,7 +73,7 @@ class GiteaPRDetailsTab(
         LOG.debug("Opening $path in the diff of $target")
         cs.launch {
             if (!diffVm.selectFile(target, path, scrollRequest)) return@launch
-            withContext(Dispatchers.EDT) {
+            withContext(Dispatchers.UI) {
                 FileEditorManager.getInstance(project).openFile(diffFile, true)
             }
         }

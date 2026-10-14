@@ -11,15 +11,12 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.comment.GiteaPRSubmitt
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.commentBodyPane
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.createSuggestionDiffBox
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.createThreadCommentsPanel
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRInlayComponentsFactory.createDraftRow
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.withSuggestion
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.async.mapState
 import com.intellij.collaboration.messages.CollaborationToolsBundle
-import com.intellij.collaboration.ui.CollaborationToolsUIUtil
-import com.intellij.collaboration.ui.EditableComponentFactory
-import com.intellij.collaboration.ui.HorizontalListPanel
-import com.intellij.collaboration.ui.SimpleHtmlPane
-import com.intellij.collaboration.ui.VerticalListPanel
+import com.intellij.collaboration.ui.*
 import com.intellij.collaboration.ui.codereview.CodeReviewChatItemUIUtil
 import com.intellij.collaboration.ui.codereview.CodeReviewChatItemUIUtil.ComponentType
 import com.intellij.collaboration.ui.codereview.CodeReviewTimelineUIUtil
@@ -47,13 +44,13 @@ import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.awt.Color
 import java.awt.Component
-import java.util.Date
-import javax.swing.*
+import java.util.*
+import javax.swing.JComponent
+import javax.swing.JLabel
 import javax.swing.border.EmptyBorder
 
 private val LOG = logger<GiteaPRInlayComponentsFactory>()
@@ -151,7 +148,7 @@ object GiteaPRInlayComponentsFactory {
         // plugin's inlays); Reply swaps in a composer below the row.
         val replyComposer = Wrapper()
         val actionsRow = HorizontalListPanel(THREAD_ACTIONS_GAP).apply {
-            border = EmptyBorder(JBUI.scale(4), ComponentType.COMPACT.fullLeftShift, JBUI.scale(2), 0)
+            border = JBUI.Borders.empty(JBUI.scale(4), ComponentType.COMPACT.fullLeftShift, JBUI.scale(2), 0)
             add(createResolveLink(project, cs, vm))
             // Outdated threads (anchored to a diff that's no longer current) can't be replied to.
             if (!vm.isOutdated) add(replyLink(project, cs, discussionsVm, vm.lastCommentId, replyComposer))
@@ -269,7 +266,7 @@ object GiteaPRInlayComponentsFactory {
         return VerticalListPanel(0).apply {
             // Lined up with the field below, which carries the same input padding.
             add(createSuggestionDiffBox(cs, project, suggestion).let {
-                Wrapper(it).apply { border = EmptyBorder(padding.top, padding.left, 0, padding.right) }
+                Wrapper(it).apply { border = JBUI.Borders.empty(padding.top, padding.left, 0, padding.right) }
             })
             add(commentField)
         }

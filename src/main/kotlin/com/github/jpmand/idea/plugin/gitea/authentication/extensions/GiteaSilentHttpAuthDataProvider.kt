@@ -18,7 +18,7 @@ import git4idea.remote.hosting.http.SilentHostedGitHttpAuthDataProviderBase
 private val LOG = logger<GiteaSilentHttpAuthDataProvider>()
 
 @Suppress("UnstableApiUsage")
-class GiteaSilentHttpAuthDataProvider: SilentHostedGitHttpAuthDataProviderBase<GiteaAccount, String>() {
+internal class GiteaSilentHttpAuthDataProvider: SilentHostedGitHttpAuthDataProviderBase<GiteaAccount, String>() {
   override val providerId: String = "Gitea Plugin"
 
   override val accountManager: AccountManager<GiteaAccount, String>

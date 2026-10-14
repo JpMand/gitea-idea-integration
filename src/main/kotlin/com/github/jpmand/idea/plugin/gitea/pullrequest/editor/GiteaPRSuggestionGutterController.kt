@@ -11,8 +11,11 @@ import com.intellij.diff.util.Side
 import com.intellij.openapi.diagnostic.fileLogger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.ex.EditorEx
-import com.intellij.openapi.editor.markup.*
+import com.intellij.openapi.editor.markup.ActiveGutterRenderer
+import com.intellij.openapi.editor.markup.HighlighterTargetArea
+import com.intellij.openapi.editor.markup.LineMarkerRendererEx
 import com.intellij.openapi.editor.markup.LineMarkerRendererEx.Position
+import com.intellij.openapi.editor.markup.RangeHighlighter
 import com.intellij.openapi.util.TextRange
 import com.intellij.ui.JBColor
 import com.intellij.ui.scale.JBUIScale
