@@ -10,8 +10,9 @@ import com.intellij.collaboration.ui.codereview.details.model.CodeReviewBranches
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.EDT
+import com.intellij.openapi.application.UI
 import com.intellij.openapi.components.service
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.MessageDialogBuilder
 import git4idea.GitRevisionNumber
@@ -27,7 +28,6 @@ import git4idea.repo.GitRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlin.coroutines.resume
-import com.intellij.openapi.diagnostic.logger
 
 private val LOG = logger<GiteaPRBranchesViewModel>()
 
@@ -180,11 +180,11 @@ class GiteaPRBranchesViewModel(
                 }
                 if (!baseFetch.isSuccessful()) {
                     LOG.warn("PR #${pr.number}: fetching ${mapping.gitRemote.name} failed, conflicts not resolved")
-                    withContext(Dispatchers.EDT) { baseFetch.showNotificationIfFailed() }
+                    withContext(Dispatchers.UI) { baseFetch.showNotificationIfFailed() }
                     return@launch
                 }
 
-                withContext(Dispatchers.EDT) {
+                withContext(Dispatchers.UI) {
                     GitBrancher.getInstance(project).merge(
                         "${mapping.gitRemote.name}/${pr.base.ref}",
                         GitBrancher.DeleteOnMergeOption.NOTHING,
@@ -256,7 +256,7 @@ class GiteaPRBranchesViewModel(
                 }
             }
         }
-        withContext(Dispatchers.EDT) {
+        withContext(Dispatchers.UI) {
             GitBrancher.getInstance(project).merge(localRef, GitBrancher.DeleteOnMergeOption.NOTHING, listOf(mapping.gitRepository))
         }
         _isCheckedOut.value = true
@@ -271,7 +271,7 @@ class GiteaPRBranchesViewModel(
         if (matches) return
 
         val expectedUpstream = "${mapping.gitRemote.name}/${pr.head.ref}"
-        val confirmed = withContext(Dispatchers.EDT) {
+        val confirmed = withContext(Dispatchers.UI) {
             MessageDialogBuilder.yesNo(
                 GiteaBundle.message("pull.request.branch.checkout.upstream.mismatch.title"),
                 GiteaBundle.message("pull.request.branch.checkout.upstream.mismatch.message", branchName, expectedUpstream),
@@ -327,8 +327,7 @@ class GiteaPRBranchesViewModel(
 
     private fun notifyError(message: String) {
         LOG.warn("Checkout failed: $message")
-        NotificationGroupManager
-.getInstance()
+        NotificationGroupManager.getInstance()
             .getNotificationGroup("Gitea")
             .createNotification(GiteaBundle.message("pull.request.branch.checkout.error.title"), message, NotificationType.ERROR)
             .notify(project)

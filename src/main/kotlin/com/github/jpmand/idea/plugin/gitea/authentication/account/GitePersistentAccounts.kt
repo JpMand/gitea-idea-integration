@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
     reportStatistic = false,
     category = SettingsCategory.TOOLS
 )
-class GitePersistentAccounts : ObservableAccountsRepository<GiteaAccount>,
+internal class GitePersistentAccounts : ObservableAccountsRepository<GiteaAccount>,
     PersistentStateComponent<Array<GiteaAccount>> {
 
     override var accounts: Set<GiteaAccount>

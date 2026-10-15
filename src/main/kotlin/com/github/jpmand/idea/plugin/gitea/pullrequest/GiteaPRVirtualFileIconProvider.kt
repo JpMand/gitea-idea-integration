@@ -12,7 +12,7 @@ import javax.swing.Icon
  * the bundled GitHub plugin's `GHPRVirtualFileIconProvider`), rather than a fake [com.intellij.openapi.fileTypes.FileType]
  * (which risks being consulted anywhere a real file type would be — associations, scopes, etc.).
  */
-class GiteaPRVirtualFileIconProvider : FileIconProvider {
+internal class GiteaPRVirtualFileIconProvider : FileIconProvider {
     override fun getIcon(file: VirtualFile, flags: Int, project: Project?): Icon? =
         if (file is GiteaPRTimelineVirtualFile) GiteaIcons.ReviewLogo else null
 }

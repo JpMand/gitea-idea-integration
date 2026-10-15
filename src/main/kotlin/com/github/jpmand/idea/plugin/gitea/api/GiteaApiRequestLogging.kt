@@ -24,21 +24,21 @@ private val LOG: Logger = logger<GiteaApi>()
 @Suppress("UnstableApiUsage")
 internal class GiteaApiRequestLogging(private val delegate: JsonHttpApiHelper) : JsonHttpApiHelper by delegate {
 
-    override fun jsonBodyPublisher(uri: URI, body: Any): HttpRequest.BodyPublisher {
+    override suspend fun jsonBodyPublisher(httpMethod: String, uri: URI, body: Any): HttpRequest.BodyPublisher {
         logRequestBody(uri, body)
-        return delegate.jsonBodyPublisher(uri, body)
+        return delegate.jsonBodyPublisher(httpMethod, uri, body)
     }
 
-    override suspend fun <T> loadJsonValueByClass(request: HttpRequest, clazz: Class<T>): HttpResponse<out T> =
+    override suspend fun <T : Any> loadJsonValueByClass(request: HttpRequest, clazz: Class<T>): HttpResponse<out T> =
         delegate.loadJsonValueByClass(request, clazz)
 
-    override suspend fun <T> loadOptionalJsonValueByClass(request: HttpRequest, clazz: Class<T>): HttpResponse<out T?> =
+    override suspend fun <T : Any> loadOptionalJsonValueByClass(request: HttpRequest, clazz: Class<T>): HttpResponse<out T?> =
         delegate.loadOptionalJsonValueByClass(request, clazz)
 
-    override suspend fun <T> loadJsonListByClass(request: HttpRequest, clazz: Class<T>): HttpResponse<out List<T>> =
+    override suspend fun <T : Any> loadJsonListByClass(request: HttpRequest, clazz: Class<T>): HttpResponse<out List<T>> =
         delegate.loadJsonListByClass(request, clazz)
 
-    override suspend fun <T> loadOptionalJsonListByClass(request: HttpRequest, clazz: Class<T>): HttpResponse<out List<T>?> =
+    override suspend fun <T : Any> loadOptionalJsonListByClass(request: HttpRequest, clazz: Class<T>): HttpResponse<out List<T>?> =
         delegate.loadOptionalJsonListByClass(request, clazz)
 
     private fun logRequestBody(uri: URI, body: Any) {

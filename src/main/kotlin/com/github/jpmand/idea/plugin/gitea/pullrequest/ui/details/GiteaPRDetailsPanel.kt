@@ -5,9 +5,20 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussions
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.action.giteaWriteActionNotImplemented
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.util.GiteaUtil
-import com.intellij.collaboration.ui.*
+import com.intellij.collaboration.ui.Either
+import com.intellij.collaboration.ui.HorizontalListPanel
+import com.intellij.collaboration.ui.ScrollablePanel
+import com.intellij.collaboration.ui.SimpleHtmlPane
+import com.intellij.collaboration.ui.VerticalListPanel
 import com.intellij.collaboration.ui.codereview.avatar.CodeReviewAvatarUtils
-import com.intellij.collaboration.ui.codereview.details.*
+import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsActionsComponentFactory
+import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsBranchComponentFactory
+import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsCommitInfoComponentFactory
+import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsCommitsComponentFactory
+import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsStatusComponentFactory
+import com.intellij.collaboration.ui.codereview.details.CodeReviewDetailsTitleComponentFactory
+import com.intellij.collaboration.ui.codereview.details.CommitPresentation
+import com.intellij.collaboration.ui.codereview.details.ReviewDetailsUIUtil
 import com.intellij.ide.BrowserUtil
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
@@ -35,8 +46,13 @@ import net.miginfocom.layout.LC
 import net.miginfocom.swing.MigLayout
 import java.awt.event.ActionEvent
 import java.awt.event.ActionListener
-import java.util.*
-import javax.swing.*
+import java.util.Date
+import javax.swing.AbstractAction
+import javax.swing.JButton
+import javax.swing.JComponent
+import javax.swing.JPanel
+import javax.swing.ScrollPaneConstants
+import javax.swing.SwingConstants
 
 private val LOG = logger<GiteaPRDetailsPanel>()
 
@@ -121,15 +137,16 @@ class GiteaPRDetailsPanel(
             add(
                 CodeReviewDetailsStatusComponentFactory.createReviewersReviewStateComponent(
                     cs, statusVm.reviewerStates,
-                    reviewerActionProvider = { null },
-                    reviewerNameProvider = { user -> user.fullName ?: user.login },
-                    avatarKeyProvider = { user -> user },
-                    iconProvider = { state, user, size ->
+                    statusText = { reviewer, reviewState -> ReviewDetailsUIUtil.getReviewStateText(reviewState, reviewer.fullName?: reviewer.login) },
+                    avatarIcon = { reviewer, reviewState ->
                         CodeReviewAvatarUtils.createIconWithOutline(
-                            discussionsVm.avatars.getIcon(user, size), ReviewDetailsUIUtil.getReviewStateIconBorder(state),
+                            discussionsVm.avatars.getIcon(reviewer, 16), ReviewDetailsUIUtil.getReviewStateIconBorder(reviewState),
                         )
                     },
-                ),
+                    statusIcon = { _, reviewState ->
+                        ReviewDetailsUIUtil.getReviewStateIcon(reviewState)
+                    }
+                )
             )
         }
         val statusComponent = ScrollPaneFactory.createScrollPane(statusRows, true).apply {

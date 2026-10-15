@@ -10,7 +10,7 @@ interface GiteaAccountManager : AccountManager<GiteaAccount, String> {
   fun isAccountUnique(server: GiteaServerPath, accountName: String): Boolean
 }
 
-class PersistentGiteaAccountManager :
+internal class PersistentGiteaAccountManager :
   GiteaAccountManager,
   AccountManagerBase<GiteaAccount, String>(logger<GiteaAccountManager>()) {
 
