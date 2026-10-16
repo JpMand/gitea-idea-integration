@@ -649,7 +649,7 @@ class GiteaPRTimelineItemComponentFactory(
     private fun esc(s: String): String = StringUtil.escapeXmlEntities(s)
 
     private companion object {
-        const val DIFF_CONTEXT_SIZE = 3
+        const val DIFF_CONTEXT_SIZE = 4
         /** Between a thread's diff and its first comment's text (the platform's thread diff gap). */
         const val THREAD_DIFF_TEXT_GAP = 8
         /** Between a thread's Resolve and Reply links, as in the GitHub plugin. */
