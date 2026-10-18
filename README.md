@@ -27,6 +27,7 @@ repositories from your Gitea servers.
 - A conversation timeline where you can reply to, edit, resolve and delete comments
 - Review in the diff viewer or directly in the editor: draft comments and approve / request changes / comment verdicts
   - Also supports an implementation of suggested changes, which can be applied in one click
+  - In the editor, the lines the pull request changes are marked in the gutter
 - Merge, close, reopen, check out the branch, and request reviewers
 
 **Accounts and repositories**

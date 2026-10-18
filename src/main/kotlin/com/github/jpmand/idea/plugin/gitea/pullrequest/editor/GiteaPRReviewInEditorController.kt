@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.editor
 
+import com.github.jpmand.idea.plugin.gitea.api.rest.pr.GiteaPRFileStatusEnum
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRForCurrentBranch
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRForCurrentBranchService
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
@@ -108,6 +109,18 @@ class GiteaPRReviewInEditorController : EditorFactoryListener {
             LOG.warn("Failed to load head content for '${changedFile.filename}'", e)
             return
         }
+        // Without it the review still works, only the PR's own changes go unmarked.
+        val fileAdded = changedFile.status == GiteaPRFileStatusEnum.ADDED
+        val baseContent = if (fileAdded) "" else try {
+            val baseFilename = changedFile.previousFilename.takeIf { changedFile.status == GiteaPRFileStatusEnum.RENAMED }
+                ?: changedFile.filename
+            current.repository.loadFileContent(baseFilename, current.pr.diffBaseSha)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            LOG.warn("Failed to load base content for '${changedFile.filename}'", e)
+            null
+        }
         LOG.debug("In-editor review on ${changedFile.filename} for PR #${current.pr.number} at ${current.pr.head.sha}")
 
         coroutineScope {
@@ -123,6 +136,12 @@ class GiteaPRReviewInEditorController : EditorFactoryListener {
             }
 
             launchReviewToolbar(project, editor, current.discussionsVm)
+            if (baseContent != null) {
+                installPRChangesGutter(
+                    project, editor, changedFile.filename, current.pr.diffBaseSha, baseContent, headContent, fileAdded,
+                    sync, current.discussionsVm,
+                )
+            }
             val model = GiteaPRDiffEditorModel(
                 this, project, changedFile, Side.RIGHT, current.discussionsVm, locationToLine, lineToLocation, editor,
             )
