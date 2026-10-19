@@ -7,9 +7,7 @@ import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.async.launchNow
 import com.intellij.collaboration.ui.codereview.diff.DiscussionsViewOption
 import com.intellij.collaboration.ui.codereview.editor.CodeReviewEditorGutterActionableChangesModel
-import com.intellij.collaboration.ui.codereview.editor.CodeReviewEditorGutterChangesModel
 import com.intellij.collaboration.ui.codereview.editor.CodeReviewEditorGutterChangesRenderer
-import com.intellij.collaboration.ui.codereview.editor.MutableCodeReviewEditorGutterChangesModel
 import com.intellij.collaboration.ui.codereview.editor.asLst
 import com.intellij.collaboration.util.ExcludingApproximateChangedRangesShifter
 import com.intellij.diff.DiffContentFactory
@@ -33,10 +31,13 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.Pair
 import com.intellij.openapi.util.text.StringUtil
+import com.intellij.openapi.vcs.ex.LstRange
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -59,6 +60,9 @@ private val LOG = logger<GiteaPRChangesGutterModel>()
  *
  * Clicking a marker opens the platform's popup: the base text of the range, copy, next/previous
  * change, and "Show Diff" ([showDiff]), a diff of the base file against the live document.
+ *
+ * Holds its ranges itself rather than delegating to the platform's
+ * `MutableCodeReviewEditorGutterChangesModel`, which is `@ApiStatus.Internal`.
  */
 @Suppress("UnstableApiUsage")
 class GiteaPRChangesGutterModel(
@@ -70,16 +74,20 @@ class GiteaPRChangesGutterModel(
     private val document: Document,
     prRanges: List<Range>,
     localRanges: StateFlow<List<Range>>,
-    private val changesModel: MutableCodeReviewEditorGutterChangesModel = MutableCodeReviewEditorGutterChangesModel(),
-) : CodeReviewEditorGutterActionableChangesModel, CodeReviewEditorGutterChangesModel by changesModel {
+) : CodeReviewEditorGutterActionableChangesModel {
 
     private val baseContent = StringUtil.convertLineSeparators(baseContent)
     private val settings = project.service<GiteaPullRequestsSettings>()
     private val highlightListeners = CopyOnWriteArrayList<() -> Unit>()
 
+    private val _reviewRanges = MutableStateFlow<List<LstRange>?>(null)
+    override val reviewRanges: StateFlow<List<LstRange>?> = _reviewRanges.asStateFlow()
+
+    override fun isValid(): Boolean = _reviewRanges.value != null
+
     init {
         cs.launchNow {
-            localRanges.collect { local -> changesModel.setChanges(shiftPRRanges(prRanges, local).map { it.asLst() }) }
+            localRanges.collect { local -> _reviewRanges.value = shiftPRRanges(prRanges, local).map { it.asLst() } }
         }
         // The setting is shared by every editor, so each one repaints when any of them toggles it.
         cs.launch {
