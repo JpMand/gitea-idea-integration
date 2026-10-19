@@ -15,7 +15,9 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.MessageDialogBuilder
+import git4idea.GitLocalBranch
 import git4idea.GitRevisionNumber
+import git4idea.GitStandardRemoteBranch
 import git4idea.branch.GitBrancher
 import git4idea.commands.Git
 import git4idea.commands.GitCommand
@@ -186,7 +188,7 @@ class GiteaPRBranchesViewModel(
 
                 withContext(Dispatchers.UI) {
                     GitBrancher.getInstance(project).merge(
-                        "${mapping.gitRemote.name}/${pr.base.ref}",
+                        GitStandardRemoteBranch(mapping.gitRemote, pr.base.ref),
                         GitBrancher.DeleteOnMergeOption.NOTHING,
                         listOf(mapping.gitRepository),
                     )
@@ -257,7 +259,7 @@ class GiteaPRBranchesViewModel(
             }
         }
         withContext(Dispatchers.UI) {
-            GitBrancher.getInstance(project).merge(localRef, GitBrancher.DeleteOnMergeOption.NOTHING, listOf(mapping.gitRepository))
+            GitBrancher.getInstance(project).merge(GitLocalBranch(localRef), GitBrancher.DeleteOnMergeOption.NOTHING, listOf(mapping.gitRepository))
         }
         _isCheckedOut.value = true
         return true
