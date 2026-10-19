@@ -52,6 +52,7 @@ object GiteLoginUtil {
   ): LoginResult = updateToken(project, parentComponent, account, account.name, uniqueAccountPredicate)
 
   @RequiresEdt
+  @Suppress("UnstableApiUsage")
   internal fun logInViaToken(
     project: Project,
     parentComponent: JComponent?,
@@ -81,6 +82,7 @@ object GiteLoginUtil {
   }
 
   @RequiresEdt
+  @Suppress("UnstableApiUsage")
   internal fun updateToken(
     project: Project,
     parentComponent: JComponent?,
@@ -131,6 +133,7 @@ object GiteLoginUtil {
   }
 
   @RequiresEdt
+  @Suppress("UnstableApiUsage")
   private fun showLoginDialog(
     project: Project,
     parentComponent: JComponent?,
