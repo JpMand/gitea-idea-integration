@@ -31,7 +31,7 @@ open class GiteaUser(
   override fun hashCode(): Int {
     var result = id.hashCode()
     result = 31 * result + login.hashCode()
-    result = 31 * result + (avatarUrl?.hashCode() ?: 0)
+    result = 31 * result + avatarUrl.hashCode()
     return result
   }
 

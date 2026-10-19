@@ -52,7 +52,7 @@ sealed class GiteaHttpError(@Nls message: String, cause: Throwable) : RuntimeExc
         403 -> Forbidden(SCOPE_RE.find(body)?.groupValues?.get(1)?.trim(), e)
         404 -> NotFound(e)
         in 500..599 -> ServerError(e.statusCode, e)
-        else -> Other(serverMessage(body) ?: e.localizedMessage ?: "HTTP ${e.statusCode}", e)
+        else -> Other(serverMessage(body) ?: e.localizedMessage, e)
       }
     }
 

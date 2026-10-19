@@ -423,7 +423,7 @@ fun mergeTimeline(
     val items = mutableListOf<GiteaTimelineItem>()
     val seenReviews = mutableSetOf<Long>()
 
-    fun reviewItem(reviewId: Long, fallbackActor: GiteaUser?, fallbackTs: java.util.Date, fallbackBody: String?) {
+    fun reviewItem(reviewId: Long, fallbackActor: GiteaUser?, fallbackTs: Date, fallbackBody: String?) {
         if (!seenReviews.add(reviewId)) return
         val review = reviewsById[reviewId]
         items += GiteaTimelineItem.Review(

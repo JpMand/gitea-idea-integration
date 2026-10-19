@@ -141,7 +141,7 @@ private class SuggestionGutterBarRenderer(
     private val endLine: Int,
     private val onClick: () -> Unit,
 ) : ActiveGutterRenderer, LineMarkerRendererEx {
-    override fun getPosition(): LineMarkerRendererEx.Position = LineMarkerRendererEx.Position.CUSTOM
+    override fun getPosition(): Position = Position.CUSTOM
 
     override fun paint(editor: Editor, g: Graphics, r: Rectangle) {
         val bar = barArea(editor) ?: return

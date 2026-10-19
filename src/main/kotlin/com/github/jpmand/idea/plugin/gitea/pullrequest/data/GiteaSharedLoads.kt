@@ -2,7 +2,6 @@ package com.github.jpmand.idea.plugin.gitea.pullrequest.data
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -59,7 +58,7 @@ class GiteaSharedLoads(
                 // The load we joined was cancelled with its caller; unless this caller is cancelled
                 // too, run the load again.
                 if(!currentCoroutineContext().isActive){
-                    throw e;
+                    throw e
                 }
             }
         }

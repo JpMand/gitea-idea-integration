@@ -20,6 +20,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.FileEditorOpenRequest
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
@@ -199,7 +200,7 @@ class GiteaPRToolWindowController(
             description = "${ctx.repo.repositoryPath}: ${pr.title}"
             isCloseable = true
             isPinnable = false
-            setDisposer(Disposable { tabJob.cancel() })
+            setDisposer { tabJob.cancel() }
         }
         detailTabs[number] = DetailTab(content, tabScope, tab, pr)
         cm.addContent(content)
@@ -242,7 +243,7 @@ class GiteaPRToolWindowController(
             .filterIsInstance<GiteaPRTimelineVirtualFile>()
             .filter { it.prNumber == file.prNumber && it != file }
             .forEach { fileEditorManager.closeFile(it) }
-        fileEditorManager.openFile(file, true)
+        fileEditorManager.requestOpenFile(file, FileEditorOpenRequest.withFocus(true))
     }
 
     private fun closeAllDetailTabs() {

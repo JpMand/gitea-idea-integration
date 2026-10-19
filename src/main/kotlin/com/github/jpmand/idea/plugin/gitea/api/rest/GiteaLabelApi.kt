@@ -3,9 +3,7 @@ package com.github.jpmand.idea.plugin.gitea.api.rest
 import com.github.jpmand.idea.plugin.gitea.api.GiteaApi
 import com.github.jpmand.idea.plugin.gitea.api.GiteaUriUtil
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.Label
-import com.github.jpmand.idea.plugin.gitea.api.rest.dto.SearchResults
 import com.intellij.collaboration.api.json.loadJsonList
-import com.intellij.collaboration.api.json.loadJsonValue
 import com.intellij.collaboration.util.resolveRelative
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

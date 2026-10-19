@@ -68,7 +68,7 @@ internal class GiteaCloneRepositoriesViewModelImpl(
         _searchValue.mapState(cs) { text ->
             try {
 
-                val uri = URI.create(text);
+                val uri = URI.create(text)
                 when (uri.scheme) {
                     "http", "https" -> {
                         uri.toURL()

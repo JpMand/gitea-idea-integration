@@ -89,8 +89,7 @@ object GiteLoginUtil {
     uniqueAccountPredicate: (GiteaServerPath, String) -> Boolean
   ): LoginResult {
     val predicateWithoutCurrent: (GiteaServerPath, String) -> Boolean = { serverPath, username ->
-      if (serverPath == account.server && username == account.name) true
-      else uniqueAccountPredicate(serverPath, username)
+      (serverPath == account.server && username == account.name) || uniqueAccountPredicate(serverPath, username)
     }
 
     val model = GiteaTokenLoginPanelModel(requiredUsername, predicateWithoutCurrent).apply {

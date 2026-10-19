@@ -66,7 +66,7 @@ class GiteaTokenLoginPanelModel(
       throw LoginException.AccountAlreadyExists(username)
     }
 
-    return username;
+    return username
   }
 
   override fun canGenerateToken(serverUri: String): Boolean {
