@@ -30,7 +30,7 @@ private val LOG = logger<GiteaPRDiffExtension>()
  * Registered via `<diff.DiffExtension>` in plugin.xml.
  */
 @Suppress("UnstableApiUsage")
-class GiteaPRDiffExtension : DiffExtension() {
+internal class GiteaPRDiffExtension : DiffExtension() {
 
     override fun onViewerCreated(viewer: FrameDiffTool.DiffViewer, context: DiffContext, request: DiffRequest) {
         if (viewer !is DiffViewerBase) return

@@ -23,7 +23,6 @@ import java.nio.file.Paths
 
 private val LOG = logger<GiteaCloneRepositoriesViewModel>()
 
-@Suppress("UnstableApiUsage")
 internal interface GiteaCloneRepositoriesViewModel : GiteaClonePanelViewModel {
     val listVm: GiteaCloneRepositoriesListViewModel
 
@@ -68,7 +67,7 @@ internal class GiteaCloneRepositoriesViewModelImpl(
         _searchValue.mapState(cs) { text ->
             try {
 
-                val uri = URI.create(text);
+                val uri = URI.create(text)
                 when (uri.scheme) {
                     "http", "https" -> {
                         uri.toURL()
@@ -83,7 +82,7 @@ internal class GiteaCloneRepositoriesViewModelImpl(
                     else -> throw IllegalArgumentException("Invalid URL")
                 }
                 SearchModel.Url(text)
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 SearchModel.Text
             }
         }

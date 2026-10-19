@@ -84,7 +84,7 @@ constructor(
     myAccountsList.selectedIndex = 0
   }
 
-  override fun getDimensionServiceKey(): @NonNls String? = "Gitea.Dialog.Accounts.Choose"
+  override fun getDimensionServiceKey(): @NonNls String = "Gitea.Dialog.Accounts.Choose"
 
   override fun doValidate(): ValidationInfo? {
     return if (myAccountsList.selectedValue == null) ValidationInfo(GiteaBundle.message("account.choose.not.selected")) else null

@@ -62,7 +62,6 @@ import java.awt.event.ActionListener
 import java.util.*
 import javax.swing.JComponent
 import javax.swing.JPanel
-import javax.swing.border.EmptyBorder
 
 private val LOG = logger<GiteaPRTimelineItemComponentFactory>()
 
@@ -370,7 +369,7 @@ class GiteaPRTimelineItemComponentFactory(
         }
         val replyComposer = Wrapper()
         val actionsRow = HorizontalListPanel(THREAD_ACTIONS_GAP).apply {
-            border = EmptyBorder(JBUI.scale(2), ComponentType.FULL.fullLeftShift, JBUI.scale(6), 0)
+            border = JBUI.Borders.empty(JBUI.scale(2), ComponentType.FULL.fullLeftShift, JBUI.scale(6), 0)
             add(resolveLink(cs, thread))
             // Reply targets the thread's last comment (not the anchor) so Gitea's reply chain
             // threads correctly — see GiteaPRThreadViewModel.lastCommentId.
@@ -650,7 +649,7 @@ class GiteaPRTimelineItemComponentFactory(
     private fun esc(s: String): String = StringUtil.escapeXmlEntities(s)
 
     private companion object {
-        const val DIFF_CONTEXT_SIZE = 3
+        const val DIFF_CONTEXT_SIZE = 4
         /** Between a thread's diff and its first comment's text (the platform's thread diff gap). */
         const val THREAD_DIFF_TEXT_GAP = 8
         /** Between a thread's Resolve and Reply links, as in the GitHub plugin. */

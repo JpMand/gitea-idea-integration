@@ -21,12 +21,9 @@ import com.intellij.diff.util.Side
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.FileEditorOpenRequest
 import com.intellij.openapi.project.Project
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import java.awt.BorderLayout
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -78,7 +75,7 @@ class GiteaPRDetailsTab(
         cs.launch {
             if (!diffVm.selectFile(target, path, scrollRequest)) return@launch
             withContext(Dispatchers.EDT) {
-                FileEditorManager.getInstance(project).openFile(diffFile, true)
+                FileEditorManager.getInstance(project).requestOpenFile(diffFile, FileEditorOpenRequest.withFocus(true))
             }
         }
     }

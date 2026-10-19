@@ -5,6 +5,8 @@ import com.github.jpmand.idea.plugin.gitea.api.GiteaUriUtil
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.User
 import com.intellij.collaboration.api.json.loadJsonList
 import com.intellij.collaboration.util.resolveRelative
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * List a repository's collaborators. Used to populate the PR-list "Author" filter with a stable
@@ -24,5 +26,9 @@ suspend fun GiteaApi.repoListCollaborators(
     .addParam("limit", limit)
     .build(server.restApiUri().resolveRelative("repos/$owner/$repo/collaborators"))
   val request = request(uri).GET().build()
-  return rest.loadJsonList<User>(request).body()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonList<User>()
+    }
+  }.body()
 }

@@ -11,7 +11,6 @@ import org.jetbrains.annotations.Nls
  * errors, cancellation and everything else pass through untouched. Wrap a call site with
  * [giteaApiCall] to get this translation.
  */
-@Suppress("UnstableApiUsage")
 sealed class GiteaHttpError(@Nls message: String, cause: Throwable) : RuntimeException(message, cause) {
 
   /** 401 — the token is invalid or expired. */
@@ -52,7 +51,7 @@ sealed class GiteaHttpError(@Nls message: String, cause: Throwable) : RuntimeExc
         403 -> Forbidden(SCOPE_RE.find(body)?.groupValues?.get(1)?.trim(), e)
         404 -> NotFound(e)
         in 500..599 -> ServerError(e.statusCode, e)
-        else -> Other(serverMessage(body) ?: e.localizedMessage ?: "HTTP ${e.statusCode}", e)
+        else -> Other(serverMessage(body) ?: e.localizedMessage, e)
       }
     }
 
@@ -67,7 +66,6 @@ sealed class GiteaHttpError(@Nls message: String, cause: Throwable) : RuntimeExc
  * actionable message). Every other throwable — including [kotlinx.coroutines.CancellationException]
  * — propagates unchanged.
  */
-@Suppress("UnstableApiUsage")
 suspend fun <T> giteaApiCall(block: suspend () -> T): T =
   try {
     block()

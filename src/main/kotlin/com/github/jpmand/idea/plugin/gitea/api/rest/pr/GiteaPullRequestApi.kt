@@ -22,6 +22,8 @@ import com.intellij.collaboration.api.json.loadJsonList
 import com.intellij.collaboration.api.json.loadJsonValue
 import com.intellij.collaboration.api.json.loadOptionalJsonValue
 import com.intellij.collaboration.util.resolveRelative
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.net.URI
 import java.net.http.HttpRequest
 
@@ -59,7 +61,11 @@ suspend fun GiteaApi.repoListPullRequests(
     baseBranch, state, sort, milestone, labels, poster, page, limit,
   )
   val request = request(uri).GET().build()
-  return rest.loadJsonList<PullRequest>(request).body()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonList<PullRequest>()
+    }
+  }.body()
 }
 
 /** Query for [repoListPullRequests]; `labels` is repeated once per id (`collectionFormat: multi`). */
@@ -88,7 +94,11 @@ internal fun pullRequestListUri(
 suspend fun GiteaApi.repoListPinnedPullRequests(owner: String, repo: String): List<PullRequest> {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/pinned")
   val request = request(uri).GET().build()
-  return rest.loadJsonList<PullRequest>(request).body()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonList<PullRequest>()
+    }
+  }.body()
 }
 
 // ── Single PR ─────────────────────────────────────────────────────────────
@@ -97,7 +107,11 @@ suspend fun GiteaApi.repoListPinnedPullRequests(owner: String, repo: String): Li
 suspend fun GiteaApi.repoGetPullRequest(owner: String, repo: String, index: Int): PullRequest {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index")
   val request = request(uri).GET().build()
-  return rest.loadJsonValue<PullRequest>(request).body()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonValue<PullRequest>()
+    }
+  }.body()
 }
 
 // ── Reviews ───────────────────────────────────────────────────────────────
@@ -115,14 +129,22 @@ suspend fun GiteaApi.repoListPullRequestReviews(
     .addParam("limit", limit)
     .build(server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/reviews"))
   val request = request(uri).GET().build()
-  return rest.loadJsonList<PullReview>(request).body()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonList<PullReview>()
+    }
+  }.body()
 }
 
 @Suppress("UnstableApiUsage")
 suspend fun GiteaApi.repoGetPullRequestReview(owner: String, repo: String, index: Int, id: Long): PullReview {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/reviews/$id")
   val request = request(uri).GET().build()
-  return rest.loadJsonValue<PullReview>(request).body()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonValue<PullReview>()
+    }
+  }.body()
 }
 
 @Suppress("UnstableApiUsage")
@@ -134,7 +156,11 @@ suspend fun GiteaApi.repoGetPullRequestReviewComments(
 ): List<PullReviewComment> {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/reviews/$id/comments")
   val request = request(uri).GET().build()
-  return rest.loadJsonList<PullReviewComment>(request).body()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonList<PullReviewComment>()
+    }
+  }.body()
 }
 
 @Suppress("UnstableApiUsage")
@@ -145,17 +171,23 @@ suspend fun GiteaApi.repoCreatePullRequestReview(
   body: CreatePullReviewOptions,
 ): PullReview {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/reviews")
-  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
-    .build()
-  return rest.loadJsonValue<PullReview>(request).body()
+  val request = rest.postJson(uri, body).build()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonValue<PullReview>()
+    }
+  }.body()
 }
 
 @Suppress("UnstableApiUsage")
 suspend fun GiteaApi.repoDeletePullRequestReview(owner: String, repo: String, index: Int, id: Long) {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/reviews/$id")
   val request = request(uri).DELETE().build()
-  rest.loadOptionalJsonValue<Unit>(request)
+  withContext(Dispatchers.IO){
+    with(rest){
+      request.loadOptionalJsonValue<Unit>()
+    }
+  }
 }
 
 /** POST /repos/{owner}/{repo}/pulls/{index}/reviews/{id} — submit a pending review. */
@@ -168,10 +200,12 @@ suspend fun GiteaApi.repoSubmitPullRequestReview(
   body: SubmitPullReviewOptions,
 ): PullReview {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/reviews/$id")
-  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
-    .build()
-  return rest.loadJsonValue<PullReview>(request).body()
+  val request = rest.postJson(uri, body).build()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonValue<PullReview>()
+    }
+  }.body()
 }
 
 @Suppress("UnstableApiUsage")
@@ -184,10 +218,12 @@ suspend fun GiteaApi.repoDismissPullRequestReview(
 ): PullReview {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/reviews/$id/dismissals")
   val body = DismissPullReviewOptions(message)
-  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
-    .build()
-  return rest.loadJsonValue<PullReview>(request).body()
+  val request = rest.postJson(uri, body).build()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonValue<PullReview>()
+    }
+  }.body()
 }
 
 // ── Issue/PR comments ─────────────────────────────────────────────────────
@@ -209,7 +245,11 @@ suspend fun GiteaApi.repoListPullRequestComments(
     .addParam("limit", limit)
     .build(server.restApiUri().resolveRelative("repos/$owner/$repo/issues/$index/comments"))
   val request = request(uri).GET().build()
-  return rest.loadJsonList<Comment>(request).body()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonList<Comment>()
+    }
+  }.body()
 }
 
 /**
@@ -234,7 +274,11 @@ suspend fun GiteaApi.issueListTimeline(
     .addParam("limit", limit)
     .build(server.restApiUri().resolveRelative("repos/$owner/$repo/issues/$index/timeline"))
   val request = request(uri).GET().build()
-  return rest.loadJsonList<TimelineComment>(request).body()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonList<TimelineComment>()
+    }
+  }.body()
 }
 
 @Suppress("UnstableApiUsage")
@@ -245,10 +289,12 @@ suspend fun GiteaApi.repoCreatePullRequestComment(
   body: CreateIssueCommentOption,
 ): Comment {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/issues/$index/comments")
-  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
-    .build()
-  return rest.loadJsonValue<Comment>(request).body()
+  val request = rest.postJson(uri, body).build()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonValue<Comment>()
+    }
+  }.body()
 }
 
 @Suppress("UnstableApiUsage")
@@ -259,17 +305,25 @@ suspend fun GiteaApi.repoEditPullRequestComment(
   body: EditIssueCommentOption,
 ): Comment {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/issues/comments/$commentId")
-  val request = request(uri).method("PATCH", rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
+  val request = request(uri).method("PATCH", rest.jsonBodyPublisher("PATCH", uri, body))
+    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.MIME_TYPE_JSON)
     .build()
-  return rest.loadJsonValue<Comment>(request).body()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonValue<Comment>()
+    }
+  }.body()
 }
 
 @Suppress("UnstableApiUsage")
 suspend fun GiteaApi.repoDeletePullRequestComment(owner: String, repo: String, commentId: Long) {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/issues/comments/$commentId")
   val request = request(uri).DELETE().build()
-  rest.loadOptionalJsonValue<Unit>(request)
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadOptionalJsonValue<Unit>()
+    }
+  }
 }
 
 /** POST /repos/{owner}/{repo}/pulls/{index}/comments/{id}/replies — reply to an existing
@@ -283,10 +337,12 @@ suspend fun GiteaApi.repoCreatePullReviewCommentReply(
   body: CreatePullReviewCommentReplyOptions,
 ): PullReviewComment {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/comments/$commentId/replies")
-  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
-    .build()
-  return rest.loadJsonValue<PullReviewComment>(request).body()
+  val request = rest.postJson(uri, body).build()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonValue<PullReviewComment>()
+    }
+  }.body()
 }
 
 // ── Files and commits ─────────────────────────────────────────────────────
@@ -304,7 +360,11 @@ suspend fun GiteaApi.repoListPullRequestFiles(
     .addParam("limit", limit)
     .build(server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/files"))
   val request = request(uri).GET().build()
-  return rest.loadJsonList<ChangedFile>(request).body()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonList<ChangedFile>()
+    }
+  }.body()
 }
 
 @Suppress("UnstableApiUsage")
@@ -320,7 +380,11 @@ suspend fun GiteaApi.repoListPullRequestCommits(
     .addParam("limit", limit)
     .build(server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/commits"))
   val request = request(uri).GET().build()
-  return rest.loadJsonList<Commit>(request).body()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonList<Commit>()
+    }
+  }.body()
 }
 
 // ── Edit / Merge ──────────────────────────────────────────────────────────
@@ -334,10 +398,14 @@ suspend fun GiteaApi.repoEditPullRequest(
   body: EditPullRequestOption,
 ): PullRequest {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index")
-  val request = request(uri).method("PATCH", rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
+  val request = request(uri).method("PATCH", rest.jsonBodyPublisher("PATCH", uri, body))
+    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.MIME_TYPE_JSON)
     .build()
-  return rest.loadJsonValue<PullRequest>(request).body()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonValue<PullRequest>()
+    }
+  }.body()
 }
 
 /** POST /repos/{owner}/{repo}/pulls/{index}/merge — merge the pull request. */
@@ -349,10 +417,12 @@ suspend fun GiteaApi.repoMergePullRequest(
   body: MergePullRequestOption,
 ) {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/$index/merge")
-  val request = request(uri).POST(rest.jsonBodyPublisher(uri, body))
-    .setHeader(HttpClientUtil.CONTENT_TYPE_HEADER, HttpClientUtil.CONTENT_TYPE_JSON)
-    .build()
-  rest.loadOptionalJsonValue<Unit>(request)
+  val request = rest.postJson(uri, body).build()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadOptionalJsonValue<Unit>()
+    }
+  }
 }
 
 // ── Comment resolve / unresolve ───────────────────────────────────────────
@@ -365,7 +435,11 @@ suspend fun GiteaApi.repoMergePullRequest(
 suspend fun GiteaApi.repoResolvePullRequestReviewComment(owner: String, repo: String, commentId: Long) {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/comments/$commentId/resolve")
   val request = request(uri).POST(HttpRequest.BodyPublishers.noBody()).build()
-  rest.loadOptionalJsonValue<Unit>(request)
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadOptionalJsonValue<Unit>()
+    }
+  }
 }
 
 /** POST /repos/{owner}/{repo}/pulls/comments/{id}/unresolve — un-resolve a resolved comment. Same
@@ -374,5 +448,9 @@ suspend fun GiteaApi.repoResolvePullRequestReviewComment(owner: String, repo: St
 suspend fun GiteaApi.repoUnresolvePullRequestReviewComment(owner: String, repo: String, commentId: Long) {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/pulls/comments/$commentId/unresolve")
   val request = request(uri).POST(HttpRequest.BodyPublishers.noBody()).build()
-  rest.loadOptionalJsonValue<Unit>(request)
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadOptionalJsonValue<Unit>()
+    }
+  }
 }

@@ -8,7 +8,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 
 /** Supplies [GiteaPRTimelineFileEditor] for [GiteaPRTimelineVirtualFile]. Registered in plugin.xml. */
-class GiteaPRTimelineEditorProvider : FileEditorProvider, DumbAware {
+internal class GiteaPRTimelineEditorProvider : FileEditorProvider, DumbAware {
 
     override fun accept(project: Project, file: VirtualFile): Boolean = file is GiteaPRTimelineVirtualFile
 

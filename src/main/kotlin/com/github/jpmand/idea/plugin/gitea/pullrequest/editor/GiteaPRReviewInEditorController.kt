@@ -50,7 +50,7 @@ private val LOG = logger<GiteaPRReviewInEditorController>()
  *
  * Registered via `<editorFactoryListener>` in plugin.xml.
  */
-class GiteaPRReviewInEditorController : EditorFactoryListener {
+internal class GiteaPRReviewInEditorController : EditorFactoryListener {
 
     private val editorJobs = ConcurrentHashMap<Editor, Job>()
 

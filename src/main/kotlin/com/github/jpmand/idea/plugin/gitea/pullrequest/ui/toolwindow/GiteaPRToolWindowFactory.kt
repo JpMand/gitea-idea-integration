@@ -1,7 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow
 
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContextHolder
-import com.intellij.openapi.application.EDT
+import com.intellij.openapi.application.UI
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.DumbAware
@@ -25,7 +25,7 @@ private val LOG = logger<GiteaPRToolWindowFactory>()
  * nothing to show, and every other pull request feature (the in-editor review, the PR diff, the
  * Conversation tab) hangs off that same context, so they go away with it.
  */
-class GiteaPRToolWindowFactory : ToolWindowFactory, DumbAware {
+internal class GiteaPRToolWindowFactory : ToolWindowFactory, DumbAware {
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
         // The tabs name the repository and PRs; the "Gitea PR:" prefix only takes room.
@@ -44,7 +44,7 @@ class GiteaPRToolWindowFactory : ToolWindowFactory, DumbAware {
             .distinctUntilChanged()
             .collect { available ->
                 LOG.info("Gitea PR tool window ${if (available) "available" else "hidden"} in ${toolWindow.project.name}")
-                withContext(Dispatchers.EDT) { toolWindow.isAvailable = available }
+                withContext(Dispatchers.UI) { toolWindow.isAvailable = available }
             }
     }
 }

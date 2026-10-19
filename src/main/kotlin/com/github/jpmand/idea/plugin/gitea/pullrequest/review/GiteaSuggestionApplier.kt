@@ -11,6 +11,7 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.fileLogger
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.FileEditorOpenRequest
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.MessageDialogBuilder
@@ -86,7 +87,8 @@ suspend fun applySuggestion(cs: CoroutineScope, project: Project, path: String, 
             document.replaceString(startOffset, endOffset, replacement)
         }
         LOG.info("Suggestion applied to $path at local lines ${liveStart + 1}..$liveEnd")
-        FileEditorManager.getInstance(project).openTextEditor(OpenFileDescriptor(project, virtualFile, liveStart, 0), true)
+        FileEditorManager.getInstance(project)
+            .requestOpenTextEditor(OpenFileDescriptor(project, virtualFile, liveStart, 0), FileEditorOpenRequest.withFocus(true))
     } finally {
         syncJob.cancel()
     }

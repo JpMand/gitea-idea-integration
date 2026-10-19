@@ -6,25 +6,11 @@ import com.intellij.collaboration.ui.codereview.diff.model.CodeReviewDiffProcess
 import com.intellij.collaboration.ui.codereview.diff.model.DiffViewerScrollRequest
 import com.intellij.collaboration.util.ComputedResult
 import com.intellij.openapi.ListSelection
-import com.intellij.openapi.application.EDT
+import com.intellij.openapi.application.UI
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChangedBy
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 
 private val LOG = logger<GiteaPRDiffViewModel>()
 
@@ -104,7 +90,7 @@ class GiteaPRDiffViewModel(
      * diff opens on the error, which offers a reload.
      */
     suspend fun selectFile(newTarget: GiteaPRDiffTarget, path: String, scrollRequest: DiffViewerScrollRequest?): Boolean {
-        val result = withContext(Dispatchers.EDT) {
+        val result = withContext(Dispatchers.UI) {
             if (target.value != newTarget) {
                 // Drop the old target's result first, so it isn't mistaken for the new one's.
                 _changesState.value = ComputedResult.loading()
@@ -121,7 +107,7 @@ class GiteaPRDiffViewModel(
             LOG.debug("$path is not among the ${files.size} changed files of the diff of $newTarget")
             return false
         }
-        withContext(Dispatchers.EDT) { showChange(idx, scrollRequest) }
+        withContext(Dispatchers.UI) { showChange(idx, scrollRequest) }
         return true
     }
 
