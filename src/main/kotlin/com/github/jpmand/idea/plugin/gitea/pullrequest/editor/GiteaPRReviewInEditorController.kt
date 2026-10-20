@@ -8,6 +8,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRDiffEdit
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRInlayComponentsFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRLiveDiffSync
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.launchReviewToolbar
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow.GiteaPRShowDiffRequests
 import com.intellij.collaboration.ui.codereview.diff.DiffLineLocation
 import com.intellij.collaboration.ui.codereview.diff.viewer.showCodeReview
 import com.intellij.diff.util.Side
@@ -140,7 +141,10 @@ class GiteaPRReviewInEditorController : EditorFactoryListener {
                 installPRChangesGutter(
                     project, editor, changedFile.filename, current.pr.diffBaseSha, baseContent, headContent, fileAdded,
                     sync, current.discussionsVm,
-                )
+                ) { headLine ->
+                    project.service<GiteaPRShowDiffRequests>()
+                        .requestFile(current.pr, current.repository, current.ctx, changedFile.filename, headLine)
+                }
             }
             val model = GiteaPRDiffEditorModel(
                 this, project, changedFile, Side.RIGHT, current.discussionsVm, locationToLine, lineToLocation, editor,

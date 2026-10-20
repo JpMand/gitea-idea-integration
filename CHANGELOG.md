@@ -7,7 +7,7 @@
 ### Added
 
 - In-editor review marks the lines the pull request changes in the gutter, in the review color the
-  bundled GitHub/GitLab plugins use. Clicking a marker shows the base text and opens the diff.
+  bundled GitHub/GitLab plugins use. Clicking a marker shows the base text and opens the pull request diff at that line.
 
 ## [1.1.1] - 2026-10-13
 

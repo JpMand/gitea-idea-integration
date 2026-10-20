@@ -51,4 +51,20 @@ class GiteaPRChangesGutterTest {
     assertEquals("", linesText(content, LineRange(3, 4)))
     assertNull(linesText(content, LineRange(3, 5)))
   }
+
+  @Test
+  fun `without local edits a live line is the same head line`() {
+    assertEquals(7, liveToHeadLine(emptyList(), 7))
+  }
+
+  @Test
+  fun `lines added locally above move the head line back up`() {
+    // Two lines typed at live lines 3..4.
+    assertEquals(5, liveToHeadLine(listOf(Range(3, 3, 3, 5)), 7))
+  }
+
+  @Test
+  fun `a line typed locally shows the nearest head line`() {
+    assertEquals(3, liveToHeadLine(listOf(Range(3, 3, 3, 5)), 4))
+  }
 }
