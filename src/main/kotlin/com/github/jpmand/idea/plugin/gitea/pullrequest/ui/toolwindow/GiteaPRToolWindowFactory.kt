@@ -47,4 +47,9 @@ class GiteaPRToolWindowFactory : ToolWindowFactory, DumbAware {
                 withContext(Dispatchers.EDT) { toolWindow.isAvailable = available }
             }
     }
+
+    companion object {
+        /** The `id` the tool window is registered under in plugin.xml. */
+        const val ID = "Gitea PR"
+    }
 }

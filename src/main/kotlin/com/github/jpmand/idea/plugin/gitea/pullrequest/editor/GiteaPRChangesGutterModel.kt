@@ -1,0 +1,183 @@
+package com.github.jpmand.idea.plugin.gitea.pullrequest.editor
+
+import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPullRequestsSettings
+import com.github.jpmand.idea.plugin.gitea.pullrequest.review.GiteaPRDiscussionsViewModels
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRLiveDiffSync
+import com.intellij.collaboration.async.launchNow
+import com.intellij.collaboration.ui.codereview.diff.DiscussionsViewOption
+import com.intellij.collaboration.ui.codereview.editor.CodeReviewEditorGutterActionableChangesModel
+import com.intellij.collaboration.ui.codereview.editor.CodeReviewEditorGutterChangesRenderer
+import com.intellij.collaboration.ui.codereview.editor.ReviewInEditorUtil
+import com.intellij.collaboration.ui.codereview.editor.asLst
+import com.intellij.collaboration.util.ExcludingApproximateChangedRangesShifter
+import com.intellij.diff.comparison.ComparisonManager
+import com.intellij.diff.comparison.ComparisonPolicy
+import com.intellij.diff.tools.util.text.LineOffsetsUtil
+import com.intellij.diff.util.LineRange
+import com.intellij.diff.util.Range
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.components.service
+import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.progress.DumbProgressIndicator
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.text.StringUtil
+import com.intellij.openapi.vcs.ex.LstRange
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.concurrent.CopyOnWriteArrayList
+
+private val LOG = logger<GiteaPRChangesGutterModel>()
+
+/**
+ * The lines the PR itself changes — base (merge base) to head — marked in a regular project
+ * editor's gutter in the platform's review color, as the bundled GitHub/GitLab plugins do in their
+ * in-editor review. The IDE's own gutter bar keeps showing only local changes against git HEAD,
+ * which are empty right after checking a PR out.
+ *
+ * [prRanges] (base → head) are moved onto the live document through [localRanges] (head → live,
+ * from [GiteaPRLiveDiffSync]); the lines a local edit covers are cut out of them, so the IDE's
+ * own local-changes bar shows there instead.
+ *
+ * Clicking a marker opens the platform's popup: the base text of the range, copy, next/previous
+ * change, and "Show Diff" ([showDiff]), which opens the PR diff of the file at that line, as the
+ * GitHub plugin does.
+ *
+ * Holds its ranges itself rather than delegating to the platform's
+ * `MutableCodeReviewEditorGutterChangesModel`, which is `@ApiStatus.Internal`.
+ */
+@Suppress("UnstableApiUsage")
+class GiteaPRChangesGutterModel(
+    cs: CoroutineScope,
+    project: Project,
+    private val filename: String,
+    baseContent: String,
+    prRanges: List<Range>,
+    private val localRanges: StateFlow<List<Range>>,
+    /** Opens the PR diff of the file, at the given 0-based head line if there is one. */
+    private val showPRDiff: (headLine: Int?) -> Unit,
+) : CodeReviewEditorGutterActionableChangesModel {
+
+    private val baseContent = StringUtil.convertLineSeparators(baseContent)
+    private val settings = project.service<GiteaPullRequestsSettings>()
+    private val highlightListeners = CopyOnWriteArrayList<() -> Unit>()
+
+    private val _reviewRanges = MutableStateFlow<List<LstRange>?>(null)
+    override val reviewRanges: StateFlow<List<LstRange>?> = _reviewRanges.asStateFlow()
+
+    override fun isValid(): Boolean = _reviewRanges.value != null
+
+    init {
+        cs.launchNow {
+            localRanges.collect { local -> _reviewRanges.value = shiftPRRanges(prRanges, local).map { it.asLst() } }
+        }
+        // The setting is shared by every editor, so each one repaints when any of them toggles it.
+        cs.launch {
+            settings.highlightDiffRangesInEditorState.drop(1).collect { highlightListeners.forEach { it() } }
+        }
+    }
+
+    override var shouldHighlightDiffRanges: Boolean
+        get() = settings.highlightDiffRangesInEditor
+        set(value) {
+            settings.highlightDiffRangesInEditor = value
+        }
+
+    override fun addDiffHighlightListener(disposable: Disposable, listener: () -> Unit) {
+        highlightListeners.add(listener)
+        Disposer.register(disposable) { highlightListeners.remove(listener) }
+    }
+
+    override fun getBaseContent(lines: LineRange): String? = linesText(baseContent, lines)
+
+    override fun showDiff(lineIdx: Int?) {
+        val headLine = lineIdx?.let { liveToHeadLine(localRanges.value, it) }
+        LOG.info("Showing '$filename' in the PR diff")
+        showPRDiff(headLine)
+    }
+}
+
+/**
+ * Shows [GiteaPRChangesGutterModel]'s markers in [editor] while the review threads are shown at
+ * all: "Do Not Show" in the review toolbar turns the in-editor review off, as in the GitHub plugin.
+ */
+@Suppress("UnstableApiUsage")
+fun CoroutineScope.installPRChangesGutter(
+    project: Project,
+    editor: Editor,
+    filename: String,
+    baseSha: String,
+    baseContent: String,
+    headContent: String,
+    fileAdded: Boolean,
+    sync: GiteaPRLiveDiffSync,
+    discussionsVm: GiteaPRDiscussionsViewModels,
+    showPRDiff: (headLine: Int?) -> Unit,
+) {
+    launch {
+        val prRanges = withContext(Dispatchers.Default) { prChangedRanges(baseContent, headContent, fileAdded) }
+        LOG.debug("PR changes gutter on $filename: ${prRanges.size} ranges against $baseSha")
+        discussionsVm.discussionsViewOption
+            .map { it != DiscussionsViewOption.DONT_SHOW }
+            .distinctUntilChanged()
+            .collectLatest { shown ->
+                if (!shown) return@collectLatest
+                coroutineScope {
+                    val model = GiteaPRChangesGutterModel(
+                        this, project, filename, baseContent, prRanges, sync.ranges, showPRDiff,
+                    )
+                    // Never returns: shows the markers until this scope is cancelled.
+                    CodeReviewEditorGutterChangesRenderer.render(model, editor)
+                }
+            }
+    }
+}
+
+/**
+ * The PR's own line changes, [baseContent] → [headContent], numbered as an editor [Document]
+ * numbers lines. An added file is a single insertion of all of its lines.
+ */
+internal fun prChangedRanges(baseContent: String, headContent: String, fileAdded: Boolean): List<Range> {
+    val head = StringUtil.convertLineSeparators(headContent)
+    if (fileAdded) return listOf(Range(0, 0, 0, LineOffsetsUtil.create(head).lineCount))
+    val base = StringUtil.convertLineSeparators(baseContent)
+    return ComparisonManager.getInstance()
+        .compareLines(base, head, ComparisonPolicy.DEFAULT, DumbProgressIndicator.INSTANCE)
+        .map { Range(it.startLine1, it.endLine1, it.startLine2, it.endLine2) }
+}
+
+/**
+ * [prRanges] (base → head) moved onto the live document through [localRanges] (head → live): the
+ * base side stays, the head side becomes live lines. The lines a local edit covers are cut out —
+ * the IDE's own local-changes bar marks those.
+ */
+internal fun shiftPRRanges(prRanges: List<Range>, localRanges: List<Range>): List<Range> =
+    if (localRanges.isEmpty()) prRanges else ExcludingApproximateChangedRangesShifter.shift(prRanges, localRanges)
+
+/**
+ * The head line to show in the PR diff for the 0-based live line [liveLine], through [localRanges]
+ * (head → live). A line typed locally has no head line of its own, so it maps to the nearest one,
+ * as in the GitHub plugin.
+ */
+@Suppress("UnstableApiUsage")
+internal fun liveToHeadLine(localRanges: List<Range>, liveLine: Int): Int? =
+    ReviewInEditorUtil.transferLineFromAfter(localRanges, liveLine, approximate = true)?.takeIf { it >= 0 }
+
+/** The text of [lines] in [content] (`\n`-separated), without the last line's newline; null when out of range. */
+internal fun linesText(content: String, lines: LineRange): String? {
+    if (lines.start == lines.end) return ""
+    val offsets = LineOffsetsUtil.create(content)
+    if (lines.start < 0 || lines.end > offsets.lineCount) return null
+    return content.substring(offsets.getLineStart(lines.start), offsets.getLineEnd(lines.end - 1))
+}

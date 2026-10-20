@@ -1,5 +1,6 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.editor
 
+import com.github.jpmand.idea.plugin.gitea.api.rest.pr.GiteaPRFileStatusEnum
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRForCurrentBranch
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRForCurrentBranchService
 import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRChangedFile
@@ -7,6 +8,7 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRDiffEdit
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRInlayComponentsFactory
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.editor.GiteaPRLiveDiffSync
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.launchReviewToolbar
+import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow.GiteaPRShowDiffRequests
 import com.intellij.collaboration.ui.codereview.diff.DiffLineLocation
 import com.intellij.collaboration.ui.codereview.diff.viewer.showCodeReview
 import com.intellij.diff.util.Side
@@ -108,6 +110,18 @@ class GiteaPRReviewInEditorController : EditorFactoryListener {
             LOG.warn("Failed to load head content for '${changedFile.filename}'", e)
             return
         }
+        // Without it the review still works, only the PR's own changes go unmarked.
+        val fileAdded = changedFile.status == GiteaPRFileStatusEnum.ADDED
+        val baseContent = if (fileAdded) "" else try {
+            val baseFilename = changedFile.previousFilename.takeIf { changedFile.status == GiteaPRFileStatusEnum.RENAMED }
+                ?: changedFile.filename
+            current.repository.loadFileContent(baseFilename, current.pr.diffBaseSha)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            LOG.warn("Failed to load base content for '${changedFile.filename}'", e)
+            null
+        }
         LOG.debug("In-editor review on ${changedFile.filename} for PR #${current.pr.number} at ${current.pr.head.sha}")
 
         coroutineScope {
@@ -123,6 +137,15 @@ class GiteaPRReviewInEditorController : EditorFactoryListener {
             }
 
             launchReviewToolbar(project, editor, current.discussionsVm)
+            if (baseContent != null) {
+                installPRChangesGutter(
+                    project, editor, changedFile.filename, current.pr.diffBaseSha, baseContent, headContent, fileAdded,
+                    sync, current.discussionsVm,
+                ) { headLine ->
+                    project.service<GiteaPRShowDiffRequests>()
+                        .requestFile(current.pr, current.repository, current.ctx, changedFile.filename, headLine)
+                }
+            }
             val model = GiteaPRDiffEditorModel(
                 this, project, changedFile, Side.RIGHT, current.discussionsVm, locationToLine, lineToLocation, editor,
             )
