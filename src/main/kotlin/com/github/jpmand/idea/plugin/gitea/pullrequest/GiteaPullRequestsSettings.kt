@@ -33,6 +33,9 @@ internal class GiteaPullRequestsSettings :
         /** PR number -> not-yet-submitted inline review comments, so drafts survive closing and
          * reopening the diff/PR (see [GiteaPRDraftComment]). */
         val draftComments: Map<Int, List<GiteaPRDraftComment>> = emptyMap(),
+        /** Word-level highlighting of the PR's changed lines in the editor, toggled from the
+         * popup of a PR change marker (see [com.github.jpmand.idea.plugin.gitea.pullrequest.editor.GiteaPRChangesGutterModel]). */
+        val highlightDiffRangesInEditor: Boolean = true,
     )
 
     var selectedUrlAndAccountId: Pair<String, String>?
@@ -59,6 +62,15 @@ internal class GiteaPullRequestsSettings :
             }
         }
     val changesGroupingState: StateFlow<Set<String>> = stateFlow.mapState { it.changesGrouping }
+
+    var highlightDiffRangesInEditor: Boolean
+        get() = state.highlightDiffRangesInEditor
+        set(value) {
+            updateStateAndEmit {
+                it.copy(highlightDiffRangesInEditor = value)
+            }
+        }
+    val highlightDiffRangesInEditorState: StateFlow<Boolean> = stateFlow.mapState { it.highlightDiffRangesInEditor }
 
     // ── Per-PR draft comments (persisted across sessions) ──────────────────
 
