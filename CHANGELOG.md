@@ -16,6 +16,7 @@ Now supports 2026.3 IDEs.
 ### Changed
 
 - Increase context lines for the Review comment diff to 4, matching Gitea's
+- Restart is now required when updating the plugin. 
 
 ### Fixed
 
