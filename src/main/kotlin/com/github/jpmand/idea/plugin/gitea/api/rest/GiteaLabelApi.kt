@@ -5,6 +5,8 @@ import com.github.jpmand.idea.plugin.gitea.api.GiteaUriUtil
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.Label
 import com.intellij.collaboration.api.json.loadJsonList
 import com.intellij.collaboration.util.resolveRelative
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * List a repository's labels.
@@ -23,5 +25,9 @@ suspend fun GiteaApi.repoListLabels(
     .addParam("limit", limit)
     .build(server.restApiUri().resolveRelative("repos/$owner/$repo/labels"))
   val request = request(uri).GET().build()
-  return rest.loadJsonList<Label>(request).body()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonList<Label>()
+    }
+  }.body()
 }

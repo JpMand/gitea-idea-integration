@@ -20,7 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.plus
 import javax.swing.Icon
 
-class GiteaCloneDialogExtension : VcsCloneDialogExtension {
+internal class GiteaCloneDialogExtension : VcsCloneDialogExtension {
     override fun getName(): String = SERVICE_DISPLAY_NAME
 
     override fun getIcon(): Icon = GiteaIcons.Logo

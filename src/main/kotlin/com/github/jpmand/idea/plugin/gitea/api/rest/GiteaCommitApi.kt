@@ -4,6 +4,8 @@ import com.github.jpmand.idea.plugin.gitea.api.GiteaApi
 import com.github.jpmand.idea.plugin.gitea.api.rest.dto.Commit
 import com.intellij.collaboration.api.json.loadJsonValue
 import com.intellij.collaboration.util.resolveRelative
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Fetch a single repository commit, including the list of files it affected.
@@ -14,5 +16,9 @@ import com.intellij.collaboration.util.resolveRelative
 suspend fun GiteaApi.repoGetSingleCommit(owner: String, repo: String, sha: String): Commit {
   val uri = server.restApiUri().resolveRelative("repos/$owner/$repo/git/commits/$sha")
   val request = request(uri).GET().build()
-  return rest.loadJsonValue<Commit>(request).body()
+  return withContext(Dispatchers.IO){
+    with(rest){
+      request.loadJsonValue<Commit>()
+    }
+  }.body()
 }

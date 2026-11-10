@@ -28,7 +28,7 @@ val GITEA_MENTION_CANDIDATES_KEY: Key<List<GiteaUser>> = Key.create("Gitea.Menti
  * entirely via [GITEA_MENTION_CANDIDATES_KEY]: [fillCompletionVariants] contributes nothing unless
  * that key is present on the editor, so this never fires in unrelated editors elsewhere in the IDE.
  */
-class GiteaMentionCompletionContributor : CompletionContributor() {
+internal class GiteaMentionCompletionContributor : CompletionContributor() {
 
     override fun fillCompletionVariants(parameters: CompletionParameters, result: CompletionResultSet) {
         val candidates = parameters.editor.getUserData(GITEA_MENTION_CANDIDATES_KEY) ?: return

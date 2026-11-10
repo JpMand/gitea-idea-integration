@@ -6,7 +6,7 @@ import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.collaboration.messages.CollaborationToolsBundle
-import com.intellij.openapi.application.EDT
+import com.intellij.openapi.application.UI
 import com.intellij.openapi.project.Project
 import com.intellij.util.asSafely
 import kotlinx.coroutines.CoroutineScope
@@ -45,7 +45,7 @@ internal sealed class GiteaHttpStatusErrorAction(@Nls name : String) : AbstractA
             parentScope.launch {
                 // updateToken() only produces the new credentials; persisting them is the caller's job.
                 accountManager.updateAccount(result.account, result.token)
-                withContext(Dispatchers.EDT) { resetAction() }
+                withContext(Dispatchers.UI) { resetAction() }
             }
         }
     }

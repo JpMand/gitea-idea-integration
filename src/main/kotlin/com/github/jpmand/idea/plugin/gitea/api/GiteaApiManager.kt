@@ -11,4 +11,4 @@ abstract class GiteaApiManager {
     GiteaApiImpl(server)
 }
 
-class GiteaApiManagerImpl : GiteaApiManager()
+internal class GiteaApiManagerImpl : GiteaApiManager()

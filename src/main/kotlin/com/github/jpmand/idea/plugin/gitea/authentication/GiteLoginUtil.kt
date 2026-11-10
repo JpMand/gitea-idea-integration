@@ -52,6 +52,7 @@ object GiteLoginUtil {
   ): LoginResult = updateToken(project, parentComponent, account, account.name, uniqueAccountPredicate)
 
   @RequiresEdt
+  @Suppress("UnstableApiUsage")
   internal fun logInViaToken(
     project: Project,
     parentComponent: JComponent?,
@@ -81,6 +82,7 @@ object GiteLoginUtil {
   }
 
   @RequiresEdt
+  @Suppress("UnstableApiUsage")
   internal fun updateToken(
     project: Project,
     parentComponent: JComponent?,
@@ -89,8 +91,7 @@ object GiteLoginUtil {
     uniqueAccountPredicate: (GiteaServerPath, String) -> Boolean
   ): LoginResult {
     val predicateWithoutCurrent: (GiteaServerPath, String) -> Boolean = { serverPath, username ->
-      if (serverPath == account.server && username == account.name) true
-      else uniqueAccountPredicate(serverPath, username)
+      (serverPath == account.server && username == account.name) || uniqueAccountPredicate(serverPath, username)
     }
 
     val model = GiteaTokenLoginPanelModel(requiredUsername, predicateWithoutCurrent).apply {
@@ -132,6 +133,7 @@ object GiteLoginUtil {
   }
 
   @RequiresEdt
+  @Suppress("UnstableApiUsage")
   private fun showLoginDialog(
     project: Project,
     parentComponent: JComponent?,

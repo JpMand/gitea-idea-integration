@@ -1,13 +1,13 @@
 package com.github.jpmand.idea.plugin.gitea.authentication.extensions
 
-import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.api.GiteaServerPath
 import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil
 import com.github.jpmand.idea.plugin.gitea.authentication.GiteLoginUtil.LoginResult
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccount
 import com.github.jpmand.idea.plugin.gitea.authentication.account.GiteaAccountManager
-import com.intellij.openapi.application.EDT
+import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.application.UI
 import com.intellij.openapi.application.asContextElement
 import com.intellij.openapi.components.serviceAsync
 import com.intellij.openapi.diagnostic.logger
@@ -24,7 +24,7 @@ import kotlinx.coroutines.withContext
 private val LOG = logger<GiteaHttpAuthDataProvider>()
 
 @Suppress("UnstableApiUsage")
-class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
+internal class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
 
   @RequiresBackgroundThread
   override fun getAuthData(project: Project, url: String, login: String): AuthData? =
@@ -55,7 +55,7 @@ class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
     val host = GitHostingUrlUtil.getUriFromRemoteUrl(gitHostUrl)?.host
     LOG.info("Git asks for credentials for $host (login ${login ?: "any"}); ${accountsWithToken.size} matching accounts")
 
-    val loginResult: LoginResult = withContext(Dispatchers.EDT + ModalityState.any().asContextElement()) {
+    val loginResult: LoginResult = withContext(Dispatchers.UI + ModalityState.any().asContextElement()) {
       when (accountsWithToken.size) {
         0 -> accountManager.createAccount(project, gitHostUrl, login)
         1 -> accountManager.reLogInWithAccount(project, accountsWithToken.keys.single(), login)
@@ -84,7 +84,7 @@ class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
       GiteaServerPath.from(it.toString())
     } ?: return LoginResult.OtherMethod
 
-    return withContext(Dispatchers.EDT + ModalityState.any().asContextElement()) {
+    return withContext(Dispatchers.UI + ModalityState.any().asContextElement()) {
       GiteLoginUtil.logInViaToken(
         project, null, server, login, ::isAccountUnique
       )
@@ -95,7 +95,7 @@ class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
     project: Project,
     account: GiteaAccount,
     login: String? = null
-  ): LoginResult = withContext(Dispatchers.EDT + ModalityState.any().asContextElement()) {
+  ): LoginResult = withContext(Dispatchers.UI + ModalityState.any().asContextElement()) {
     GiteLoginUtil.updateToken(
       project, null, account, login, ::isAccountUnique
     )
@@ -106,7 +106,7 @@ class GiteaHttpAuthDataProvider : GitHttpAuthDataProvider {
     accountsWithToken: Map<GiteaAccount, String?>,
     url: String,
     login: String? = null
-  ): LoginResult = withContext(Dispatchers.EDT + ModalityState.any().asContextElement()) {
+  ): LoginResult = withContext(Dispatchers.UI + ModalityState.any().asContextElement()) {
     val description = GiteaBundle.message("account.choose.git.description")
     val account = GiteLoginUtil.chooseAccount(project, null, description, accountsWithToken.keys)
       ?: return@withContext LoginResult.Failure

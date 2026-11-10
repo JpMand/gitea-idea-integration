@@ -130,7 +130,7 @@ class GiteaServerPath(useHttp: Boolean?, host: String, port: Int?, path: String?
     var result = myUseHttp.hashCode()
     result = 31 * result + (explicitPort ?: 0)
     result = 31 * result + myHost.lowercase().hashCode()
-    result = 31 * result + (normalizedPath?.hashCode() ?: 0)
+    result = 31 * result + normalizedPath.hashCode()
     return result
   }
 }

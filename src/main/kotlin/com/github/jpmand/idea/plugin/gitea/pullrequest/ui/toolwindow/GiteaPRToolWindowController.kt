@@ -9,17 +9,21 @@ import com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPRTimelineVirtualFil
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContext
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContextHolder
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
+import com.github.jpmand.idea.plugin.gitea.pullrequest.diff.GiteaPRDiffTarget
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListPanel
 import com.github.jpmand.idea.plugin.gitea.pullrequest.ui.list.GiteaPRListViewModel
 import com.github.jpmand.idea.plugin.gitea.ui.GiteaSettingsConfigurable
 import com.github.jpmand.idea.plugin.gitea.util.GiteaBundle
 import com.github.jpmand.idea.plugin.gitea.util.GiteaPluginProjectScopeProvider
+import com.intellij.collaboration.ui.codereview.diff.model.DiffViewerScrollRequest
 import com.intellij.collaboration.ui.icon.AsyncImageIconsProvider
 import com.intellij.collaboration.ui.icon.CachingIconsProvider
+import com.intellij.diff.util.Side
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.FileEditorOpenRequest
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
@@ -199,7 +203,7 @@ class GiteaPRToolWindowController(
             description = "${ctx.repo.repositoryPath}: ${pr.title}"
             isCloseable = true
             isPinnable = false
-            setDisposer(Disposable { tabJob.cancel() })
+            setDisposer { tabJob.cancel() }
         }
         detailTabs[number] = DetailTab(content, tabScope, tab, pr)
         cm.addContent(content)
@@ -224,11 +228,21 @@ class GiteaPRToolWindowController(
         tab.selectCommitBySha(req.commitSha)
     }
 
-    /** Opens the given PR's diff on a review thread's file, through its Details tab (opened if
-     * needed), which owns the diff — see [GiteaPRShowDiffRequests]. */
+    /** Opens the given PR's diff on a review thread's file or on a file's line, through its
+     * Details tab (opened if needed), which owns the diff — see [GiteaPRShowDiffRequests]. */
     private fun handleShowDiff(req: GiteaPRShowDiffRequests.Request) {
-        LOG.debug("Showing ${req.thread.path} in the diff of PR #${req.pr.number}")
-        openOrFocusDetailTab(req.ctx, req.repository, req.pr).showThreadDiff(req.thread)
+        val tab = openOrFocusDetailTab(req.ctx, req.repository, req.pr)
+        when (val location = req.location) {
+            is GiteaPRShowDiffRequests.Location.Thread -> {
+                LOG.debug("Showing ${location.thread.path} in the diff of PR #${req.pr.number}")
+                tab.showThreadDiff(location.thread)
+            }
+            is GiteaPRShowDiffRequests.Location.File -> {
+                LOG.debug("Showing ${location.path} at head line ${location.headLine} in the diff of PR #${req.pr.number}")
+                val scrollRequest = location.headLine?.let { DiffViewerScrollRequest.toLine(Side.RIGHT to it) }
+                tab.showDiff(GiteaPRDiffTarget.PullRequest, location.path, scrollRequest)
+            }
+        }
     }
 
     private fun openTimelineEditor(repository: GiteaPRRepository, pr: GiteaPullRequest, ctx: GiteaPRDataContext) {
@@ -242,7 +256,7 @@ class GiteaPRToolWindowController(
             .filterIsInstance<GiteaPRTimelineVirtualFile>()
             .filter { it.prNumber == file.prNumber && it != file }
             .forEach { fileEditorManager.closeFile(it) }
-        fileEditorManager.openFile(file, true)
+        fileEditorManager.requestOpenFile(file, FileEditorOpenRequest.withFocus(true))
     }
 
     private fun closeAllDetailTabs() {

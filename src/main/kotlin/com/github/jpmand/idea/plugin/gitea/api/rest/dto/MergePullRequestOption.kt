@@ -30,7 +30,7 @@ data class MergePullRequestOption(
      *
      * Values: MERGE,REBASE,REBASEMERGE,SQUASH,FASTFORWARDONLY,MANUALLYMERGED
      */
-    enum class Do(val value: kotlin.String)
+    enum class Do(val value: String)
     {
 
         @JsonProperty("merge") MERGE("merge"),

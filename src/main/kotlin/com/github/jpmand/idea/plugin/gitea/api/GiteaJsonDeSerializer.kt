@@ -15,7 +15,9 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.jacksonMapperBuilder
 import com.intellij.collaboration.api.json.JsonDataDeserializer
 import com.intellij.collaboration.api.json.JsonDataSerializer
+import java.io.InputStream
 import java.io.Reader
+import java.nio.charset.Charset
 import java.util.TimeZone
 
 @Suppress("UnstableApiUsage")
@@ -39,7 +41,7 @@ object GiteaJsonDeSerializer : JsonDataSerializer, JsonDataDeserializer {
       .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
       .configure(JsonParser.Feature.AUTO_CLOSE_SOURCE, false)
       .enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS)
-      .serializationInclusion(JsonInclude.Include.NON_NULL)
+      .defaultPropertyInclusion(JsonInclude.Value.construct(JsonInclude.Include.NON_NULL, JsonInclude.Include.NON_NULL))
       .visibility(VisibilityChecker.Std(JsonAutoDetect.Visibility.NONE,
         JsonAutoDetect.Visibility.NONE,
         JsonAutoDetect.Visibility.NONE,
@@ -61,4 +63,11 @@ object GiteaJsonDeSerializer : JsonDataSerializer, JsonDataDeserializer {
       .readValueAsTree<JsonNode>()
       ?.let { mapper.treeToValue(it, type) }
   }
+
+  // The stream is closed by the caller (JsonHttpApiHelper); AUTO_CLOSE_SOURCE is off.
+  override fun <T : Any> readJson(stream: InputStream, charset: Charset, clazz: Class<T>): T? =
+    fromJson(stream.reader(charset), clazz)
+
+  override fun <T : Any> readJson(stream: InputStream, charset: Charset, clazz: Class<T>, vararg classArgs: Class<*>): T? =
+    fromJson(stream.reader(charset), clazz, *classArgs)
 }
