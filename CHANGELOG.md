@@ -2,12 +2,24 @@
 
 # Gitea PR & Code Review Changelog
 
-## [Unreleased]
+## [1.2.0]
+
+Now supports 2026.3 IDEs.
+
+>  2026.2 support will remain in 1.1.x versions, while 1.2.x will support only 2026.3 and forward.
 
 ### Added
 
 - In-editor review marks the lines the pull request changes in the gutter, in the review color the
-  bundled GitHub/GitLab plugins use. Clicking a marker shows the base text and opens the pull request diff at that line.
+  bundled GitHub/GitLab plugins use. Clicking a marker shows the base text and opens the pull request diff at that line. (by @sever0x)
+
+### Changed
+
+- Increase context lines for the Review comment diff to 4, matching Gitea's
+
+### Fixed
+
+- Fixed CRLF issues while reading comments diffs in in-editor review (which caused error that made the comment not appear at all).
 
 ## [1.1.1] - 2026-10-13
 
