@@ -4,6 +4,7 @@ import com.intellij.collaboration.async.launchNow
 import com.intellij.collaboration.ui.codereview.editor.ReviewInEditorUtil
 import com.intellij.diff.util.Range
 import com.intellij.openapi.editor.Document
+import com.intellij.openapi.util.text.StringUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,7 +23,9 @@ import kotlinx.coroutines.flow.asStateFlow
  * what a suggested-change gutter icon needs to turn one local edit into a suggestion, without any
  * further translation.
  */
-class GiteaPRLiveDiffSync(cs: CoroutineScope, headContent: String, document: Document) {
+class GiteaPRLiveDiffSync(cs: CoroutineScope, rawHeadContent: String, document: Document) {
+
+    private val headContent = StringUtil.convertLineSeparators(rawHeadContent)
 
     /** Head lines as Gitea counts them — see [contentLineCount]. */
     private val headLineCount = contentLineCount(headContent)
