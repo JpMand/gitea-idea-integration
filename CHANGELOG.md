@@ -2,12 +2,41 @@
 
 # Gitea PR & Code Review Changelog
 
-## [Unreleased]
+## [1.2.0]  - 2026-11-10
+
+Now supports 2026.3 IDEs.
+
+>  2026.2 support will remain in 1.1.x versions, while 1.2.x will support only 2026.3 and forward.
 
 ### Added
 
 - In-editor review marks the lines the pull request changes in the gutter, in the review color the
-  bundled GitHub/GitLab plugins use. Clicking a marker shows the base text and opens the pull request diff at that line.
+  bundled GitHub/GitLab plugins use. Clicking a marker shows the base text and opens the pull request diff at that line. (by @sever0x)
+
+### Changed
+
+- Increase context lines for the Review comment diff to 4, matching Gitea's
+- Restart is now required when updating the plugin.
+
+### Fixed
+
+- Fixed CRLF issues while reading comments diffs in in-editor review (which caused error that made the comment not appear at all).
+
+## [1.1.2] - 2026-11-10
+
+### Added
+
+- In-editor review marks the lines the pull request changes in the gutter, in the review color the
+  bundled GitHub/GitLab plugins use. Clicking a marker shows the base text and opens the pull request diff at that line. (by @sever0x)
+
+### Changed
+
+- Increase context lines for the Review comment diff to 4, matching Gitea's
+- Restart is now required when updating the plugin.
+
+### Fixed
+
+- Fixed CRLF issues while reading comments diffs in in-editor review (which caused error that made the comment not appear at all).
 
 ## [1.1.1] - 2026-10-13
 
@@ -66,7 +95,9 @@ First public pre-release.
 - Open in browser and copy link for files, lines and commits
 - Requires Gitea 1.27 or later and IntelliJ IDEA 2026.2
 
-[Unreleased]: https://github.com/JpMand/gitea-idea-integration/compare/1.1.1...HEAD
+[Unreleased]: https://github.com/JpMand/gitea-idea-integration/compare/1.1.2...HEAD
+[1.2.0]: https://github.com/JpMand/gitea-idea-integration/compare/1.1.1...1.2.0
+[1.1.2]: https://github.com/JpMand/gitea-idea-integration/compare/1.1.1...1.1.2
 [1.1.1]: https://github.com/JpMand/gitea-idea-integration/compare/1.1.0...1.1.1
 [1.1.0]: https://github.com/JpMand/gitea-idea-integration/compare/1.0.0-alpha...1.1.0
 [1.0.0-alpha]: https://github.com/JpMand/gitea-idea-integration/commits/1.0.0-alpha
