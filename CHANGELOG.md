@@ -2,7 +2,7 @@
 
 # Gitea PR & Code Review Changelog
 
-## [1.2.0]
+## [1.2.0]  - 2026-11-10
 
 Now supports 2026.3 IDEs.
 
@@ -78,7 +78,7 @@ First public pre-release.
 - Open in browser and copy link for files, lines and commits
 - Requires Gitea 1.27 or later and IntelliJ IDEA 2026.2
 
-[Unreleased]: https://github.com/JpMand/gitea-idea-integration/compare/1.1.1...HEAD
+[Unreleased]: https://github.com/JpMand/gitea-idea-integration/compare/1.2.0...HEAD
 [1.2.0]: https://github.com/JpMand/gitea-idea-integration/compare/1.1.1...1.2.0
 [1.1.1]: https://github.com/JpMand/gitea-idea-integration/compare/1.1.0...1.1.1
 [1.1.0]: https://github.com/JpMand/gitea-idea-integration/compare/1.0.0-alpha...1.1.0
