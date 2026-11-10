@@ -79,6 +79,7 @@ First public pre-release.
 - Requires Gitea 1.27 or later and IntelliJ IDEA 2026.2
 
 [Unreleased]: https://github.com/JpMand/gitea-idea-integration/compare/1.1.1...HEAD
+[1.2.0]: https://github.com/JpMand/gitea-idea-integration/compare/1.1.1...1.2.0
 [1.1.1]: https://github.com/JpMand/gitea-idea-integration/compare/1.1.0...1.1.1
 [1.1.0]: https://github.com/JpMand/gitea-idea-integration/compare/1.0.0-alpha...1.1.0
 [1.0.0-alpha]: https://github.com/JpMand/gitea-idea-integration/commits/1.0.0-alpha
