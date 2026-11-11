@@ -2,6 +2,8 @@
 
 # Gitea PR & Code Review Changelog
 
+## [Unreleased]
+
 ## [1.2.0]  - 2026-11-10
 
 Now supports 2026.3 IDEs.
