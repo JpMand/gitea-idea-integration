@@ -1,7 +1,7 @@
 package com.github.jpmand.idea.plugin.gitea.pullrequest.ui.toolwindow
 
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContextHolder
-import com.intellij.openapi.application.UI
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.DumbAware
@@ -44,7 +44,7 @@ internal class GiteaPRToolWindowFactory : ToolWindowFactory, DumbAware {
             .distinctUntilChanged()
             .collect { available ->
                 LOG.info("Gitea PR tool window ${if (available) "available" else "hidden"} in ${toolWindow.project.name}")
-                withContext(Dispatchers.UI) { toolWindow.isAvailable = available }
+                withContext(Dispatchers.EDT) { toolWindow.isAvailable = available }
             }
     }
 

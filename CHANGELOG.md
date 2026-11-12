@@ -2,6 +2,13 @@
 
 # Gitea PR & Code Review Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- Fix an IDE error ("Attempt to take write-intent lock") when opening the Submit Review popup, and the same error
+  when Git asks for Gitea credentials or the pull request branch checkout asks to fix its upstream.
+
 ## [1.2.0]  - 2026-11-10
 
 Now supports 2026.3 IDEs.

@@ -16,33 +16,18 @@ import com.intellij.collaboration.ui.CollaborationToolsUIUtil
 import com.intellij.collaboration.ui.codereview.avatar.Avatar
 import com.intellij.collaboration.ui.codereview.avatar.CodeReviewAvatarUtils
 import com.intellij.collaboration.ui.codereview.details.ReviewDetailsUIUtil
-import com.intellij.collaboration.ui.codereview.list.NamedCollection
-import com.intellij.collaboration.ui.codereview.list.ReviewListComponentFactory
-import com.intellij.collaboration.ui.codereview.list.ReviewListItemPresentation
-import com.intellij.collaboration.ui.codereview.list.ReviewListUtil
-import com.intellij.collaboration.ui.codereview.list.TagPresentation
-import com.intellij.collaboration.ui.codereview.list.UserPresentation
+import com.intellij.collaboration.ui.codereview.list.*
 import com.intellij.collaboration.ui.icon.IconsProvider
-import com.intellij.openapi.actionSystem.ActionUpdateThread
-import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.actionSystem.CommonShortcuts
-import com.intellij.openapi.actionSystem.CompositeShortcutSet
-import com.intellij.openapi.actionSystem.DataSink
-import com.intellij.openapi.actionSystem.DefaultActionGroup
-import com.intellij.openapi.actionSystem.UiDataProvider
+import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.actionSystem.ex.ActionUtil
-import com.intellij.openapi.application.EDT
+import com.intellij.openapi.application.UI
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.util.NlsSafe
-import com.intellij.ui.ColorHexUtil
-import com.intellij.ui.PopupHandler
-import com.intellij.ui.ScrollableContentBorder
-import com.intellij.ui.Side
-import com.intellij.ui.SimpleTextAttributes
+import com.intellij.ui.*
 import com.intellij.ui.components.panels.Wrapper
 import com.intellij.util.ui.JBUI
-import com.intellij.util.ui.UIUtil
 import com.intellij.util.ui.StatusText
+import com.intellij.util.ui.UIUtil
 import icons.CollaborationToolsIcons
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -131,7 +116,7 @@ class GiteaPRListPanel(
             l.selectedValue?.let { pr -> sink[GiteaPRActionKeys.SELECTED_PULL_REQUEST] = pr }
         }
 
-        cs.launch(Dispatchers.EDT) {
+        cs.launch(Dispatchers.UI) {
             combine(vm.isLoading, vm.searchVm.searchState, ::Pair).collect { (isLoading, search) ->
                 updateEmptyText(l.emptyText, isLoading, search)
             }
@@ -149,7 +134,7 @@ class GiteaPRListPanel(
         }
         val centredError = CollaborationToolsUIUtil.moveToCenter(errorPanel())
         val content = Wrapper(listWithBanner)
-        cs.launch(Dispatchers.EDT) {
+        cs.launch(Dispatchers.UI) {
             vm.error.collect { error ->
                 content.setContent(if (error != null && l.model.size == 0) centredError else listWithBanner)
                 content.revalidate()

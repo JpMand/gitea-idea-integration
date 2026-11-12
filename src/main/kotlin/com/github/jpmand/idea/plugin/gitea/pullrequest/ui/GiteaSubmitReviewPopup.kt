@@ -16,7 +16,7 @@ import com.intellij.collaboration.ui.util.bindVisibilityIn
 import com.intellij.collaboration.ui.util.popup.awaitClose
 import com.intellij.icons.AllIcons
 import com.intellij.ide.setToolTipText
-import com.intellij.openapi.application.UI
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.editor.actions.IncrementalFindAction
 import com.intellij.openapi.fileTypes.FileTypes
 import com.intellij.openapi.project.Project
@@ -112,7 +112,8 @@ internal object GiteaSubmitReviewPopup {
         showPopup(vm) { it.showCenteredInCurrentWindow(project) }
 
     private suspend fun showPopup(vm: GiteaSubmitReviewViewModel, show: (JBPopup) -> Unit) {
-        withContext(Dispatchers.UI) {
+        // EDT, not UI: the EditorTextField takes the write-intent lock when the popup lays it out.
+        withContext(Dispatchers.EDT) {
             val editor = createEditor(this, vm.text)
             val popup = JBPopupFactory.getInstance()
                 // the popup needs a focusable component to focus; it won't look inside a panel
