@@ -10,6 +10,7 @@ import com.intellij.collaboration.ui.codereview.details.model.CodeReviewBranches
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.UI
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
@@ -186,7 +187,7 @@ class GiteaPRBranchesViewModel(
                     return@launch
                 }
 
-                withContext(Dispatchers.UI) {
+                withContext(Dispatchers.EDT) {
                     GitBrancher.getInstance(project).merge(
                         GitStandardRemoteBranch(mapping.gitRemote, pr.base.ref),
                         GitBrancher.DeleteOnMergeOption.NOTHING,
@@ -258,7 +259,7 @@ class GiteaPRBranchesViewModel(
                 }
             }
         }
-        withContext(Dispatchers.UI) {
+        withContext(Dispatchers.EDT) {
             GitBrancher.getInstance(project).merge(GitLocalBranch(localRef), GitBrancher.DeleteOnMergeOption.NOTHING, listOf(mapping.gitRepository))
         }
         _isCheckedOut.value = true
@@ -273,7 +274,7 @@ class GiteaPRBranchesViewModel(
         if (matches) return
 
         val expectedUpstream = "${mapping.gitRemote.name}/${pr.head.ref}"
-        val confirmed = withContext(Dispatchers.UI) {
+        val confirmed = withContext(Dispatchers.EDT) {
             MessageDialogBuilder.yesNo(
                 GiteaBundle.message("pull.request.branch.checkout.upstream.mismatch.title"),
                 GiteaBundle.message("pull.request.branch.checkout.upstream.mismatch.message", branchName, expectedUpstream),
