@@ -4,6 +4,7 @@ import com.github.jpmand.idea.plugin.gitea.api.models.GiteaPullRequest
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRDataContext
 import com.github.jpmand.idea.plugin.gitea.pullrequest.data.GiteaPRRepository
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.testFramework.LightVirtualFile
 
 /**
@@ -44,7 +45,12 @@ class GiteaPRTimelineVirtualFile(
     @Volatile
     var title: String = pr.title
 
-    override fun getPresentableName(): String = "$title #$prNumber"
+    /** The tab title: the PR title cut to [MAX_TAB_TITLE_LENGTH] with an ellipsis, then the number. */
+    override fun getPresentableName(): String =
+        "${StringUtil.shortenTextWithEllipsis(title, MAX_TAB_TITLE_LENGTH, 0)} #$prNumber"
+
+    /** The tab tooltip: the full PR title and number — see [GiteaPRTimelineTabTitleProvider]. */
+    val fullPresentableName: String get() = "$title #$prNumber"
 
     override fun isValid(): Boolean = !project.isDisposed
     override fun isWritable(): Boolean = false
@@ -64,5 +70,9 @@ class GiteaPRTimelineVirtualFile(
         result = 31 * result + ctx.account?.id.hashCode()
         result = 31 * result + ctx.repo.repositoryPath.hashCode()
         return result
+    }
+
+    private companion object {
+        const val MAX_TAB_TITLE_LENGTH = 50
     }
 }
