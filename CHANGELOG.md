@@ -8,6 +8,8 @@
 
 - Fix an IDE error ("Attempt to take write-intent lock") when opening the Submit Review popup, and the same error
   when Git asks for Gitea credentials or the pull request branch checkout asks to fix its upstream.
+- Fix an IDE error ("illegal component position") when opening Timeline if two of its
+  events looked the same, such as a review requested from two teams at once.
 
 ## [1.2.0]  - 2026-11-10
 
