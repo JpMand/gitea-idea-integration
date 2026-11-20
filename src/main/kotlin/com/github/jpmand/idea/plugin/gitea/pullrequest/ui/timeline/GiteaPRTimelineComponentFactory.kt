@@ -32,6 +32,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.awt.Component
+import java.awt.Container
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.border.EmptyBorder
@@ -98,12 +100,16 @@ object GiteaPRTimelineComponentFactory {
         //
         // Each item gets its own scope, cancelled when its component is dropped: an item's
         // collectors and its review threads' diff editors would otherwise live as long as the tab.
-        var itemComponents = mutableMapOf<GiteaPRTimelineItemViewModel, BuiltItem>()
+        //
+        // A list can hold equal items (Events and Reviews carry no id, so two identical events in
+        // the same second compare equal); each occurrence still needs a component of its own, as a
+        // Swing component has a single place in its parent. Hence a list of components per item.
+        var itemComponents = mutableMapOf<GiteaPRTimelineItemViewModel, MutableList<BuiltItem>>()
         // Set by Refresh: the next render builds every item anew.
         var rebuildAll = false
 
         fun dropItems() {
-            itemComponents.values.forEach { it.job.cancel() }
+            itemComponents.values.forEach { built -> built.forEach { it.job.cancel() } }
             itemComponents = mutableMapOf()
         }
 
@@ -116,21 +122,16 @@ object GiteaPRTimelineComponentFactory {
             val previous = itemComponents
             val reuse = !rebuildAll
             rebuildAll = false
-            val next = mutableMapOf<GiteaPRTimelineItemViewModel, BuiltItem>()
-            items.forEach { item -> next.getOrPut(item) { (if (reuse) previous.remove(item) else null) ?: buildItem(item) } }
+            val next = mutableMapOf<GiteaPRTimelineItemViewModel, MutableList<BuiltItem>>()
+            val components = items.map { item ->
+                val built = (if (reuse) previous[item]?.removeFirstOrNull() else null) ?: buildItem(item)
+                next.getOrPut(item) { mutableListOf() } += built
+                built.component
+            }
             // Whatever wasn't reused is off screen once the panel is patched below.
-            previous.values.forEach { it.job.cancel() }
+            previous.values.forEach { built -> built.forEach { it.job.cancel() } }
             itemComponents = next
-            items.forEachIndexed { index, item ->
-                val component = next.getValue(item).component
-                if (index >= itemsPanel.componentCount || itemsPanel.getComponent(index) !== component) {
-                    if (index < itemsPanel.componentCount) itemsPanel.remove(index)
-                    itemsPanel.add(component, index)
-                }
-            }
-            while (itemsPanel.componentCount > items.size) {
-                itemsPanel.remove(itemsPanel.componentCount - 1)
-            }
+            setChildrenInPlace(itemsPanel, components)
         }
 
         cs.launch {
@@ -244,6 +245,25 @@ object GiteaPRTimelineComponentFactory {
         return wrapper
     }
 
+}
+
+/**
+ * Makes [components] the children of [container], in that order, touching only the positions that
+ * differ, so a child that stays keeps its state (focus, a draft in a text field). Each component
+ * must appear once: `Container.add` moves a component that is already a child, so a repeated one
+ * would end up in one place only (or fail with "illegal component position").
+ */
+internal fun setChildrenInPlace(container: Container, components: List<Component>) {
+    require(components.toSet().size == components.size) { "Each component must appear once" }
+    components.forEachIndexed { index, component ->
+        if (index >= container.componentCount || container.getComponent(index) !== component) {
+            if (index < container.componentCount) container.remove(index)
+            container.add(component, index)
+        }
+    }
+    while (container.componentCount > components.size) {
+        container.remove(container.componentCount - 1)
+    }
 }
 
 /** A timeline item's component and the job of the scope it was built in. */
