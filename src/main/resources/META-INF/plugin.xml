@@ -45,6 +45,7 @@
         <editorFactoryListener implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.editor.GiteaPRReviewInEditorController"/>
         <fileEditorProvider implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPRTimelineEditorProvider"/>
         <fileIconProvider implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPRVirtualFileIconProvider"/>
+        <editorTabTitleProvider order="first" implementation="com.github.jpmand.idea.plugin.gitea.pullrequest.GiteaPRTimelineTabTitleProvider"/>
         <!-- language="any": the comment editor is Markdown-typed when the bundled Markdown plugin
              is enabled, plain text otherwise, so the language can't be pinned statically — scoping
              is done entirely via GITEA_MENTION_CANDIDATES_KEY on the editor. -->
